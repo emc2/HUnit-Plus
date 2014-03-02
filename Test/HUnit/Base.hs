@@ -367,22 +367,27 @@ performTest reportStart reportError reportFailure initialUs initialT = do
   unless (null (path ss')) $ error "performTest: Final path is nonnull"
   return (counts ss', us')
  where
-  initState  = State{ path = [], counts = initCounts }
-  initCounts = Counts{ cases = testCaseCount initialT, tried = 0,
-                       errors = 0, failures = 0}
+  initState  = State { path = [], counts = initCounts }
+  initCounts = Counts { cases = testCaseCount initialT, tried = 0,
+                        errors = 0, failures = 0}
 
   pt ss us (TestCase a) = do
     us' <- reportStart ss us
-    r <- performTestCase a
-    case r of Nothing         -> do return (ss', us')
-              Just (True,  m) -> do usF <- reportFailure m ssF us'
-                                    return (ssF, usF)
-              Just (False, m) -> do usE <- reportError   m ssE us'
-                                    return (ssE, usE)
-   where c @ Counts{ tried = n } = counts ss
-         ss' = ss{ counts = c{ tried = n + 1 } }
-         ssF = ss{ counts = c{ tried = n + 1, failures = failures c + 1 } }
-         ssE = ss{ counts = c{ tried = n + 1, errors   = errors   c + 1 } }
+    (_, r) <- performTestCase a
+    case r of
+      Nothing -> return (ss', us')
+      Just (True,  m) ->
+        do
+          usF <- reportFailure m ssF us'
+          return (ssF, usF)
+      Just (False, m) ->
+        do
+          usE <- reportError m ssE us'
+          return (ssE, usE)
+   where c @ Counts { tried = n } = counts ss
+         ss' = ss { counts = c { tried = n + 1 } }
+         ssF = ss { counts = c { tried = n + 1, failures = failures c + 1 } }
+         ssE = ss { counts = c { tried = n + 1, errors   = errors   c + 1 } }
 
   pt ss us (TestList ts) = foldM f (ss, us) (zip ts [0..])
    where f (ss', us') (t, n) = withNode (ListItem n) ss' us' t

@@ -1,6 +1,7 @@
 -- | This module abstracts the differences between implementations of 
 -- Haskell (e.g., GHC, Hugs, and NHC).
 
+{-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE CPP #-} 
 {-# LANGUAGE DeriveDataTypeable #-}
 
@@ -36,7 +37,7 @@ import System.IO.Error (ioeGetErrorString, try)
 #endif
 
 import Control.DeepSeq
-
+import System.TimeIt
 
 -- Interfaces
 -- ----------
@@ -61,18 +62,9 @@ assertFailure :: String
               -- ^ A message that is displayed with the assertion failure 
               -> Assertion
 
--- | Performs a single test case.  The meaning of the result is as follows:
--- 
---     [@Nothing@]           test case success
--- 
---     [@Just (True,  msg)@] test case failure with the given message
--- 
---     [@Just (False, msg)@] test case error with the given message
-
-performTestCase :: Assertion
-                -- ^ an assertion to be made during the test case run 
-                -> IO (Maybe (Bool, String))
-
+performTestCase' :: Assertion
+                 -- ^ an assertion to be made during the test case run 
+                 -> IO (Maybe (Bool, String))
 
 -- Implementations
 -- ---------------
@@ -85,7 +77,7 @@ instance Exception HUnitFailure
 
 assertFailure msg = msg `deepseq` E.throwIO (HUnitFailure msg)
 
-performTestCase action = 
+performTestCase' action = 
     do action
        return Nothing
      `E.catches`
@@ -107,7 +99,7 @@ nhc98Prefix = "I/O error (user-defined), call to function `userError':\n  "
 
 assertFailure msg = msg `deepseq` ioError (userError (hunitPrefix ++ msg))
 
-performTestCase action = do r <- try action
+performTestCase' action = do r <- try action
                             case r of Right () -> return Nothing
                                       Left  e  -> return (Just (decode e))
  where
@@ -118,3 +110,16 @@ performTestCase action = do r <- try action
                           then (True, drop (length pref) str)
                           else (False, str)
 #endif
+
+-- | Performs a single test case.  The meaning of the result is as follows:
+-- 
+--     [@Nothing@]           test case success
+-- 
+--     [@Just (True,  msg)@] test case failure with the given message
+-- 
+--     [@Just (False, msg)@] test case error with the given message
+
+performTestCase :: Assertion
+                -- ^ an assertion to be made during the test case run 
+                -> IO (Double, Maybe (Bool, String))
+performTestCase = timeItT . performTestCase'
