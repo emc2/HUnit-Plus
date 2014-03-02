@@ -42,8 +42,7 @@ module Test.HUnit.Base(
        Node(..), 
        testCasePaths,
        testCaseCount,
-       ReportStart,
-       ReportProblem,
+       Reporter(..),
        performTest
        ) where
 
@@ -310,11 +309,12 @@ data State = State { path :: Path, counts :: Counts }
   deriving (Eq, Show, Read)
 
 -- | Report generator for reporting the start of a test run.
-type ReportStart us = State -> us -> IO us
 
--- | Report generator for reporting problems that have occurred during
---   a test run. Problems may be errors or assertion failures.
-type ReportProblem us = String -> State -> us -> IO us
+data Reporter us = Reporter {
+    reporterStart :: State -> us -> IO us,
+    reporterFailure :: String -> State -> us -> IO us,
+    reporterError :: String -> State -> us -> IO us
+  }
 
 -- | Uniquely describes the location of a test within a test hierarchy.
 -- Node order is from test case to root.
@@ -352,17 +352,17 @@ testCaseCount (TestLabel _ t) = testCaseCount t
 -- only between test case executions.  As a result, the number of test
 -- case successes always equals the difference of test cases tried and
 -- the sum of test case errors and failures.
-performTest :: ReportStart us
-            -- ^ report generator for the test run start 
-            -> ReportProblem us
-            -- ^ report generator for errors during the test run
-            -> ReportProblem us
-            -- ^ report generator for assertion failures during the test run
-            -> us 
+performTest :: Reporter us
+            -- ^ Report generator for the test run
+            -> us
+            -- ^ State for the report generator
             -> Test
-            -- ^ the test to be executed 
+            -- ^ The test to be executed
             -> IO (Counts, us)
-performTest reportStart reportError reportFailure initialUs initialT = do
+performTest Reporter { reporterStart = reportStart,
+                       reporterError = reportError,
+                       reporterFailure = reportFailure }
+            initialUs initialT = do
   (ss', us') <- pt initState initialUs initialT
   unless (null (path ss')) $ error "performTest: Final path is nonnull"
   return (counts ss', us')

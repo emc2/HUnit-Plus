@@ -55,16 +55,19 @@ putTextToHandle :: Handle
                 -> Bool
                 -- ^ Write progress lines to handle? 
                 -> PutText Int
-putTextToHandle handle showProgress = PutText put initCnt
- where
-  initCnt = if showProgress then 0 else -1
-  put line pers (-1) = do when pers (hPutStrLn handle line); return (-1)
-  put line True  cnt = do hPutStrLn handle (erase cnt ++ line); return 0
-  put line False _   = do hPutStr handle ('\r' : line); return (length line)
-    -- The "erasing" strategy with a single '\r' relies on the fact that the
-    -- lengths of successive summary lines are monotonically nondecreasing.
-  erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
+putTextToHandle handle showProgress =
+  let
+    initCnt = if showProgress then 0 else -1
 
+    put line pers (-1) = do when pers (hPutStrLn handle line); return (-1)
+    put line True  cnt = do hPutStrLn handle (erase cnt ++ line); return 0
+    put line False _   = do hPutStr handle ('\r' : line); return (length line)
+
+-- The "erasing" strategy with a single '\r' relies on the fact that the
+    -- lengths of successive summary lines are monotonically nondecreasing.
+    erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
+  in
+    PutText put initCnt
 
 -- | Accumulates persistent lines (dropping progess lines) for return by 
 --   'runTestText'.  The accumulated lines are represented by a 
@@ -72,9 +75,13 @@ putTextToHandle handle showProgress = PutText put initCnt
 --   string to be appended to the accumulated report lines.
 
 putTextToShowS :: PutText ShowS
-putTextToShowS = PutText put id
- where put line pers f = return (if pers then acc f line else f)
-       acc f line rest = f (line ++ '\n' : rest)
+putTextToShowS =
+  let
+    put line pers f = return (if pers then acc f line else f)
+
+    acc f line rest = f (line ++ '\n' : rest)
+  in
+    PutText put id
 
 
 -- | Executes a test, processing each report line according to the given 
@@ -83,25 +90,31 @@ putTextToShowS = PutText put id
 --   count values.
 
 runTestText :: PutText st -> Test -> IO (Counts, st)
-runTestText (PutText put us0) t = do
-  (counts', us1) <- performTest reportStart reportError reportFailure us0 t
-  us2 <- put (showCounts counts') True us1
-  return (counts', us2)
- where
-  reportStart ss us = put (showCounts (counts ss)) False us
-  reportError   = reportProblem "Error:"   "Error in:   "
-  reportFailure = reportProblem "Failure:" "Failure in: "
-  reportProblem p0 p1 msg ss us = put line True us
-   where line  = "### " ++ kind ++ path' ++ '\n' : msg
-         kind  = if null path' then p0 else p1
-         path' = showPath (path ss)
+runTestText (PutText put us0) t =
+  let
+    reportProblem p0 p1 msg ss us =
+      let
+        line = "### " ++ kind ++ path' ++ '\n' : msg
+        path' = showPath (path ss)
+        kind = if null path' then p0 else p1
+      in
+        put line True us
 
+    reporter = Reporter {
+        reporterStart = (\ss us -> put (showCounts (counts ss)) False us),
+        reporterError = reportProblem "Error:"   "Error in:   ",
+        reporterFailure = reportProblem "Failure:" "Failure in: "
+      }
+  in do
+    (counts', us1) <- performTest reporter us0 t
+    us2 <- put (showCounts counts') True us1
+    return (counts', us2)
 
 -- | Converts test execution counts to a string.
 
 showCounts :: Counts -> String
-showCounts Counts{ cases = cases', tried = tried',
-                   errors = errors', failures = failures' } =
+showCounts Counts { cases = cases', tried = tried',
+                    errors = errors', failures = failures' } =
   "Cases: " ++ show cases' ++ "  Tried: " ++ show tried' ++
   "  Errors: " ++ show errors' ++ "  Failures: " ++ show failures'
 
@@ -112,12 +125,14 @@ showCounts Counts{ cases = cases', tried = tried',
 
 showPath :: Path -> String
 showPath [] = ""
-showPath nodes = foldl1 f (map showNode nodes)
- where f b a = a ++ ":" ++ b
-       showNode (ListItem n) = show n
-       showNode (Label label) = safe label (show label)
-       safe s ss = if ':' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
-
+showPath nodes =
+  let
+    f b a = a ++ ":" ++ b
+    showNode (ListItem n) = show n
+    showNode (Label label) = safe label (show label)
+    safe s ss = if ':' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
+  in
+    foldl1 f (map showNode nodes)
 
 -- | Provides the \"standard\" text-based test controller. Reporting is made to
 --   standard error, and progress reports are included. For possible 
@@ -126,5 +141,7 @@ showPath nodes = foldl1 f (map showNode nodes)
 --   The \"TT\" in the name suggests \"Text-based reporting to the Terminal\".
 
 runTestTT :: Test -> IO Counts
-runTestTT t = do (counts', 0) <- runTestText (putTextToHandle stderr True) t
-                 return counts'
+runTestTT t =
+  do
+    (counts', 0) <- runTestText (putTextToHandle stderr True) t
+    return counts'
