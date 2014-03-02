@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wall -Werror #-}
+
 -- | Text-based test controller for running HUnit tests and reporting
 --   results as text, usually to a terminal.
 
