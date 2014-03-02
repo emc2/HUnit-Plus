@@ -1,0 +1,22 @@
+Name:                   HUnit-Plus
+Version:                2.0.0.0
+Synopsis:               A test framework building on HUnit.
+Description:
+  HUnit-Plus is a testing framework for Haskell that builds on the
+  HUnit test framework.
+License:                BSD3
+Author:                 Eric McCorkle, Dean Herington
+Maintainer:             eric@metricspace.net
+Stability:              Pre-alpha
+Category:               Testing
+Build-type:             Simple
+Cabal-version:          >= 1.9.2
+
+Library
+  build-depends:        base >= 4.4.0, deepseq, hexpat
+  exposed-modules:      Test.HUnit.Base,
+                        Test.HUnit.Terminal,
+                        Test.HUnit.Text,
+                        Test.HUnit
+  other-modules:
+                        Test.HUnit.Lang
