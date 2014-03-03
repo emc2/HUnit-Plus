@@ -6,7 +6,7 @@
 module Test.HUnit.Text(
        PutText(..),
        putTextToHandle,
-       putTextToString,
+       putTextToShowS,
        runTestText,
        showPath,
        showCounts,
@@ -39,7 +39,7 @@ import System.IO (Handle, stderr, hPutStr, hPutStrLn)
 data PutText st = PutText (String -> st -> IO st) st
 
 -- | Two reporting schemes are defined here.  @putTextToHandle@ writes
--- report lines to a given handle.  'putTextToShowS' accumulates
+-- report lines to a given handle.  'putTextToString' accumulates
 -- persistent lines for return as a whole by 'runTestText'.
 -- 
 -- @putTextToHandle@ writes persistent lines to the given handle,
@@ -53,12 +53,12 @@ data PutText st = PutText (String -> st -> IO st) st
 putTextToHandle :: Handle -> PutText ()
 putTextToHandle handle = PutText (\line () -> hPutStr handle line) ()
 
--- | Accumulates persistent lines (dropping progess lines) for return by 
---   'runTestText'.  The accumulated lines are represented by a 
---   @'ShowS' ('String' -> 'String')@ function whose first argument is the
---   string to be appended to the accumulated report lines.
-putTextToString :: PutText String
-putTextToString = PutText (\buf line -> return (buf ++ line)) ""
+-- | Accumulates persistent lines for return by 'runTestText'.  The
+-- accumulated lines are represented by a @'ShowS' ('String' ->
+-- 'String')@ function whose first argument is the string to be
+-- appended to the accumulated report lines.
+putTextToShowS :: PutText ShowS
+putTextToShowS = PutText (\line func -> return (\rest -> func rest ++ line)) id
 
 
 -- | Executes a test, processing each report line according to the given 
