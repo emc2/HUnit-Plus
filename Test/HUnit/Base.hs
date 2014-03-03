@@ -43,6 +43,7 @@ module Test.HUnit.Base(
        testCasePaths,
        testCaseCount,
        Reporter(..),
+       defaultReporter,
        performTest
        ) where
 
@@ -53,6 +54,7 @@ import Control.Monad (unless, foldM)
 -- ====================
 
 import Test.HUnit.Lang
+import System.TimeIt
 
 
 -- Conditional Assertion Functions
@@ -88,9 +90,11 @@ assertEqual :: (Eq a, Show a)
             -- ^ The actual value
             -> Assertion
 assertEqual preface expected actual =
-  unless (actual == expected) (assertFailure msg)
- where msg = (if null preface then "" else preface ++ "\n") ++
+  let
+    msg = (if null preface then "" else preface ++ "\n") ++
              "expected: " ++ show expected ++ "\n but got: " ++ show actual
+  in
+    unless (actual == expected) (assertFailure msg)
 
 
 -- Overloaded `assert` Function
@@ -308,12 +312,114 @@ data Counts = Counts { cases, tried, errors, failures :: Int }
 data State = State { path :: Path, counts :: Counts }
   deriving (Eq, Show, Read)
 
--- | Report generator for reporting the start of a test run.
-
+-- | Report generator.  This record type contains a number of
+-- functions that are called at various points throughout a test run.
 data Reporter us = Reporter {
-    reporterStart :: State -> us -> IO us,
-    reporterFailure :: String -> State -> us -> IO us,
-    reporterError :: String -> State -> us -> IO us
+    -- | Called at the beginning of a test run
+    reporterStart :: State
+                  -- ^ The HUnit internal state
+                  -> us
+                  -- ^ The user state for this test reporter
+                  -> IO us,
+    -- | Called at the end of a test run
+    reporterEnd :: Double
+                -- ^ The total time it took to run the tests
+                -> State
+                -- ^ The HUnit internal state
+                -> us
+                -- ^ The user state for this test reporter
+                -> IO us,
+    -- | Called at the start of a test suite run
+    reporterStartSuite :: String
+                       -- ^ The name of the test suite
+                       -> [(String, String)]
+                       -- ^ Options given to the test suite
+                       -> State
+                       -- ^ The HUnit internal state
+                       -> us
+                       -- ^ The user state for this test reporter
+                       -> IO us,
+    -- | Called at the end of a test suite run
+    reporterEndSuite :: Double
+                     -- ^ The total time it took to run the test suite
+                     -> State
+                     -- ^ The HUnit internal state
+                     -> us
+                     -- ^ The user state for this test reporter
+                     -> IO us,
+    -- | Called at the start of a test suite run
+    reporterStartCase :: String
+                      -- ^ The name of the test case
+                      -> State
+                      -- ^ The HUnit internal state
+                      -> us
+                      -- ^ The user state for this test reporter
+                      -> IO us,
+    -- | Called at the end of a test suite run
+    reporterEndCase :: Double
+                    -- ^ The total time it took to run the test suite
+                    -> State
+                    -- ^ The HUnit internal state
+                    -> us
+                    -- ^ The user state for this test reporter
+                    -> IO us,
+    -- | Called when skipping a test case
+    reporterSkipCase :: String
+                     -- ^ The name of the test case being skipped
+                     -> State
+                     -- ^ The HUnit internal state
+                     -> us
+                     -- ^ The user state for this test reporter
+                     -> IO us,
+    -- | Called to report output printed to the system output stream
+    reporterSystemOut :: String
+                      -- ^ The content printed to system out
+                      -> State
+                      -- ^ The HUnit internal state
+                      -> us
+                      -- ^ The user state for this test reporter
+                      -> IO us,
+    -- | Called to report output printed to the system error stream
+    reporterSystemErr :: String
+                      -- ^ The content printed to system out
+                      -> State
+                      -- ^ The HUnit internal state
+                      -> us
+                      -- ^ The user state for this test reporter
+                      -> IO us,
+    -- | Called when a test fails
+    reporterFailure :: String
+                    -- ^ A message relating to the error
+                    -> State
+                    -- ^ The HUnit internal state
+                    -> us
+                    -- ^ The user state for this test reporter
+                    -> IO us,
+    -- | Called when a test reports an error
+    reporterError :: String
+                  -- ^ A message relating to the error
+                  -> State
+                  -- ^ The HUnit internal state
+                  -> us
+                  -- ^ The user state for this test reporter
+                  -> IO us
+  }
+
+-- | A reporter containing default actions, which are to do nothing
+-- and return the user state unmodified.
+defaultReporter :: Reporter a
+defaultReporter = Reporter {
+    reporterStart = \_ us -> return us,
+    reporterEnd = \_ _ us -> return us,
+    reporterStartSuite = \_ _ _ us -> return us,
+    reporterEndSuite = \_ _ us -> return us,
+    reporterStartCase = \_ _ us -> return us,
+    reporterEndCase = \_ _ us -> return us,
+    reporterSkipCase = \_ _ us -> return us,
+    reporterSystemOut = \_ _ us -> return us,
+    reporterSystemErr = \_ _ us -> return us,
+    reporterFailure = \_ _ us -> return us,
+    reporterError = \_ _ us -> return us
   }
 
 -- | Uniquely describes the location of a test within a test hierarchy.
@@ -326,11 +432,14 @@ data Node  = ListItem Int | Label String
 
 -- | Determines the paths for all 'TestCase's in a tree of @Test@s.
 testCasePaths :: Test -> [Path]
-testCasePaths t0 = tcp t0 []
- where tcp (TestCase _) p = [p]
-       tcp (TestList ts) p =
-         concat [ tcp t (ListItem n : p) | (t,n) <- zip ts [0..] ]
-       tcp (TestLabel l t) p = tcp t (Label l : p)
+testCasePaths t0 =
+  let
+    tcp (TestCase _) p = [p]
+    tcp (TestList ts) p =
+      concat [ tcp t (ListItem n : p) | (t,n) <- zip ts [0..] ]
+    tcp (TestLabel l t) p = tcp t (Label l : p)
+  in
+    tcp t0 []
 
 -- | Counts the number of 'TestCase's in a tree of @Test@s.
 testCaseCount :: Test -> Int
@@ -360,41 +469,59 @@ performTest :: Reporter us
             -- ^ The test to be executed
             -> IO (Counts, us)
 performTest Reporter { reporterStart = reportStart,
+                       reporterEnd = reportEnd,
+                       reporterEndCase = reportEndCase,
                        reporterError = reportError,
                        reporterFailure = reportFailure }
-            initialUs initialT = do
-  (ss', us') <- pt initState initialUs initialT
-  unless (null (path ss')) $ error "performTest: Final path is nonnull"
-  return (counts ss', us')
- where
-  initState  = State { path = [], counts = initCounts }
-  initCounts = Counts { cases = testCaseCount initialT, tried = 0,
-                        errors = 0, failures = 0}
+            initialUs initialTest =
+  let
+    initState  = State { path = [], counts = initCounts }
+    initCounts = Counts { cases = testCaseCount initialTest, tried = 0,
+                          errors = 0, failures = 0}
 
-  pt ss us (TestCase a) = do
-    us' <- reportStart ss us
-    (_, r) <- performTestCase a
-    case r of
-      Nothing -> return (ss', us')
-      Just (True,  m) ->
-        do
-          usF <- reportFailure m ssF us'
-          return (ssF, usF)
-      Just (False, m) ->
-        do
-          usE <- reportError m ssE us'
-          return (ssE, usE)
-   where c @ Counts { tried = n } = counts ss
-         ss' = ss { counts = c { tried = n + 1 } }
-         ssF = ss { counts = c { tried = n + 1, failures = failures c + 1 } }
-         ssE = ss { counts = c { tried = n + 1, errors   = errors   c + 1 } }
+    withNode node ss0 us0 t =
+      let
+        path0 = path ss0
 
-  pt ss us (TestList ts) = foldM f (ss, us) (zip ts [0..])
-   where f (ss', us') (t, n) = withNode (ListItem n) ss' us' t
+        ss1 = ss0 { path = node : path0 }
+      in do
+        (ss2, us1) <- performTest' ss1 us0 t
+        return (ss2 { path = path0 }, us1)
 
-  pt ss us (TestLabel label t) = withNode (Label label) ss us t
-
-  withNode node ss0 us0 t = do (ss2, us1) <- pt ss1 us0 t
-                               return (ss2{ path = path0 }, us1)
-   where path0 = path ss0
-         ss1 = ss0{ path = node : path0 }
+    performTest' ss us (TestCase a) =
+      let
+        c @ Counts { tried = n } = counts ss
+        ssSuccess = ss { counts = c { tried = n + 1 } }
+        ssFail = ss { counts = c { tried = n + 1, failures = failures c + 1 } }
+        ssError = ss { counts = c { tried = n + 1, errors = errors c + 1 } }
+        usStarted = us
+      in do
+      --usStarted <- reportStart ss us
+      (time, r) <- performTestCase a
+      case r of
+        Nothing ->
+          do
+            usEnded <- reportEndCase time ssSuccess usStarted
+            return (ssSuccess, usEnded)
+        Just (True,  m) ->
+          do
+            usFail <- reportFailure m ssFail usStarted
+            usEnded <- reportEndCase time ssFail usFail
+            return (ssFail, usEnded)
+        Just (False, m) ->
+          do
+            usError <- reportError m ssError usStarted
+            usEnded <- reportEndCase time ssError usError
+            return (ssError, usEnded)
+    performTest' ss us (TestList ts) =
+      let
+        foldfun (ss', us') (t, n) = withNode (ListItem n) ss' us' t
+      in
+        foldM foldfun (ss, us) (zip ts [0..])
+    performTest' ss us (TestLabel label t) = withNode (Label label) ss us t
+  in do
+    usStarted <- reportStart initState initialUs
+    (time, (ss', us')) <- timeItT (performTest' initState usStarted initialTest)
+    usEnded <- reportEnd time ss' us'
+    unless (null (path ss')) $ error "performTest: Final path is nonnull"
+    return (counts ss', usEnded)

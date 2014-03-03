@@ -100,9 +100,9 @@ runTestText (PutText put us0) t =
       in
         put line True us
 
-    reporter = Reporter {
-        reporterStart = (\ss us -> put (showCounts (counts ss)) False us),
-        reporterError = reportProblem "Error:"   "Error in:   ",
+    reporter = defaultReporter {
+        reporterEndCase = (\_ ss us -> put (showCounts (counts ss)) False us),
+        reporterError = reportProblem "Error:" "Error in:   ",
         reporterFailure = reportProblem "Failure:" "Failure in: "
       }
   in do
