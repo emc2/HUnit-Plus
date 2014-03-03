@@ -142,6 +142,30 @@ showPath nodes =
 
 runTestTT :: Test -> IO Counts
 runTestTT t =
-  do
-    (counts', 0) <- runTestText (putTextToHandle stderr True) t
+  let
+    put line pers (-1) = do when pers (hPutStrLn stderr line); return (-1)
+    put line True  cnt = do hPutStrLn stderr (erase cnt ++ line); return 0
+    put line False _   = do hPutStr stderr ('\r' : line); return (length line)
+
+    -- The "erasing" strategy with a single '\r' relies on the fact that the
+    -- lengths of successive summary lines are monotonically nondecreasing.
+    erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
+
+    reportProblem p0 p1 msg ss us =
+      let
+        line = "### " ++ kind ++ path' ++ '\n' : msg
+        path' = showPath (path ss)
+        kind = if null path' then p0 else p1
+      in
+        put line True us
+
+    reporter = defaultReporter {
+        reporterEndCase = (\_ ss us -> put (showCounts (counts ss)) False us),
+        reporterError = reportProblem "Error:" "Error in:   ",
+        reporterFailure = reportProblem "Failure:" "Failure in: "
+      }
+
+  in do
+    (counts', us1) <- performTest reporter 0 t
+    0 <- put (showCounts counts') True us1
     return counts'
