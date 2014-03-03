@@ -6,7 +6,7 @@
 module Test.HUnit.Text(
        PutText(..),
        putTextToHandle,
-       putTextToShowS,
+       putTextToString,
        runTestText,
        showPath,
        showCounts,
@@ -36,8 +36,7 @@ import System.IO (Handle, stderr, hPutStr, hPutStrLn)
 --   value (called 'st' here).  The initial state value is given in the
 --   'PutText'; the final value is returned by 'runTestText'.
 
-data PutText st = PutText (String -> Bool -> st -> IO st) st
-
+data PutText st = PutText (String -> st -> IO st) st
 
 -- | Two reporting schemes are defined here.  @putTextToHandle@ writes
 -- report lines to a given handle.  'putTextToShowS' accumulates
@@ -51,63 +50,76 @@ data PutText st = PutText (String -> Bool -> st -> IO st) st
 -- carriage return and blank characters, its proper effect is usually
 -- only obtained on terminal devices.
 
-putTextToHandle :: Handle
-                -> Bool
-                -- ^ Write progress lines to handle? 
-                -> PutText Int
-putTextToHandle handle showProgress =
-  let
-    initCnt = if showProgress then 0 else -1
-
-    put line pers (-1) = do when pers (hPutStrLn handle line); return (-1)
-    put line True  cnt = do hPutStrLn handle (erase cnt ++ line); return 0
-    put line False _   = do hPutStr handle ('\r' : line); return (length line)
-
--- The "erasing" strategy with a single '\r' relies on the fact that the
-    -- lengths of successive summary lines are monotonically nondecreasing.
-    erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
-  in
-    PutText put initCnt
+putTextToHandle :: Handle -> PutText ()
+putTextToHandle handle = PutText (\line () -> hPutStr handle line) ()
 
 -- | Accumulates persistent lines (dropping progess lines) for return by 
 --   'runTestText'.  The accumulated lines are represented by a 
 --   @'ShowS' ('String' -> 'String')@ function whose first argument is the
 --   string to be appended to the accumulated report lines.
-
-putTextToShowS :: PutText ShowS
-putTextToShowS =
-  let
-    put line pers f = return (if pers then acc f line else f)
-
-    acc f line rest = f (line ++ '\n' : rest)
-  in
-    PutText put id
+putTextToString :: PutText String
+putTextToString = PutText (\buf line -> return (buf ++ line)) ""
 
 
 -- | Executes a test, processing each report line according to the given 
 --   reporting scheme.  The reporting scheme's state is threaded through calls 
 --   to the reporting scheme's function and finally returned, along with final 
 --   count values.
-
-runTestText :: PutText st -> Test -> IO (Counts, st)
-runTestText (PutText put us0) t =
+runTestText :: PutText us
+            -- ^ A function which accumulates output
+            -> Bool
+            -- ^ Whether or not to run the test in verbose mode.
+            -> Test
+            -- ^ The test to run
+            -> IO (Counts, us)
+runTestText (PutText put us0) verbose t =
   let
     reportProblem p0 p1 msg ss us =
       let
-        line = "### " ++ kind ++ path' ++ '\n' : msg
-        path' = showPath (path ss)
         kind = if null path' then p0 else p1
+        path' = showPath (path ss)
+        line = "### " ++ kind ++ path' ++ ": " ++ msg ++ "\n"
       in
-        put line True us
+        put line us
+
+    reportOutput p0 p1 msg ss us =
+      let
+        kind = if null path' then p0 else p1
+        path' = showPath (path ss)
+        line = "### " ++ kind ++ path' ++ ": " ++ msg ++ "\n"
+      in
+        if verbose then put line us
+        else return us
+
+    reportStartCase _ ss us =
+      let
+        path' = showPath (path ss)
+        line = if null path' then "Test case starting\n"
+               else "Test case " ++ path' ++ " starting\n"
+      in
+        if verbose then put line us
+        else return us
+
+    reportEndCase time ss us =
+      let
+        path' = showPath (path ss)
+        line = if null path' then "Test completed in " ++ show time ++ "sec\n"
+               else "Test " ++ path' ++ " completed in " ++ show time ++ "sec\n"
+      in
+        if verbose then put line us
+        else return us
 
     reporter = defaultReporter {
-        reporterEndCase = (\_ ss us -> put (showCounts (counts ss)) False us),
-        reporterError = reportProblem "Error:" "Error in:   ",
-        reporterFailure = reportProblem "Failure:" "Failure in: "
+        reporterStartCase = reportStartCase,
+        reporterEndCase = reportEndCase,
+        reporterSystemOut = reportOutput "STDOUT " "STDOUT from ",
+        reporterSystemErr = reportOutput "STDERR" "STDERR from ",
+        reporterError = reportProblem "Error " "Error in ",
+        reporterFailure = reportProblem "Failure" "Failure in "
       }
   in do
     (counts', us1) <- performTest reporter us0 t
-    us2 <- put (showCounts counts') True us1
+    us2 <- put (showCounts counts') us1
     return (counts', us2)
 
 -- | Converts test execution counts to a string.
