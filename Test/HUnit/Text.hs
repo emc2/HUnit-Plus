@@ -17,6 +17,7 @@ import Test.HUnit.Base
 
 import Control.Monad (when)
 import System.IO (Handle, stderr, hPutStr, hPutStrLn)
+import Text.Printf(printf)
 
 
 -- | As the general text-based test controller ('runTestText') executes a
@@ -58,7 +59,8 @@ putTextToHandle handle = PutText (\line () -> hPutStr handle line) ()
 -- 'String')@ function whose first argument is the string to be
 -- appended to the accumulated report lines.
 putTextToShowS :: PutText ShowS
-putTextToShowS = PutText (\line func -> return (\rest -> func rest ++ line)) id
+putTextToShowS =
+  PutText (\line func -> return (\rest -> func (line ++ rest))) id
 
 
 -- | Executes a test, processing each report line according to the given 
@@ -103,8 +105,9 @@ runTestText (PutText put us0) verbose t =
     reportEndCase time ss us =
       let
         path' = showPath (path ss)
-        line = if null path' then "Test completed in " ++ show time ++ "sec\n"
-               else "Test " ++ path' ++ " completed in " ++ show time ++ "sec\n"
+        timestr = printf "%.6f" time
+        line = if null path' then "Test completed in " ++ timestr ++ " sec\n"
+               else "Test " ++ path' ++ " completed in " ++ timestr ++ " sec\n"
       in
         if verbose then put line us
         else return us
@@ -119,7 +122,7 @@ runTestText (PutText put us0) verbose t =
       }
   in do
     (counts', us1) <- performTest reporter us0 t
-    us2 <- put (showCounts counts') us1
+    us2 <- put (showCounts counts' ++ "\n") us1
     return (counts', us2)
 
 -- | Converts test execution counts to a string.
