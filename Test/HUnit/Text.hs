@@ -8,9 +8,13 @@ module Test.HUnit.Text(
        putTextToHandle,
        putTextToShowS,
        runTestText,
+       runSuiteText,
+       runSuitesText,
        showPath,
        showCounts,
-       runTestTT
+       runTestTT,
+       runSuiteTT,
+       runSuitesTT
        ) where
 
 import Test.HUnit.Base
@@ -62,19 +66,13 @@ putTextToShowS :: PutText ShowS
 putTextToShowS =
   PutText (\line func -> return (\rest -> func (line ++ rest))) id
 
-
--- | Executes a test, processing each report line according to the given 
---   reporting scheme.  The reporting scheme's state is threaded through calls 
---   to the reporting scheme's function and finally returned, along with final 
---   count values.
-runTestText :: PutText us
-            -- ^ A function which accumulates output
-            -> Bool
-            -- ^ Whether or not to run the test in verbose mode.
-            -> Test
-            -- ^ The test to run
-            -> IO (Counts, us)
-runTestText (PutText put us0) verbose t =
+-- | Create a reporter that outputs a textual report, not to a terminal.
+textReporter :: PutText us
+             -- ^ The method for outputting text
+             -> Bool
+             -- ^ Whether or not to run the test in verbose mode.
+             -> Reporter us
+textReporter (PutText put _) verbose =
   let
     reportProblem p0 p1 msg ss us =
       let
@@ -111,17 +109,65 @@ runTestText (PutText put us0) verbose t =
       in
         if verbose then put line us
         else return us
+  in
+    defaultReporter {
+      reporterStartCase = reportStartCase,
+      reporterEndCase = reportEndCase,
+      reporterSystemOut = reportOutput "STDOUT " "STDOUT from ",
+      reporterSystemErr = reportOutput "STDERR" "STDERR from ",
+      reporterError = reportProblem "Error " "Error in ",
+      reporterFailure = reportProblem "Failure" "Failure in "
+    }
 
-    reporter = defaultReporter {
-        reporterStartCase = reportStartCase,
-        reporterEndCase = reportEndCase,
-        reporterSystemOut = reportOutput "STDOUT " "STDOUT from ",
-        reporterSystemErr = reportOutput "STDERR" "STDERR from ",
-        reporterError = reportProblem "Error " "Error in ",
-        reporterFailure = reportProblem "Failure" "Failure in "
-      }
+-- | Executes a test, processing each report line according to the given
+--   reporting scheme.  The reporting scheme's state is threaded through calls
+--   to the reporting scheme's function and finally returned, along with final
+--   count values.
+runTestText :: PutText us
+            -- ^ A function which accumulates output
+            -> Bool
+            -- ^ Whether or not to run the test in verbose mode.
+            -> Test
+            -- ^ The test to run
+            -> IO (Counts, us)
+runTestText puttext @ (PutText put us0) verbose t =
+  let
+    initCounts = Counts { cases = testCaseCount t, tried = 0,
+                          errors = 0, failures = 0 }
+
+    reporter = textReporter puttext verbose
   in do
-    (counts', us1) <- performTest reporter us0 t
+    (counts', us1) <- performTest reporter initCounts us0 t
+    us2 <- put (showCounts counts' ++ "\n") us1
+    return (counts', us2)
+
+runSuiteText :: PutText us
+             -- ^ A function which accumulates output
+             -> Bool
+             -- ^ Whether or not to run the test in verbose mode.
+             -> TestSuite
+             -- ^ The test to run
+             -> IO (Counts, us)
+runSuiteText puttext @ (PutText put us0) verbose suite =
+  let
+    reporter = textReporter puttext verbose
+  in do
+    (counts', us1) <- performTestSuite reporter us0 suite
+    us2 <- put (showCounts counts' ++ "\n") us1
+    return (counts', us2)
+
+runSuitesText :: PutText us
+              -- ^ A function which accumulates output
+              -> Bool
+              -- ^ Whether or not to run the test in verbose mode.
+              -> [TestSuite]
+              -- ^ The test to run
+              -> IO (Counts, us)
+runSuitesText puttext @ (PutText put us0) verbose suites =
+  let
+    reporter = textReporter puttext verbose
+  in do
+    (counts', us1) <- performTestSuites reporter us0 suites
     us2 <- put (showCounts counts' ++ "\n") us1
     return (counts', us2)
 
@@ -149,38 +195,61 @@ showPath nodes =
   in
     foldl1 f (map showNode nodes)
 
--- | Provides the \"standard\" text-based test controller. Reporting is made to
---   standard error, and progress reports are included. For possible 
---   programmatic use, the final counts are returned.
--- 
---   The \"TT\" in the name suggests \"Text-based reporting to the Terminal\".
+-- | Terminal output function, used by the run*TT function and
+-- terminal reporters.
+termPut :: String -> Bool -> Int -> IO Int
+termPut line pers (-1) = do when pers (hPutStrLn stderr line); return (-1)
+termPut line True  cnt = do hPutStrLn stderr (erase cnt ++ line); return 0
+termPut line False _   = do hPutStr stderr ('\r' : line); return (length line)
 
-runTestTT :: Test -> IO Counts
-runTestTT t =
+-- The "erasing" strategy with a single '\r' relies on the fact that the
+-- lengths of successive summary lines are monotonically nondecreasing.
+erase :: Int -> String
+erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
+
+-- | A reporter that outputs lines indicating progress to the terminal.
+terminalReporter :: Reporter Int
+terminalReporter =
   let
-    put line pers (-1) = do when pers (hPutStrLn stderr line); return (-1)
-    put line True  cnt = do hPutStrLn stderr (erase cnt ++ line); return 0
-    put line False _   = do hPutStr stderr ('\r' : line); return (length line)
-
-    -- The "erasing" strategy with a single '\r' relies on the fact that the
-    -- lengths of successive summary lines are monotonically nondecreasing.
-    erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
-
     reportProblem p0 p1 msg ss us =
       let
         line = "### " ++ kind ++ path' ++ '\n' : msg
         path' = showPath (path ss)
         kind = if null path' then p0 else p1
       in
-        put line True us
+        termPut line True us
+  in
+    defaultReporter {
+      reporterEndCase = (\_ ss us -> termPut (showCounts (counts ss)) False us),
+      reporterError = reportProblem "Error:" "Error in:   ",
+      reporterFailure = reportProblem "Failure:" "Failure in: "
+    }
 
-    reporter = defaultReporter {
-        reporterEndCase = (\_ ss us -> put (showCounts (counts ss)) False us),
-        reporterError = reportProblem "Error:" "Error in:   ",
-        reporterFailure = reportProblem "Failure:" "Failure in: "
-      }
-
+-- | Provides the \"standard\" text-based test controller. Reporting is made to
+--   standard error, and progress reports are included. For possible
+--   programmatic use, the final counts are returned.
+--
+--   The \"TT\" in the name suggests \"Text-based reporting to the Terminal\".
+runTestTT :: Test -> IO Counts
+runTestTT t =
+  let
+    initCounts = Counts { cases = testCaseCount t, tried = 0,
+                          errors = 0, failures = 0 }
   in do
-    (counts', us1) <- performTest reporter 0 t
-    0 <- put (showCounts counts') True us1
+    (counts', us1) <- performTest terminalReporter initCounts 0 t
+    0 <- termPut (showCounts counts') True us1
     return counts'
+
+runSuiteTT :: TestSuite -> IO Counts
+runSuiteTT suite =
+  do
+    (rescounts, us) <- performTestSuite terminalReporter 0 suite
+    0 <- termPut (showCounts rescounts ++ "\n") True us
+    return rescounts
+
+runSuitesTT :: [TestSuite] -> IO Counts
+runSuitesTT suite =
+  do
+    (rescounts, us) <- performTestSuites terminalReporter 0 suite
+    0 <- termPut (showCounts rescounts ++ "\n") True us
+    return rescounts
