@@ -18,6 +18,7 @@ module Test.HUnit.Text(
        ) where
 
 import Test.HUnit.Base
+import Test.HUnit.Reporting
 
 import Control.Monad (when)
 import System.IO (Handle, stderr, hPutStr, hPutStrLn)
@@ -132,8 +133,8 @@ runTestText :: PutText us
             -> IO (Counts, us)
 runTestText puttext @ (PutText put us0) verbose t =
   let
-    initCounts = Counts { cases = testCaseCount t, tried = 0,
-                          errors = 0, failures = 0 }
+    initCounts = Counts { cases = fromIntegral (testCaseCount t),
+                          tried = 0, errors = 0, failures = 0 }
 
     reporter = textReporter puttext verbose
   in do
@@ -189,7 +190,6 @@ showPath [] = ""
 showPath nodes =
   let
     f b a = a ++ ":" ++ b
-    showNode (ListItem n) = show n
     showNode (Label label) = safe label (show label)
     safe s ss = if ':' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
   in
@@ -233,8 +233,8 @@ terminalReporter =
 runTestTT :: Test -> IO Counts
 runTestTT t =
   let
-    initCounts = Counts { cases = testCaseCount t, tried = 0,
-                          errors = 0, failures = 0 }
+    initCounts = Counts { cases = fromIntegral (testCaseCount t),
+                          tried = 0, errors = 0, failures = 0 }
   in do
     (counts', us1) <- performTest terminalReporter initCounts 0 t
     0 <- termPut (showCounts counts') True us1
