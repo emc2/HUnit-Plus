@@ -15,6 +15,7 @@ Cabal-version:          >= 1.9.2
 Library
   build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit
   exposed-modules:      Test.HUnit.Base
+                        Test.HUnit.Execution
 --                        Test.HUnit.OldTest
                         Test.HUnit.Reporting
                         Test.HUnit.Terminal
