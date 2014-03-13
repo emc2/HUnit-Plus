@@ -17,7 +17,9 @@ module Test.HUnit.Text(
        runSuitesTT
        ) where
 
+import Distribution.TestSuite
 import Test.HUnit.Base
+import Test.HUnit.Execution
 import Test.HUnit.Reporting
 
 import Control.Monad (when)
