@@ -27,15 +27,12 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
                            reporterEndCase = reportEndCase,
                            reporterError = reportError,
                            reporterFailure = reportFailure }
-                ss @ State { counts = c @ Counts { tried = n } } us
+                ss @ State { stCounts = c @ Counts { tried = n },
+                             stName = oldname } us
                 TestInstance { run = runTest, name = testName } =
   let
-    -- Counts to use in event of success
-    ssSuccess = ss { counts = c { tried = n + 1 } }
-    -- Counts to use in event of a failure
-    ssFail = ss { counts = c { tried = n + 1, failures = failures c + 1 } }
-    -- Counts to use in event of an error
-    ssError = ss { counts = c { tried = n + 1, errors = errors c + 1 } }
+    -- Add the name to the state we use to run the tests
+    ssWithName = ss { stName = testName }
 
     finishTestCase us' action =
       do
@@ -48,28 +45,39 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
           Finished res -> return (res, us')
   in do
     -- Call the reporter's start case function
-    usStarted <- reportStartCase testName ss us
+    usStarted <- reportStartCase ssWithName us
     -- Actually run the test
     (time, (r, usFinished)) <- timeItT (finishTestCase usStarted runTest)
     -- Eventually, will need to report stdout and stderr activity
     case r of
       -- If the test succeeded, just report end of case
       Pass ->
-        do
+        let
+          -- Counts to use in event of success
+          ssSuccess = ssWithName { stCounts = c { tried = n + 1 } }
+        in do
           usEnded <- reportEndCase time ssSuccess usFinished
-          return (ssSuccess, usEnded)
+          return (ssSuccess { stName = oldname }, usEnded)
       -- If there was a failure, report it, then report end of case
       Fail msg ->
-        do
+        let
+          -- Counts to use in event of a failure
+          ssFail = ssWithName { stCounts = c { tried = n + 1,
+                                               failures = failures c + 1 } }
+        in do
           usFail <- reportFailure msg ssFail usFinished
           usEnded <- reportEndCase time ssFail usFail
-          return (ssFail, usEnded)
+          return (ssFail { stName = oldname }, usEnded)
       -- If there was an error, report it, then report end of case
       Error msg ->
-        do
+        let
+          -- Counts to use in event of an error
+          ssError = ssWithName { stCounts = c { tried = n + 1,
+                                                errors = errors c + 1 } }
+        in do
           usError <- reportError msg ssError usFinished
           usEnded <- reportEndCase time ssError usError
-          return (ssError, usEnded)
+          return (ssError { stName = oldname }, usEnded)
 
 -- | Performs a test run with the specified report generators.
 --
@@ -87,31 +95,28 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
 -- the sum of test case errors and failures.
 performTest :: Reporter us
             -- ^ Report generator for the test run
-            -> Counts
+            -> State
             -- ^ Initial counts for tests
             -> us
             -- ^ State for the report generator
             -> Test
             -- ^ The test to be executed
-            -> IO (Counts, us)
-performTest rep initialCounts initialUs initialTest =
+            -> IO (State, us)
+performTest rep initState initialUs initialTest =
   let
-    -- Initial state and counts, with empty path and zeroed-out counts
-    initState  = State { path = [], counts = initialCounts }
-
     -- The recursive worker function that actually runs all the tests
     performTest' ss us Group { groupName = gname, groupTests = testlist } =
       let
         -- Update the path for running the group's tests
-        oldpath = path ss
-        ssWithPath = ss { path = (Label gname) : oldpath }
+        oldpath = stPath ss
+        ssWithPath = ss { stPath = (Label gname) : oldpath }
 
         foldfun (ss', us') t = performTest' ss' us' t
       in do
         -- Run the tests with the updated path
         (ssAfter, usAfter) <- foldM foldfun (ssWithPath, us) testlist
         -- Return the state, reset to the old path
-        return (ssAfter { path = oldpath }, usAfter)
+        return (ssAfter { stPath = oldpath }, usAfter)
     performTest' ss us (Test testinstance) =
       -- For an individual test, just run the test case
       performTestCase rep ss us testinstance
@@ -121,8 +126,8 @@ performTest rep initialCounts initialUs initialTest =
       performTest' ss us inner
   in do
     (ss', us') <- performTest' initState initialUs initialTest
-    unless (null (path ss')) $ error "performTest: Final path is nonnull"
-    return (counts ss', us')
+    unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
+    return (ss', us')
 
 performTestSuite :: Reporter us
                  -- ^ Report generator to use for running the test suite
@@ -141,14 +146,16 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
     -- traversal of the test cases themselves
     initCounts = Counts { cases = fromIntegral (sum (map testCaseCount testlist)),
                           tried = 0, errors = 0, failures = 0 }
+    initState = State { stCounts = initCounts, stName = sname,
+                        stPath = [], stOptions = suiteOpts }
 
     foldfun (c, us) test = performTest rep c us test
   in do
-    startedUs <- reportStartSuite sname suiteOpts initialUs
-    (time, (finishedCounts, finishedUs)) <-
-      timeItT (foldM foldfun (initCounts, startedUs) testlist)
-    endedUs <- reportEndSuite time finishedCounts finishedUs
-    return (finishedCounts, endedUs)
+    startedUs <- reportStartSuite initState initialUs
+    (time, (finishedState, finishedUs)) <-
+      timeItT (foldM foldfun (initState, startedUs) testlist)
+    endedUs <- reportEndSuite time finishedState finishedUs
+    return (stCounts finishedState, endedUs)
 
 performTestSuites :: Reporter us
                   -- ^ Report generator to use for running the test suite

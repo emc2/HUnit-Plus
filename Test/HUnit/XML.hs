@@ -12,13 +12,14 @@ module Test.HUnit.XML(
        testcaseElem,
        skippedTestElem,
        testSuiteElem,
-       testSuitesElem
+       testSuitesElem,
+       reporter
        ) where
 
---import Text.XML.Expat.Format
-import Text.XML.Expat.Tree
 import Data.Time
 import System.Locale
+import Test.HUnit.Reporting(Reporter(..), State(..), defaultReporter, showPath)
+import Text.XML.Expat.Tree
 
 -- | Generate an element for a property definition
 propertyElem :: (String, String)
@@ -144,12 +145,49 @@ testSuitesElem time suites =
   Element { eName = "testsuites", eChildren = suites,
             eAttributes = [("time ", show time)] }
 
+-- | A reporter that generates JUnit XML reports
+reporter :: Reporter [[Node String String]]
+reporter =
+  let
+    reportStart = return [[]]
+
+    reportEnd time _ [suites] = return [[testSuitesElem time suites]]
+    reportEnd _ _ _ = fail "Extra information on node stack"
+
+    reportStartCase _ stack = return ([] : stack)
 {-
-reporter = defaultReporter {
-    reporterSkipCase = skippedTestElem,
-    reporterSystemOut = systemOutElem,
-    reporterSystemErr = systemErrElem,
-    reporterFailure = failureElem,
-    reporterError = errorElem
-  }
+    reportEndCase time State { stPath = testpath } (events : rest : stack) =
+      return ((testCaseElem  : rest) : stack)
+    reportEndCase _ _ _ = fail "Node stack underflow"
 -}
+    reportSkipCase State { stName = name, stPath = testpath } (rest : stack) =
+      return ((skippedTestElem name (showPath testpath) : rest) : stack)
+    reportSkipCase _ _ = fail "Node stack underflow"
+
+    reportFailure msg _ (rest : stack) =
+      return ((failureElem msg : rest) : stack)
+    reportFailure _ _ _ = fail "Node stack underflow"
+
+    reportError msg _ (rest : stack) =
+      return ((errorElem msg : rest) : stack)
+    reportError _ _ _ = fail "Node stack underflow"
+
+    reportSystemOut msg _ (rest : stack) =
+      return ((systemOutElem msg : rest) : stack)
+    reportSystemOut _ _ _ = fail "Node stack underflow"
+
+    reportSystemErr msg _ (rest : stack) =
+      return ((systemErrElem msg : rest) : stack)
+    reportSystemErr _ _ _ = fail "Node stack underflow"
+  in
+    defaultReporter {
+      reporterStart = reportStart,
+      reporterEnd = reportEnd,
+      reporterStartCase = reportStartCase,
+      reporterSkipCase = reportSkipCase,
+      reporterFailure = reportFailure,
+      reporterError = reportError,
+      reporterSystemOut = reportSystemOut,
+      reporterSystemErr = reportSystemErr
+    }
+

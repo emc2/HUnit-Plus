@@ -78,36 +78,36 @@ textReporter (PutText put initUs) verbose =
   let
     reportProblem p0 p1 msg ss us =
       let
-        kind = if null path' then p0 else p1
-        path' = showPath (path ss)
-        line = "### " ++ kind ++ path' ++ ": " ++ msg ++ "\n"
+        kind = if null path then p0 else p1
+        path = showPath (stPath ss)
+        line = "### " ++ kind ++ path ++ ": " ++ msg ++ "\n"
       in
         put line us
 
     reportOutput p0 p1 msg ss us =
       let
-        kind = if null path' then p0 else p1
-        path' = showPath (path ss)
-        line = "### " ++ kind ++ path' ++ ": " ++ msg ++ "\n"
+        kind = if null path then p0 else p1
+        path = showPath (stPath ss)
+        line = "### " ++ kind ++ path ++ ": " ++ msg ++ "\n"
       in
         if verbose then put line us
         else return us
 
-    reportStartCase _ ss us =
+    reportStartCase ss us =
       let
-        path' = showPath (path ss)
-        line = if null path' then "Test case starting\n"
-               else "Test case " ++ path' ++ " starting\n"
+        path = showPath (stPath ss)
+        line = if null path then "Test case starting\n"
+               else "Test case " ++ path ++ " starting\n"
       in
         if verbose then put line us
         else return us
 
     reportEndCase time ss us =
       let
-        path' = showPath (path ss)
+        path = showPath (stPath ss)
         timestr = printf "%.6f" time
-        line = if null path' then "Test completed in " ++ timestr ++ " sec\n"
-               else "Test " ++ path' ++ " completed in " ++ timestr ++ " sec\n"
+        line = if null path then "Test completed in " ++ timestr ++ " sec\n"
+               else "Test " ++ path ++ " completed in " ++ timestr ++ " sec\n"
       in
         if verbose then put line us
         else return us
@@ -137,12 +137,14 @@ runTestText puttext @ (PutText put us0) verbose t =
   let
     initCounts = Counts { cases = fromIntegral (testCaseCount t),
                           tried = 0, errors = 0, failures = 0 }
+    initState = State { stCounts = initCounts, stName = "",
+                        stPath = [], stOptions = [] }
 
     reporter = textReporter puttext verbose
   in do
-    (counts', us1) <- performTest reporter initCounts us0 t
-    us2 <- put (showCounts counts' ++ "\n") us1
-    return (counts', us2)
+    (ss1, us1) <- performTest reporter initState us0 t
+    us2 <- put (showCounts (stCounts ss1) ++ "\n") us1
+    return (stCounts ss1, us2)
 
 runSuiteText :: PutText us
              -- ^ A function which accumulates output
@@ -155,9 +157,9 @@ runSuiteText puttext @ (PutText put us0) verbose suite =
   let
     reporter = textReporter puttext verbose
   in do
-    (counts', us1) <- performTestSuite reporter us0 suite
-    us2 <- put (showCounts counts' ++ "\n") us1
-    return (counts', us2)
+    (counts, us1) <- performTestSuite reporter us0 suite
+    us2 <- put (showCounts counts ++ "\n") us1
+    return (counts, us2)
 
 runSuitesText :: PutText us
               -- ^ A function which accumulates output
@@ -170,9 +172,9 @@ runSuitesText puttext @ (PutText put _) verbose suites =
   let
     reporter = textReporter puttext verbose
   in do
-    (counts', us1) <- performTestSuites reporter suites
-    us2 <- put (showCounts counts' ++ "\n") us1
-    return (counts', us2)
+    (counts, us1) <- performTestSuites reporter suites
+    us2 <- put (showCounts counts ++ "\n") us1
+    return (counts, us2)
 
 -- | Converts test execution counts to a string.
 
@@ -200,15 +202,16 @@ terminalReporter =
   let
     reportProblem p0 p1 msg ss us =
       let
-        line = "### " ++ kind ++ path' ++ '\n' : msg
-        path' = showPath (path ss)
-        kind = if null path' then p0 else p1
+        line = "### " ++ kind ++ path ++ '\n' : msg
+        path = showPath (stPath ss)
+        kind = if null path then p0 else p1
       in
         termPut line True us
   in
     defaultReporter {
       reporterStart = return 0,
-      reporterEndCase = (\_ ss us -> termPut (showCounts (counts ss)) False us),
+      reporterEndCase =
+        (\_ ss us -> termPut (showCounts (stCounts ss)) False us),
       reporterError = reportProblem "Error:" "Error in:   ",
       reporterFailure = reportProblem "Failure:" "Failure in: "
     }
@@ -223,21 +226,23 @@ runTestTT t =
   let
     initCounts = Counts { cases = fromIntegral (testCaseCount t),
                           tried = 0, errors = 0, failures = 0 }
+    initState = State { stCounts = initCounts, stName = "",
+                        stPath = [], stOptions = [] }
   in do
-    (counts', us1) <- performTest terminalReporter initCounts 0 t
-    0 <- termPut (showCounts counts') True us1
-    return counts'
+    (ss1, us1) <- performTest terminalReporter initState 0 t
+    0 <- termPut (showCounts (stCounts ss1)) True us1
+    return (stCounts ss1)
 
 runSuiteTT :: TestSuite -> IO Counts
 runSuiteTT suite =
   do
-    (rescounts, us) <- performTestSuite terminalReporter 0 suite
-    0 <- termPut (showCounts rescounts ++ "\n") True us
-    return rescounts
+    (counts, us) <- performTestSuite terminalReporter 0 suite
+    0 <- termPut (showCounts counts ++ "\n") True us
+    return counts
 
 runSuitesTT :: [TestSuite] -> IO Counts
 runSuitesTT suite =
   do
-    (rescounts, us) <- performTestSuites terminalReporter suite
-    0 <- termPut (showCounts rescounts ++ "\n") True us
-    return rescounts
+    (counts, us) <- performTestSuites terminalReporter suite
+    0 <- termPut (showCounts counts ++ "\n") True us
+    return counts

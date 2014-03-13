@@ -33,8 +33,14 @@ data Counts =
 -- updated as appropriate.
 data State =
   State {
-    path :: !Path,
-    counts :: !Counts
+    -- | The name of the case or suite currently being run
+    stName :: !String,
+    -- | The path to the test case currently being run
+    stPath :: !Path,
+    -- | The current test statistics
+    stCounts :: !Counts,
+    -- | The current option values
+    stOptions :: [(String, String)]
   }
   deriving (Eq, Show, Read)
 
@@ -60,9 +66,7 @@ data Reporter us = Reporter {
                 -- ^ The user state for this test reporter
                 -> IO us,
     -- | Called at the start of a test suite run
-    reporterStartSuite :: String
-                       -- ^ The name of the test suite
-                       -> [(String, String)]
+    reporterStartSuite :: State
                        -- ^ Options given to the test suite
                        -> us
                        -- ^ The user state for this test reporter
@@ -70,22 +74,20 @@ data Reporter us = Reporter {
     -- | Called at the end of a test suite run
     reporterEndSuite :: Double
                      -- ^ The total time it took to run the test suite
-                     -> Counts
+                     -> State
                      -- ^ The counts from running the tests
                      -> us
                      -- ^ The user state for this test reporter
                      -> IO us,
     -- | Called at the start of a test case run
-    reporterStartCase :: String
-                      -- ^ The name of the test case
-                      -> State
+    reporterStartCase :: State
                       -- ^ The HUnit internal state
                       -> us
                       -- ^ The user state for this test reporter
                       -> IO us,
     -- | Called to report progress of a test case run
     reporterCaseProgress :: String
-                         -- ^ The name of the test case
+                         -- ^ A progress message
                          -> State
                          -- ^ The HUnit internal state
                          -> us
@@ -100,9 +102,7 @@ data Reporter us = Reporter {
                     -- ^ The user state for this test reporter
                     -> IO us,
     -- | Called when skipping a test case
-    reporterSkipCase :: String
-                     -- ^ The name of the test case being skipped
-                     -> State
+    reporterSkipCase :: State
                      -- ^ The HUnit internal state
                      -> us
                      -- ^ The user state for this test reporter
@@ -147,12 +147,12 @@ defaultReporter :: Reporter a
 defaultReporter = Reporter {
     reporterStart = fail "Must define a reporterStart value",
     reporterEnd = \_ _ us -> return us,
-    reporterStartSuite = \_ _ us -> return us,
+    reporterStartSuite = \_ us -> return us,
     reporterEndSuite = \_ _ us -> return us,
-    reporterStartCase = \_ _ us -> return us,
+    reporterStartCase = \_ us -> return us,
     reporterCaseProgress = \_ _ us -> return us,
     reporterEndCase = \_ _ us -> return us,
-    reporterSkipCase = \_ _ us -> return us,
+    reporterSkipCase = \_ us -> return us,
     reporterSystemOut = \_ _ us -> return us,
     reporterSystemErr = \_ _ us -> return us,
     reporterFailure = \_ _ us -> return us,
