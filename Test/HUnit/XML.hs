@@ -3,6 +3,7 @@
 -- | Test controller for running HUnit tests and reporting results as
 --   JUnit-style XML reports.
 module Test.HUnit.XML(
+       -- * XML Generation
        propertyElem,
        propertiesElem,
        systemOutElem,
@@ -13,12 +14,15 @@ module Test.HUnit.XML(
        skippedTestElem,
        testSuiteElem,
        testSuitesElem,
+       -- * Reporter
        reporter
        ) where
 
 import Data.Time
+import Data.Word
 import System.Locale
-import Test.HUnit.Reporting(Reporter(..), State(..), defaultReporter, showPath)
+import Test.HUnit.Reporting(Reporter(..), State(..), Counts(..),
+                            defaultReporter, showPath)
 import Text.XML.Expat.Tree
 
 -- | Generate an element for a property definition
@@ -69,7 +73,7 @@ testcaseElem :: String
              -- ^ The name of the test
              -> String
              -- ^ The path to the test (reported as "classname")
-             -> Int
+             -> Word
              -- ^ The number of assertions in the test
              -> Double
              -- ^ The execution time of the test
@@ -103,13 +107,13 @@ testSuiteElem :: String
               -- ^ The name of the test suite
               -> [(String, String)]
               -- ^ The properties defined for this suite
-              -> Int
+              -> Word
               -- ^ The number of tests
-              -> Int
+              -> Word
               -- ^ The number of failures
-              -> Int
+              -> Word
               -- ^ The number of errors
-              -> Int
+              -> Word
               -- ^ The number of skipped tests
               -> String
               -- ^ The hostname of the machine on which this was run
@@ -155,11 +159,14 @@ reporter =
     reportEnd _ _ _ = fail "Extra information on node stack"
 
     reportStartCase _ stack = return ([] : stack)
-{-
-    reportEndCase time State { stPath = testpath } (events : rest : stack) =
-      return ((testCaseElem  : rest) : stack)
+
+    reportEndCase time State { stName = name, stPath = testpath,
+                               stCounts = Counts { cAsserts = asserts } }
+                  (events : rest : stack) =
+      return ((testcaseElem name (showPath testpath)
+                            asserts time events : rest) : stack)
     reportEndCase _ _ _ = fail "Node stack underflow"
--}
+
     reportSkipCase State { stName = name, stPath = testpath } (rest : stack) =
       return ((skippedTestElem name (showPath testpath) : rest) : stack)
     reportSkipCase _ _ = fail "Node stack underflow"
@@ -184,6 +191,7 @@ reporter =
       reporterStart = reportStart,
       reporterEnd = reportEnd,
       reporterStartCase = reportStartCase,
+      reporterEndCase = reportEndCase,
       reporterSkipCase = reportSkipCase,
       reporterFailure = reportFailure,
       reporterError = reportError,

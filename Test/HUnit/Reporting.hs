@@ -21,10 +21,12 @@ import Data.Word
 -- up until this point.
 data Counts =
   Counts {
-    cases :: !Word,
-    tried :: !Word,
-    errors :: !Word,
-    failures :: !Word
+    cCases :: !Word,
+    cTried :: !Word,
+    cErrors :: !Word,
+    cFailures :: !Word,
+    cSkipped :: !Word,
+    cAsserts :: !Word
   }
   deriving (Eq, Show, Read)
 

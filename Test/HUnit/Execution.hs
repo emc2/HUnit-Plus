@@ -27,7 +27,7 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
                            reporterEndCase = reportEndCase,
                            reporterError = reportError,
                            reporterFailure = reportFailure }
-                ss @ State { stCounts = c @ Counts { tried = n },
+                ss @ State { stCounts = c @ Counts { cTried = n },
                              stName = oldname } us
                 TestInstance { run = runTest, name = testName } =
   let
@@ -54,7 +54,7 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
       Pass ->
         let
           -- Counts to use in event of success
-          ssSuccess = ssWithName { stCounts = c { tried = n + 1 } }
+          ssSuccess = ssWithName { stCounts = c { cTried = n + 1 } }
         in do
           usEnded <- reportEndCase time ssSuccess usFinished
           return (ssSuccess { stName = oldname }, usEnded)
@@ -62,8 +62,8 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
       Fail msg ->
         let
           -- Counts to use in event of a failure
-          ssFail = ssWithName { stCounts = c { tried = n + 1,
-                                               failures = failures c + 1 } }
+          ssFail = ssWithName { stCounts = c { cTried = n + 1,
+                                               cFailures = cFailures c + 1 } }
         in do
           usFail <- reportFailure msg ssFail usFinished
           usEnded <- reportEndCase time ssFail usFail
@@ -72,8 +72,8 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
       Error msg ->
         let
           -- Counts to use in event of an error
-          ssError = ssWithName { stCounts = c { tried = n + 1,
-                                                errors = errors c + 1 } }
+          ssError = ssWithName { stCounts = c { cTried = n + 1,
+                                                cErrors = cErrors c + 1 } }
         in do
           usError <- reportError msg ssError usFinished
           usEnded <- reportEndCase time ssError usError
@@ -144,8 +144,10 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
   let
     -- XXX fold in calculation of numbers of test cases into the
     -- traversal of the test cases themselves
-    initCounts = Counts { cases = fromIntegral (sum (map testCaseCount testlist)),
-                          tried = 0, errors = 0, failures = 0 }
+    initCounts = Counts { cCases =
+                            fromIntegral (sum (map testCaseCount testlist)),
+                          cTried = 0, cErrors = 0, cFailures = 0,
+                          cAsserts = 0, cSkipped = 0 }
     initState = State { stCounts = initCounts, stName = sname,
                         stPath = [], stOptions = suiteOpts }
 
@@ -165,14 +167,18 @@ performTestSuites :: Reporter us
 performTestSuites rep @ Reporter { reporterStart = reportStart,
                                    reporterEnd = reportEnd } suites =
   let
-    initialCounts = Counts { cases = 0, tried = 0, errors = 0, failures = 0 }
+    initialCounts = Counts { cCases = 0, cTried = 0, cErrors = 0,
+                             cFailures = 0, cAsserts = 0, cSkipped = 0 }
 
-    combineCounts Counts { cases = cases1, tried = tried1,
-                           errors = errors1, failures = failures1 }
-                  Counts { cases = cases2, tried = tried2,
-                           errors = errors2, failures = failures2 } =
-      Counts { cases = cases1 + cases2, tried = tried1 + tried2,
-               errors = errors1 + errors2, failures = failures1 + failures2 }
+    combineCounts Counts { cCases = cases1, cTried = tried1,
+                           cErrors = errors1, cFailures = failures1,
+                           cAsserts = asserts1, cSkipped = skipped1 }
+                  Counts { cCases = cases2, cTried = tried2,
+                           cErrors = errors2, cFailures = failures2,
+                           cAsserts = asserts2, cSkipped = skipped2 } =
+      Counts { cCases = cases1 + cases2, cTried = tried1 + tried2,
+               cErrors = errors1 + errors2, cFailures = failures1 + failures2,
+               cAsserts = asserts1 + asserts2, cSkipped = skipped1 + skipped2 }
 
     foldfun (accumCounts, accumUs) suite =
       do

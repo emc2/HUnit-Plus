@@ -135,8 +135,9 @@ runTestText :: PutText us
             -> IO (Counts, us)
 runTestText puttext @ (PutText put us0) verbose t =
   let
-    initCounts = Counts { cases = fromIntegral (testCaseCount t),
-                          tried = 0, errors = 0, failures = 0 }
+    initCounts = Counts { cCases = fromIntegral (testCaseCount t),
+                          cTried = 0, cErrors = 0, cFailures = 0,
+                          cAsserts = 0, cSkipped = 0 }
     initState = State { stCounts = initCounts, stName = "",
                         stPath = [], stOptions = [] }
 
@@ -179,10 +180,12 @@ runSuitesText puttext @ (PutText put _) verbose suites =
 -- | Converts test execution counts to a string.
 
 showCounts :: Counts -> String
-showCounts Counts { cases = cases', tried = tried',
-                    errors = errors', failures = failures' } =
-  "Cases: " ++ show cases' ++ "  Tried: " ++ show tried' ++
-  "  Errors: " ++ show errors' ++ "  Failures: " ++ show failures'
+showCounts Counts { cCases = cases, cTried = tried,
+                    cErrors = errors, cFailures = failures,
+                    cAsserts = asserts, cSkipped = skipped } =
+  "Cases: " ++ show cases ++ "  Tried: " ++ show tried ++
+  "  Errors: " ++ show errors ++ "  Failures: " ++ show failures ++
+  "  Assertions: " ++ show asserts ++ "  Skipped: " ++ show skipped
 
 -- | Terminal output function, used by the run*TT function and
 -- terminal reporters.
@@ -224,8 +227,9 @@ terminalReporter =
 runTestTT :: Test -> IO Counts
 runTestTT t =
   let
-    initCounts = Counts { cases = fromIntegral (testCaseCount t),
-                          tried = 0, errors = 0, failures = 0 }
+    initCounts = Counts { cCases = fromIntegral (testCaseCount t),
+                          cTried = 0, cErrors = 0, cFailures = 0,
+                          cAsserts = 0, cSkipped = 0 }
     initState = State { stCounts = initCounts, stName = "",
                         stPath = [], stOptions = [] }
   in do
