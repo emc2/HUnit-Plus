@@ -1,5 +1,10 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
+-- | Reporting functionality for HUnit-Plus.  Test reporting is now
+-- defined using a set of events.  A [@Reporter@] contains handlers
+-- for these events, which have access to and update a
+-- [@Reporter@]-defined state value.  The handlers in a [@Reporter@]
+-- are called at appropriate points during text execution.
 module Test.HUnit.Reporting(
        Node(..),
        State(..),
