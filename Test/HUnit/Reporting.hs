@@ -12,6 +12,7 @@ module Test.HUnit.Reporting(
        Reporter(..),
        Path,
        defaultReporter,
+       showPath
        ) where
 
 import Data.Word
@@ -49,9 +50,7 @@ data Node = Label String
 -- functions that are called at various points throughout a test run.
 data Reporter us = Reporter {
     -- | Called at the beginning of a test run
-    reporterStart :: us
-                  -- ^ The user state for this test reporter
-                  -> IO us,
+    reporterStart :: IO us,
     -- | Called at the end of a test run
     reporterEnd :: Double
                 -- ^ The total time it took to run the tests
@@ -146,7 +145,7 @@ data Reporter us = Reporter {
 -- and return the user state unmodified.
 defaultReporter :: Reporter a
 defaultReporter = Reporter {
-    reporterStart = \us -> return us,
+    reporterStart = fail "Must define a reporterStart value",
     reporterEnd = \_ _ us -> return us,
     reporterStartSuite = \_ _ us -> return us,
     reporterEndSuite = \_ _ us -> return us,
@@ -159,3 +158,17 @@ defaultReporter = Reporter {
     reporterFailure = \_ _ us -> return us,
     reporterError = \_ _ us -> return us
   }
+
+-- | Converts a test case path to a string, separating adjacent elements by 
+--   the colon (\':\'). An element of the path is quoted (as with 'show') when
+--   there is potential ambiguity.
+
+showPath :: Path -> String
+showPath [] = ""
+showPath nodes =
+  let
+    f b a = a ++ "." ++ b
+    showNode (Label label) = safe label (show label)
+    safe s ss = if '.' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
+  in
+    foldl1 f (map showNode nodes)

@@ -152,14 +152,11 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
 
 performTestSuites :: Reporter us
                   -- ^ Report generator to use for running the test suite
-                  -> us
-                  -- ^ State for the report generator
                   -> [TestSuite]
                   -- ^ Test suite to be run
                   -> IO (Counts, us)
 performTestSuites rep @ Reporter { reporterStart = reportStart,
-                                   reporterEnd = reportEnd }
-                  initialUs suites =
+                                   reporterEnd = reportEnd } suites =
   let
     initialCounts = Counts { cases = 0, tried = 0, errors = 0, failures = 0 }
 
@@ -175,8 +172,8 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
         (suiteCounts, suiteUs) <- performTestSuite rep accumUs suite
         return (combineCounts accumCounts suiteCounts, suiteUs)
   in do
-    startedUs <- reportStart initialUs
+    initialUs <- reportStart
     (time, (finishedCounts, finishedUs)) <-
-      timeItT (foldM foldfun (initialCounts, startedUs) suites)
+      timeItT (foldM foldfun (initialCounts, initialUs) suites)
     endedUs <- reportEnd time finishedCounts finishedUs
     return (finishedCounts, endedUs)

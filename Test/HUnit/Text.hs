@@ -10,7 +10,6 @@ module Test.HUnit.Text(
        runTestText,
        runSuiteText,
        runSuitesText,
-       showPath,
        showCounts,
        runTestTT,
        runSuiteTT,
@@ -75,7 +74,7 @@ textReporter :: PutText us
              -> Bool
              -- ^ Whether or not to run the test in verbose mode.
              -> Reporter us
-textReporter (PutText put _) verbose =
+textReporter (PutText put initUs) verbose =
   let
     reportProblem p0 p1 msg ss us =
       let
@@ -114,6 +113,7 @@ textReporter (PutText put _) verbose =
         else return us
   in
     defaultReporter {
+      reporterStart = return initUs,
       reporterStartCase = reportStartCase,
       reporterEndCase = reportEndCase,
       reporterSystemOut = reportOutput "STDOUT " "STDOUT from ",
@@ -166,11 +166,11 @@ runSuitesText :: PutText us
               -> [TestSuite]
               -- ^ The test to run
               -> IO (Counts, us)
-runSuitesText puttext @ (PutText put us0) verbose suites =
+runSuitesText puttext @ (PutText put _) verbose suites =
   let
     reporter = textReporter puttext verbose
   in do
-    (counts', us1) <- performTestSuites reporter us0 suites
+    (counts', us1) <- performTestSuites reporter suites
     us2 <- put (showCounts counts' ++ "\n") us1
     return (counts', us2)
 
@@ -181,21 +181,6 @@ showCounts Counts { cases = cases', tried = tried',
                     errors = errors', failures = failures' } =
   "Cases: " ++ show cases' ++ "  Tried: " ++ show tried' ++
   "  Errors: " ++ show errors' ++ "  Failures: " ++ show failures'
-
-
--- | Converts a test case path to a string, separating adjacent elements by 
---   the colon (\':\'). An element of the path is quoted (as with 'show') when
---   there is potential ambiguity.
-
-showPath :: Path -> String
-showPath [] = ""
-showPath nodes =
-  let
-    f b a = a ++ ":" ++ b
-    showNode (Label label) = safe label (show label)
-    safe s ss = if ':' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
-  in
-    foldl1 f (map showNode nodes)
 
 -- | Terminal output function, used by the run*TT function and
 -- terminal reporters.
@@ -222,6 +207,7 @@ terminalReporter =
         termPut line True us
   in
     defaultReporter {
+      reporterStart = return 0,
       reporterEndCase = (\_ ss us -> termPut (showCounts (counts ss)) False us),
       reporterError = reportProblem "Error:" "Error in:   ",
       reporterFailure = reportProblem "Failure:" "Failure in: "
@@ -252,6 +238,6 @@ runSuiteTT suite =
 runSuitesTT :: [TestSuite] -> IO Counts
 runSuitesTT suite =
   do
-    (rescounts, us) <- performTestSuites terminalReporter 0 suite
+    (rescounts, us) <- performTestSuites terminalReporter suite
     0 <- termPut (showCounts rescounts ++ "\n") True us
     return rescounts
