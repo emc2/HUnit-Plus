@@ -20,6 +20,7 @@ module Test.HUnit.XML(
 
 import Data.Time
 import Data.Word
+import Network.HostName
 import System.Locale
 import Test.HUnit.Reporting(Reporter(..), State(..), Counts(..),
                             defaultReporter, showPath)
@@ -155,8 +156,24 @@ reporter =
   let
     reportStart = return [[]]
 
-    reportEnd time _ [suites] = return [[testSuitesElem time suites]]
+    reportEnd time _ [suites] = return [[testSuitesElem time (reverse suites)]]
     reportEnd _ _ _ = fail "Extra information on node stack"
+
+    reportStartSuite _ stack = return ([] : stack)
+
+    reportEndSuite time State { stName = name, stOptions = options,
+                                stCounts = Counts { cTried = tried,
+                                                    cErrors = errors,
+                                                    cFailures = failures,
+                                                    cSkipped = skipped } }
+                   (events : rest : stack) =
+      do
+        hostname <- getHostName
+        timestamp <- getCurrentTime
+        return ((testSuiteElem name options tried failures errors skipped
+                               hostname timestamp time (reverse events) :
+                 rest) : stack)
+    reportEndSuite _ _ _ = fail "Node stack underflow"
 
     reportStartCase _ stack = return ([] : stack)
 
@@ -164,7 +181,7 @@ reporter =
                                stCounts = Counts { cAsserts = asserts } }
                   (events : rest : stack) =
       return ((testcaseElem name (showPath testpath)
-                            asserts time events : rest) : stack)
+                            asserts time (reverse events) : rest) : stack)
     reportEndCase _ _ _ = fail "Node stack underflow"
 
     reportSkipCase State { stName = name, stPath = testpath } (rest : stack) =
@@ -190,6 +207,8 @@ reporter =
     defaultReporter {
       reporterStart = reportStart,
       reporterEnd = reportEnd,
+      reporterStartSuite = reportStartSuite,
+      reporterEndSuite = reportEndSuite,
       reporterStartCase = reportStartCase,
       reporterEndCase = reportEndCase,
       reporterSkipCase = reportSkipCase,
