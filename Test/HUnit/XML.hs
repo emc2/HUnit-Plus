@@ -57,7 +57,7 @@ systemErrElem content = Element { eName = "system-err", eAttributes = [],
 
 -- | Generate an element representing a test failure.
 failureElem :: String
-          -- ^ A message associated with the failure
+            -- ^ A message associated with the failure
             -> Node String String
 failureElem message = Element { eAttributes = [("message", message)],
                                 eName = "failure", eChildren = [] }
