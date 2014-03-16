@@ -10,13 +10,15 @@ module Test.HUnit.Filter(
        passFilter,
        all,
        normalizeSelector,
-       suiteSelectors
+       suiteSelectors,
+       parseFilter
        ) where
 
 import Data.Foldable(foldr)
 import Data.Set(Set)
 import Data.Map(Map)
 import Prelude hiding (foldr, elem)
+import Text.ParserCombinators.Parsec
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -243,3 +245,50 @@ suiteSelectors allsuites filters
     mapfun selectors = normalizeSelector Union { unionInners = selectors }
   in
     Map.map mapfun suiteMap
+
+remainingNamesParser :: GenParser Char st (Set String)
+remainingNamesParser = (char ',' >> namesParser) <|> (return Set.empty)
+
+namesParser :: GenParser Char st (Set String)
+namesParser =
+  do
+    first <- many alphaNum
+    next <- remainingNamesParser
+    return (Set.insert first next)
+
+remainingPathParser :: GenParser Char st Selector
+remainingPathParser = (char '.' >> pathParser) <|> (return allSelector)
+
+pathParser :: GenParser Char st Selector
+pathParser =
+  do
+    elem <- many alphaNum
+    inner <- remainingPathParser
+    return Path { pathElem = elem, pathInner = inner }
+
+optPathParser :: GenParser Char st Selector
+optPathParser = option allSelector pathParser
+
+suitesParser :: GenParser Char st (Set String)
+suitesParser = (do suites <- namesParser; _ <- string "::"; return suites) <|>
+               (return Set.empty)
+
+tagsParser :: Selector -> GenParser Char st Selector
+tagsParser selector =
+  (char '@' >> namesParser >>=
+    (\tags -> return Tags { tagsNames = tags,
+                            tagsInner = selector })) <|>
+  (return selector)
+
+filterParser :: GenParser Char st Filter
+filterParser =
+  do
+    suites <- suitesParser
+    selector <- optPathParser
+    tagselector <- tagsParser selector
+    return Filter { filterSuites = suites, filterSelector = tagselector }
+
+-- | Parse a Filter expression
+parseFilter :: String -> Either ParseError Filter
+parseFilter input = parse filterParser "(unknown)" input
+
