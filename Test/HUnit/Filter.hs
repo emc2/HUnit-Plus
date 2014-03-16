@@ -9,7 +9,8 @@ module Test.HUnit.Filter(
        Filter(..),
        passFilter,
        all,
-       normalizeSelector
+       normalizeSelector,
+       suiteSelectors
        ) where
 
 import Data.Foldable(foldr)
@@ -56,6 +57,7 @@ data Filter =
     -- | The [@Selector@] to apply.
     filterSelector :: !Selector
   }
+  deriving (Ord, Eq, Show)
 
 -- | A [@Filter@] that selects everything
 passFilter :: Filter
@@ -190,3 +192,54 @@ normalizeSelector t @ Tags { tagsNames = tags, tagsInner = inner } =
       Tags { tagsNames = Set.union tags innertags, tagsInner = inner' }
     -- Otherwise, install the normalized inner
     inner' -> t { tagsInner = inner' }
+
+-- | Collect all the selectors from filters that apply to all suites
+collectUniversals :: Filter -> Set Selector -> Set Selector
+collectUniversals Filter { filterSuites = suites,
+                           filterSelector = selector } accum
+  | suites == Set.empty = Set.insert selector accum
+  | otherwise = accum
+
+-- | Build a map from suite names to the selectors that get run on them.
+collectSelectors :: Filter
+                 -- ^ The current filter
+                 -> Map String (Set Selector)
+                 -- ^ The map from suites to 
+                 -> Map String (Set Selector)
+collectSelectors Filter { filterSuites = suites, filterSelector = selector }
+                 suitemap =
+    foldr (\suite suitemap' -> Map.insertWith Set.union suite
+                              (Set.singleton selector) suitemap')
+          suitemap suites
+
+-- | Take a list of test suite names and a list of filters, and build
+-- a map that says for each test suite, which (normalized) selectors
+-- should be run.
+suiteSelectors :: [String]
+               -- ^ The names of all test suites
+               -> [Filter]
+               -- ^ The list of filters from which to build the map
+               -> Map String Selector
+suiteSelectors allsuites filters
+  -- Short-circuit case if we have no filters, we run everything
+  | filters == [] =
+    foldr (\suite suitemap -> Map.insert suite allSelector suitemap)
+          Map.empty allsuites
+  | otherwise =
+  let
+    -- First, pull out all the universals
+    universals = foldr collectUniversals Set.empty filters
+    -- If we have any universals, then seed the initial map with them,
+    -- otherwise, use the empty map.
+    initMap =
+      if universals /= Set.empty
+        then foldr (\suite suitemap -> Map.insert suite universals suitemap)
+                   Map.empty allsuites
+        else Map.empty
+    -- Now collect all the suite-specific selectors
+    suiteMap = foldr collectSelectors initMap filters
+
+    -- Last thing we want to do is normalize all the map entries
+    mapfun selectors = normalizeSelector Union { unionInners = selectors }
+  in
+    Map.map mapfun suiteMap
