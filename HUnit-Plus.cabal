@@ -17,7 +17,7 @@ Library
                         cmdargs, hashable, containers, time, old-locale, hostname
   exposed-modules:      Test.HUnit.Base
                         Test.HUnit.Execution
---                        Test.HUnit.Filter
+                        Test.HUnit.Filter
 --                        Test.HUnit.OldTest
                         Test.HUnit.Reporting
                         Test.HUnit.Terminal
