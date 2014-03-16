@@ -44,8 +44,6 @@ data Selector =
       -- | The selector from which to filter tests by tags.
       tagsInner :: Selector 
     }
-  -- | Run all tests without any further modifications.
-  | All
     deriving (Eq, Ord, Show)
 
 -- | A [@Filter@] specifies zero or more test suites, to which a
@@ -82,7 +80,8 @@ collectPathSets selector _ = error ("Should not see " ++ show selector)
 genPathSelector :: String -> Set Selector -> Selector
 genPathSelector elem pathset
   -- All subsumes everything else, so short-circuit if it's in the pathset
-  | Set.member All pathset = Path { pathElem = elem, pathInner = All }
+  | Set.member allSelector pathset = Path { pathElem = elem,
+                                            pathInner = allSelector }
   | otherwise =
     case Set.elems pathset of
       -- For singleton sets, build a single path element
@@ -95,7 +94,7 @@ normalizeTagMapEntry :: Set Selector -> Selector
 normalizeTagMapEntry tagset
   -- Short-circuit case: if the set contains an All, then it subsumes
   -- everything else
-  | Set.member All tagset = All
+  | Set.member allSelector tagset = allSelector
   | otherwise = case Set.elems tagset of
     -- Second short-circuit case: singleton set doesn't need to go
     -- through the collectPathSets logic.
@@ -147,16 +146,16 @@ genTagSetSelector tags tagset
 normalizeSelector :: Selector -> Selector
 -- For this case, we have three degeneracies to worry about:
 -- overlapping union members, nested unions, singleton unions.
-normalizeSelector Union { unionInners = inners } =
+normalizeSelector u @ Union { unionInners = inners } =
   let
     norminners = Set.map normalizeSelector inners
   in case Set.elems norminners of
     -- Turn an empty union into an All
-    [] -> All
+    [] -> u
     -- For singleton sets, just normalize the single element
     [ inner ] -> inner
     -- Fast short-circuit case if inners contains an All
-    _ -> if Set.member All norminners then All
+    _ -> if Set.member allSelector norminners then allSelector
       else
         let
           -- Build the tag map
@@ -168,7 +167,7 @@ normalizeSelector Union { unionInners = inners } =
                             Set.empty tagmap
         in case Map.lookup Set.empty tagmap of
           -- If we have a zero-tag set that contains All, it subsumes everything
-          Just notagmap | Set.member All notagmap -> All
+          Just notagmap | Set.member allSelector notagmap -> allSelector
           _ -> case Set.elems newinners of
             -- If the set of union elements is a singleton, just return
             -- the one element
@@ -191,5 +190,3 @@ normalizeSelector t @ Tags { tagsNames = tags, tagsInner = inner } =
       Tags { tagsNames = Set.union tags innertags, tagsInner = inner' }
     -- Otherwise, install the normalized inner
     inner' -> t { tagsInner = inner' }
--- All normalizes to itself
-normalizeSelector All = All
