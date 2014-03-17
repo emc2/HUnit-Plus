@@ -11,12 +11,14 @@ module Test.HUnit.Filter(
        all,
        normalizeSelector,
        suiteSelectors,
-       parseFilter
+       parseFilter,
+       parseFilterFile
        ) where
 
 import Data.Foldable(foldr)
 import Data.Set(Set)
 import Data.Map(Map)
+import Data.Maybe
 import Prelude hiding (foldr, elem)
 import Text.ParserCombinators.Parsec
 
@@ -289,6 +291,39 @@ filterParser =
     return Filter { filterSuites = suites, filterSelector = tagselector }
 
 -- | Parse a Filter expression
-parseFilter :: String -> Either ParseError Filter
-parseFilter input = parse filterParser "(unknown)" input
+parseFilter :: String
+            -- ^ The name of the source
+            -> String
+            -- ^ The input
+            -> Either ParseError Filter
+parseFilter sourcename input = parse filterParser sourcename input
 
+commentParser :: GenParser Char st ()
+commentParser =
+  do
+    _ <- char '#'
+    _ <- many (noneOf "\n")
+    return ()
+
+lineParser :: GenParser Char st (Maybe Filter)
+lineParser =
+  do
+    _ <- many space
+    content <- option Nothing (filterParser >>= return . Just)
+    _ <- many space
+    commentParser
+    return content
+
+linesParser :: GenParser Char st [Filter]
+linesParser =
+  do
+    filters <- many lineParser
+    return (catMaybes filters)
+
+-- | Parse the contents of a testlist file
+parseFilterFile :: String
+                -- ^ The name of the source
+                -> String
+                -- ^ The input
+                -> Either ParseError [Filter]
+parseFilterFile sourcename input = parse linesParser sourcename input
