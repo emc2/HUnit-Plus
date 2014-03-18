@@ -234,12 +234,10 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
   case Map.lookup sname filters of
     Just selector ->
       let
-        initCounts = Counts { cCases = 0, cTried = 0, cErrors = 0,
-                              cFailures = 0, cAsserts = 0, cSkipped = 0 }
-        initState = State { stCounts = initCounts, stName = sname,
+        initState = State { stCounts = zeroCounts, stName = sname,
                             stPath = [], stOptions = suiteOpts }
 
-        foldfun (c, us) test = performTest rep selector c us test
+        foldfun (c, us) testcase = performTest rep selector c us testcase
       in do
         startedUs <- reportStartSuite initState initialUs
         (time, (finishedState, finishedUs)) <-

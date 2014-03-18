@@ -11,6 +11,7 @@ module Test.HUnit.Reporting(
        Counts(..),
        Reporter(..),
        Path,
+       zeroCounts,
        defaultReporter,
        showPath
        ) where
@@ -142,6 +143,11 @@ data Reporter us = Reporter {
                   -- ^ The user state for this test reporter
                   -> IO us
   }
+
+-- | A [@Counts@] with all zero counts
+zeroCounts :: Counts
+zeroCounts = Counts { cCases = 0, cTried = 0, cErrors = 0,
+                      cFailures = 0, cAsserts = 0, cSkipped = 0 }
 
 -- | A reporter containing default actions, which are to do nothing
 -- and return the user state unmodified.
