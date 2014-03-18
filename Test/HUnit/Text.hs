@@ -19,11 +19,14 @@ module Test.HUnit.Text(
 import Distribution.TestSuite
 import Test.HUnit.Base
 import Test.HUnit.Execution
+import Test.HUnit.Filter
 import Test.HUnit.Reporting
 
 import Control.Monad (when)
 import System.IO (Handle, stderr, hPutStr, hPutStrLn)
 import Text.Printf(printf)
+
+import qualified Data.Map as Map
 
 
 -- | As the general text-based test controller ('runTestText') executes a
@@ -143,7 +146,7 @@ runTestText puttext @ (PutText put us0) verbose t =
 
     reporter = textReporter puttext verbose
   in do
-    (ss1, us1) <- performTest reporter initState us0 t
+    (ss1, us1) <- performTest reporter allSelector initState us0 t
     us2 <- put (showCounts (stCounts ss1) ++ "\n") us1
     return (stCounts ss1, us2)
 
@@ -154,11 +157,13 @@ runSuiteText :: PutText us
              -> TestSuite
              -- ^ The test to run
              -> IO (Counts, us)
-runSuiteText puttext @ (PutText put us0) verbose suite =
+runSuiteText puttext @ (PutText put us0) verbose
+             suite @ TestSuite { suiteName = sname } =
   let
+    selectorMap = Map.singleton sname allSelector
     reporter = textReporter puttext verbose
   in do
-    (counts, us1) <- performTestSuite reporter us0 suite
+    (counts, us1) <- performTestSuite reporter selectorMap us0 suite
     us2 <- put (showCounts counts ++ "\n") us1
     return (counts, us2)
 
@@ -171,9 +176,13 @@ runSuitesText :: PutText us
               -> IO (Counts, us)
 runSuitesText puttext @ (PutText put _) verbose suites =
   let
+    suiteNames = map suiteName suites
+    selectorMap = foldr (\sname suitemap ->
+                          Map.insert sname allSelector suitemap)
+                        Map.empty suiteNames
     reporter = textReporter puttext verbose
   in do
-    (counts, us1) <- performTestSuites reporter suites
+    (counts, us1) <- performTestSuites reporter selectorMap suites
     us2 <- put (showCounts counts ++ "\n") us1
     return (counts, us2)
 
@@ -233,20 +242,27 @@ runTestTT t =
     initState = State { stCounts = initCounts, stName = "",
                         stPath = [], stOptions = [] }
   in do
-    (ss1, us1) <- performTest terminalReporter initState 0 t
+    (ss1, us1) <- performTest terminalReporter allSelector initState 0 t
     0 <- termPut (showCounts (stCounts ss1)) True us1
     return (stCounts ss1)
 
 runSuiteTT :: TestSuite -> IO Counts
-runSuiteTT suite =
-  do
-    (counts, us) <- performTestSuite terminalReporter 0 suite
+runSuiteTT suite @ TestSuite { suiteName = sname } =
+  let
+    selectorMap = Map.singleton sname allSelector
+  in do
+    (counts, us) <- performTestSuite terminalReporter selectorMap 0 suite
     0 <- termPut (showCounts counts ++ "\n") True us
     return counts
 
 runSuitesTT :: [TestSuite] -> IO Counts
-runSuitesTT suite =
-  do
-    (counts, us) <- performTestSuites terminalReporter suite
+runSuitesTT suites =
+  let
+    suiteNames = map suiteName suites
+    selectorMap = foldr (\sname suitemap ->
+                          Map.insert sname allSelector suitemap)
+                        Map.empty suiteNames
+  in do
+    (counts, us) <- performTestSuites terminalReporter selectorMap suites
     0 <- termPut (showCounts counts ++ "\n") True us
     return counts
