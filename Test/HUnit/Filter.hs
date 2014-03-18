@@ -8,7 +8,7 @@ module Test.HUnit.Filter(
        Selector(..),
        Filter(..),
        passFilter,
-       all,
+       allSelector,
        normalizeSelector,
        suiteSelectors,
        parseFilter,
