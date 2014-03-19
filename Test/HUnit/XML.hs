@@ -18,6 +18,7 @@ module Test.HUnit.XML(
        reporter
        ) where
 
+import Data.Map(Map)
 import Data.Time
 import Data.Word
 import Network.HostName
@@ -25,6 +26,8 @@ import System.Locale
 import Test.HUnit.Reporting(Reporter(..), State(..), Counts(..),
                             defaultReporter, showPath)
 import Text.XML.Expat.Tree
+
+import qualified Data.Map as Map
 
 -- | Generate an element for a property definition
 propertyElem :: (String, String)
@@ -106,7 +109,7 @@ skippedTestElem name classname =
 -- | Generate an element for a test suite run
 testSuiteElem :: String
               -- ^ The name of the test suite
-              -> [(String, String)]
+              -> Map String String
               -- ^ The properties defined for this suite
               -> Word
               -- ^ The number of tests
@@ -125,9 +128,10 @@ testSuiteElem :: String
               -> [Node String String]
               -- ^ The testcases and output nodes for the test suite
               -> Node String String
-testSuiteElem name props tests failures errors skipped
+testSuiteElem name propmap tests failures errors skipped
               hostname timestamp time content =
   let
+    props = Map.assocs propmap
     timestr = formatTime defaultTimeLocale "%c" timestamp
   in
     Element { eName = "testsuite", eChildren = propertiesElem props : content,

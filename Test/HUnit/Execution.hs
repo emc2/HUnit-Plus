@@ -202,7 +202,7 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
     Just selector ->
       let
         initState = State { stCounts = zeroCounts, stName = sname,
-                            stPath = [], stOptions = suiteOpts }
+                            stPath = [], stOptions = Map.fromList suiteOpts }
 
         foldfun (c, us) testcase = performTest rep selector c us testcase
       in do

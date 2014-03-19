@@ -17,6 +17,7 @@ module Test.HUnit.Reporting(
        ) where
 
 import Data.Word
+import Data.Map(Map)
 
 -- | A data structure that hold the results of tests that have been performed
 -- up until this point.
@@ -43,7 +44,7 @@ data State =
     -- | The current test statistics
     stCounts :: !Counts,
     -- | The current option values
-    stOptions :: [(String, String)]
+    stOptions :: Map String String
   }
   deriving (Eq, Show, Read)
 
