@@ -15,12 +15,14 @@ module Test.HUnit.Filter(
        parseFilterFile
        ) where
 
+import Control.Exception
 import Data.Foldable(foldr)
 import Data.Set(Set)
 import Data.Map(Map)
 import Data.Maybe
 import Prelude hiding (foldr, elem)
-import Text.ParserCombinators.Parsec
+import System.IO.Error
+import Text.ParserCombinators.Parsec hiding (try)
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -321,9 +323,25 @@ linesParser =
     return (catMaybes filters)
 
 -- | Parse the contents of a testlist file
-parseFilterFile :: String
-                -- ^ The name of the source
-                -> String
-                -- ^ The input
-                -> Either ParseError [Filter]
-parseFilterFile sourcename input = parse linesParser sourcename input
+parseFilterFile :: FilePath -> IO (Either String [Filter])
+parseFilterFile filename =
+  do
+    input <- try (readFile filename)
+    case input of
+      Left e
+        | isAlreadyInUseError e ->
+          return (Left ("Error reading testlist file " ++ filename ++
+                        ": File is already in use\n"))
+        | isDoesNotExistError e ->
+          return (Left ("Error reading testlist file " ++ filename ++
+                        ": File does not exist\n"))
+        | isPermissionError e ->
+          return (Left ("Error reading testlist file " ++ filename ++
+                        ": Permission denied\n"))
+        | otherwise ->
+          return (Left ("Cannot read testlist file " ++ filename ++
+                        ": Miscellaneous error\n"))
+      Right contents ->
+        case parse linesParser filename contents of
+          Left e -> return (Left (show e))
+          Right out -> return (Right out)
