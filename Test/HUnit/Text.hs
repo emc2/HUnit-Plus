@@ -142,7 +142,8 @@ runTestText puttext @ (PutText put us0) verbose t =
                           cTried = 0, cErrors = 0, cFailures = 0,
                           cAsserts = 0, cSkipped = 0 }
     initState = State { stCounts = initCounts, stName = "",
-                        stPath = [], stOptions = Map.empty }
+                        stPath = [], stOptions = Map.empty,
+                        stOptionDescs = [] }
 
     reporter = textReporter puttext verbose
   in do
@@ -240,7 +241,8 @@ runTestTT t =
                           cTried = 0, cErrors = 0, cFailures = 0,
                           cAsserts = 0, cSkipped = 0 }
     initState = State { stCounts = initCounts, stName = "",
-                        stPath = [], stOptions = Map.empty }
+                        stPath = [], stOptions = Map.empty,
+                        stOptionDescs = [] }
   in do
     (ss1, us1) <- performTest terminalReporter allSelector initState 0 t
     0 <- termPut (showCounts (stCounts ss1)) True us1

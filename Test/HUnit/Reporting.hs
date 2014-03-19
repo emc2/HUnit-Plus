@@ -18,6 +18,7 @@ module Test.HUnit.Reporting(
 
 import Data.Word
 import Data.Map(Map)
+import Distribution.TestSuite
 
 -- | A data structure that hold the results of tests that have been performed
 -- up until this point.
@@ -44,7 +45,9 @@ data State =
     -- | The current test statistics
     stCounts :: !Counts,
     -- | The current option values
-    stOptions :: Map String String
+    stOptions :: !(Map String String),
+    -- | The current option descriptions we know about
+    stOptionDescs :: ![OptionDescr]
   }
   deriving (Eq, Show, Read)
 

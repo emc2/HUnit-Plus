@@ -32,15 +32,42 @@ performTestCase :: Reporter us
                 -- ^ The test to be executed
                 -> IO (State, us)
 performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
+                                 reporterError = reportError,
                                  reporterCaseProgress = reportCaseProgress,
                                  reporterEndCase = reportEndCase }
                 ss @ State { stCounts = c @ Counts { cTried = tried },
-                             stName = oldname } us
-                TestInstance { run = runTest, name = testname } =
+                             stName = oldname, stOptions = optmap,
+                             stOptionDescs = descs } initialUs
+                initTi @ TestInstance { name = testname,
+                                        options = testdescs,
+                                        setOption = setopt } =
   let
+    -- First, apply all the options
+    alldescs = testdescs ++ descs
     -- Add the name to the state we use to run the tests
+
+    -- Update the state before running
     ssWithName = ss { stName = testname, stCounts = c { cTried = tried + 1 } }
 
+    -- Fold function for applying options
+    applyOptions (us, ti) OptionDescr { optionName = optname,
+                                        optionDefault = def } =
+      let
+        setresult :: Either String TestInstance
+        setresult =
+          case Map.lookup optname optmap of
+            Just optval -> setopt optname optval
+            Nothing -> case def of
+              Just optval -> setopt optname optval
+              Nothing -> Right ti
+      in case setresult of
+        Left errmsg ->
+          do
+            newUs <- reportError errmsg ssWithName us
+            return (newUs, ti)
+        Right newTi -> return (us, newTi)
+
+    -- Run the test until a finished result is produced
     finishTestCase us' action =
       do
         progress <- action
@@ -51,8 +78,11 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
               finishTestCase usNext nextAction
           Finished res -> return (res, us')
   in do
+    -- Get all the rest of the information from the resulting test instance
+    (usOpts, TestInstance { run = runTest }) <-
+      foldM applyOptions (initialUs, initTi) alldescs
     -- Call the reporter's start case function
-    usStarted <- reportStartCase ssWithName us
+    usStarted <- reportStartCase ssWithName usOpts
     -- Actually run the test
     (time, (res, usFinished)) <- timeItT (finishTestCase usStarted runTest)
     -- Report the results
@@ -145,10 +175,9 @@ performTest rep initSelector initState initialUs initialTest =
               else skipTestCase rep ss us t
         -- Otherwise, we skip the case
         _ -> skipTestCase rep ss us t
-    performTest' selector ss us (ExtraOptions _ inner) =
-      -- For now, options aren't being handled.  This will need to do
-      -- more when they are.
-      performTest' selector ss us inner
+    performTest' selector ss @ State { stOptionDescs = descs }
+                 us (ExtraOptions newopts inner) =
+      performTest' selector ss { stOptionDescs = descs ++ newopts } us inner
   in do
     (ss', us') <-
       performTest' (Just (Set.empty, initSelector))
@@ -202,7 +231,8 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
     Just selector ->
       let
         initState = State { stCounts = zeroCounts, stName = sname,
-                            stPath = [], stOptions = Map.fromList suiteOpts }
+                            stPath = [], stOptions = Map.fromList suiteOpts,
+                            stOptionDescs = [] }
 
         foldfun (c, us) testcase = performTest rep selector c us testcase
       in do
