@@ -31,20 +31,15 @@ performTestCase :: Reporter us
                 -> TestInstance
                 -- ^ The test to be executed
                 -> IO (State, us)
-performTestCase Reporter { reporterStartCase = reportStartCase,
-                           reporterCaseProgress = reportCaseProgress,
-                           reporterEndCase = reportEndCase,
-                           reporterError = reportError,
-                           reporterFailure = reportFailure }
-                ss @ State { stCounts = c @ Counts { cTried = tried,
-                                                     cErrors = errors,
-                                                     cFailures = failures,
-                                                     cCases = cases },
+performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
+                                 reporterCaseProgress = reportCaseProgress,
+                                 reporterEndCase = reportEndCase }
+                ss @ State { stCounts = c @ Counts { cTried = tried },
                              stName = oldname } us
-                TestInstance { run = runTest, name = testName } =
+                TestInstance { run = runTest, name = testname } =
   let
     -- Add the name to the state we use to run the tests
-    ssWithName = ss { stName = testName }
+    ssWithName = ss { stName = testname, stCounts = c { cTried = tried + 1 } }
 
     finishTestCase us' action =
       do
@@ -59,40 +54,12 @@ performTestCase Reporter { reporterStartCase = reportStartCase,
     -- Call the reporter's start case function
     usStarted <- reportStartCase ssWithName us
     -- Actually run the test
-    (time, (r, usFinished)) <- timeItT (finishTestCase usStarted runTest)
+    (time, (res, usFinished)) <- timeItT (finishTestCase usStarted runTest)
+    -- Report the results
+    (ssFinal, usFinal) <- reportTestInfo res rep ssWithName usFinished 
     -- Eventually, will need to report stdout and stderr activity
-    case r of
-      -- If the test succeeded, just report end of case
-      Pass ->
-        let
-          -- Counts to use in event of success
-          ssSuccess = ssWithName { stCounts = c { cTried = tried + 1,
-                                                  cCases = cases + 1 } }
-        in do
-          usEnded <- reportEndCase time ssSuccess usFinished
-          return (ssSuccess { stName = oldname }, usEnded)
-      -- If there was a failure, report it, then report end of case
-      Fail msg ->
-        let
-          -- Counts to use in event of a failure
-          ssFail = ssWithName { stCounts = c { cTried = tried + 1,
-                                               cCases = cases + 1,
-                                               cFailures = failures + 1 } }
-        in do
-          usFail <- reportFailure msg ssFail usFinished
-          usEnded <- reportEndCase time ssFail usFail
-          return (ssFail { stName = oldname }, usEnded)
-      -- If there was an error, report it, then report end of case
-      Error msg ->
-        let
-          -- Counts to use in event of an error
-          ssError = ssWithName { stCounts = c { cTried = tried + 1,
-                                                cCases = cases + 1,
-                                                cErrors = errors + 1 } }
-        in do
-          usError <- reportError msg ssError usFinished
-          usEnded <- reportEndCase time ssError usError
-          return (ssError { stName = oldname }, usEnded)
+    usEnded <- reportEndCase time ssFinal usFinal
+    return (ssFinal { stName = oldname }, usEnded)
 
 skipTestCase :: Reporter us
              -- ^ Report generator for the test run
@@ -107,10 +74,10 @@ skipTestCase Reporter { reporterSkipCase = reportSkipCase }
              ss @ State { stCounts = c @ Counts { cSkipped = skipped,
                                                   cCases = cases },
                           stName = oldname } us
-             TestInstance { name = testName } =
+             TestInstance { name = testname } =
   let
     ss' = ss { stCounts = c { cSkipped = skipped + 1, cCases = cases + 1 },
-               stName = testName }
+               stName = testname }
   in do
     us' <- reportSkipCase ss' us
     return (ss' { stName = oldname }, us')

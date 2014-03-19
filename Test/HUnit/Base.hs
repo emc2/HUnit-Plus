@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | Basic definitions for the HUnit library.
 -- 
@@ -14,60 +15,195 @@ module Test.HUnit.Base(
        Test(..),
        TestInstance(..),
        TestSuite(..),
-{-
+
        (~=?),
        (~?=),
        (~:),
        (~?),
 
+       -- ** Low-level Test Functions
+       reportTestInfo,
+       logAssert,
+       logFailure,
+       logError,
+       getErrors,
+       getFailures,
+
        -- ** Making assertions
-       assertFailure, {- from Test.HUnit.Lang: -}
+       Assertion,
+       assertFailure,
        assertBool,
+       assertString,
        assertEqual,
-       assertString, 
-       Assertion, {- from Test.HUnit.Lang: -}
        (@=?),
        (@?=),
        (@?),
-
        -- ** Extending the assertion functionality
        Assertable(..),
        ListAssertable(..),
        AssertionPredicate,
        AssertionPredicable(..),
        Testable(..),
--}
+
        -- ** Test execution
        -- $testExecutionNote
        testCasePaths,
        testCaseCount,
        ) where
 
--- Test Monad Definition
+import Control.Exception hiding (assert)
+import Data.Foldable
+import Data.IORef
+import Data.Word
+import Distribution.TestSuite
+import Prelude hiding (concat, sum)
+import System.IO.Unsafe
+import Test.HUnit.Reporting
+
+
+-- Test Wrapper Definition
 -- =====================
-{-
-data TestInfo us =
+data TestInfo =
   TestInfo {
     -- | Current counts of assertions, tried, failed, and errors
-    tiCounts :: !Counts,
-    -- | Reporter state
-    tiRepState :: !us,
-    -- | Whether or not an error has been logged in this test
-    tiError :: !Bool
+    tiAsserts :: !Word,
+    -- | Failure messages that have been logged
+    tiFailures :: ![String],
+    -- | Failure messages that have been logged
+    tiErrors :: ![String],
+    -- | Whether or not the result of the test computation is already
+    -- reflected here.  This is used to differentiate between black
+    -- box test and tests we've built with these tools.
+    tiIgnoreResult :: !Bool
   }
 
-type TestM us a = StateT (TestInfo us) IO a
--}
+{-# NOINLINE testinfo #-}
+testinfo :: IORef TestInfo
+testinfo = unsafePerformIO $ newIORef TestInfo { tiAsserts = 0,
+                                                 tiFailures = [],
+                                                 tiErrors = [],
+                                                 tiIgnoreResult = False }
+
+-- | Interface between invisible @TestInfo@ and the rest of the test
+-- execution framework.
+reportTestInfo :: Result -> Reporter us -> State -> us -> IO (State, us)
+reportTestInfo result Reporter { reporterError = reportError,
+                                 reporterFailure = reportFailure }
+               ss @ State { stCounts = c @ Counts { cAsserts = asserts,
+                                                    cFailures = failures,
+                                                    cErrors = errors } }
+               initialUs =
+  do
+    TestInfo { tiAsserts = currAsserts,
+               tiFailures = currFailures,
+               tiErrors = currErrors,
+               tiIgnoreResult = ignoreRes } <- readIORef testinfo
+    errorsUs <- foldlM (\us msg -> reportError msg ss us )
+                       initialUs currErrors
+    failuresUs <- foldlM (\us msg -> reportFailure msg ss us )
+                         errorsUs currErrors
+    case result of
+      Error msg | not ignoreRes ->
+        do
+          finalUs <- reportError msg ss failuresUs
+          return (ss { stCounts =
+                          c { cAsserts = asserts + fromIntegral currAsserts,
+                              cFailures = failures +
+                                          fromIntegral (length currFailures),
+                              cErrors = errors + 1 +
+                                        fromIntegral (length currErrors) } },
+                  finalUs)
+      Fail msg | not ignoreRes ->
+        do
+          finalUs <- reportFailure msg ss failuresUs
+          return (ss { stCounts =
+                          c { cAsserts = asserts + fromIntegral currAsserts,
+                              cFailures = failures + 1 +
+                                          fromIntegral (length currFailures),
+                              cErrors = errors +
+                                        fromIntegral (length currErrors) } },
+                  finalUs)
+      _ -> return (ss { stCounts =
+                           c { cAsserts = asserts + fromIntegral currAsserts,
+                               cFailures = failures +
+                                           fromIntegral (length currFailures),
+                               cErrors = errors +
+                                         fromIntegral (length currErrors) } },
+                   failuresUs)
+
+-- | Indicate that the result of a test is already reflected in the testinfo
+ignoreResult :: IO ()
+ignoreResult =
+  do
+    t <- readIORef testinfo
+    writeIORef testinfo t { tiIgnoreResult = True }
+
+resetTestInfo :: IO ()
+resetTestInfo =
+  do
+    writeIORef testinfo TestInfo { tiAsserts = 0,
+                                   tiFailures = [],
+                                   tiErrors = [],
+                                   tiIgnoreResult = False }
+
+-- | Record that one assertion has been checked.
+logAssert :: IO ()
+logAssert =
+  do
+    t @ TestInfo { tiAsserts = asserts } <- readIORef testinfo
+    writeIORef testinfo t { tiAsserts = asserts + 1 }
+
+-- | Record an error, along with a message.
+logError :: String -> IO ()
+logError msg =
+  do
+    t @ TestInfo { tiErrors = errs } <- readIORef testinfo
+    writeIORef testinfo t { tiErrors = msg : errs }
+
+-- | Record a failure, along with a message.
+logFailure :: String -> IO ()
+logFailure msg =
+  do
+    t @ TestInfo { tiFailures = fails } <- readIORef testinfo
+    writeIORef testinfo t { tiFailures = msg : fails }
+
+-- | Get a combined failure message, if there is one
+getFailures :: IO (Maybe String)
+getFailures =
+  do
+    TestInfo { tiFailures = fails } <- readIORef testinfo
+    case fails of
+      [] -> return Nothing
+      _ -> return (Just (concat (reverse fails)))
+
+-- | Get a combined failure message, if there is one
+getErrors :: IO (Maybe String)
+getErrors =
+  do
+    TestInfo { tiErrors = errors } <- readIORef testinfo
+    case errors of
+      [] -> return Nothing
+      _ -> return (Just (concat (reverse errors)))
+
 -- Assertion Definition
 -- ====================
 
---import Test.HUnit.Lang
-import Distribution.TestSuite
-import Test.HUnit.Reporting
+type Assertion = IO ()
 
-{-
 -- Conditional Assertion Functions
 -- -------------------------------
+
+-- | Unconditionally signal that a failure has occurred.  This will
+-- not stop execution, but will record the error, resulting in a
+-- failed test.
+assertFailure :: String
+              -- ^ The failure message
+              -> Assertion
+assertFailure msg = logAssert >> logFailure msg
+
+-- | Signal that an assertion succeeded.
+assertSuccess :: Assertion
+assertSuccess = logAssert
 
 -- | Asserts that the specified condition holds.
 assertBool :: String
@@ -75,14 +211,14 @@ assertBool :: String
            -> Bool
            -- ^ The condition
            -> Assertion
-assertBool msg b = unless b (assertFailure msg)
+assertBool msg b = if b then assertSuccess else assertFailure msg
 
 -- | Signals an assertion failure if a non-empty message (i.e., a message
 -- other than @\"\"@) is passed.
 assertString :: String
              -- ^ The message that is displayed with the assertion failure 
              -> Assertion
-assertString s = unless (null s) (assertFailure s)
+assertString s = assertBool s (null s)
 
 -- | Asserts that the specified actual value is equal to the expected value.
 -- The output message will contain the prefix, the expected value, and the 
@@ -103,7 +239,7 @@ assertEqual preface expected actual =
     msg = (if null preface then "" else preface ++ "\n") ++
              "expected: " ++ show expected ++ "\n but got: " ++ show actual
   in
-    unless (actual == expected) (assertFailure msg)
+    assertBool msg (actual == expected)
 
 -- Overloaded `assert` Function
 -- ----------------------------
@@ -131,7 +267,7 @@ instance (ListAssertable t) => Assertable [t]
  where assert = listAssert
 
 instance (Assertable t) => Assertable (IO t)
- where assert = (>>= assert)
+ where assert t = assert t
 
 -- | A specialized form of 'Assertable' to handle lists.
 class ListAssertable t
@@ -214,7 +350,7 @@ expected @=? actual = assertEqual "" expected actual
          -- ^ The expected value
          -> Assertion
 actual @?= expected = assertEqual "" expected actual
--}
+
 -- Test Definition
 -- ===============
 
@@ -239,22 +375,118 @@ data TestSuite =
     -- | The tests in the suite
     suiteTests :: [Test]
   }
-{-
+
 -- Overloaded `test` Function
 -- --------------------------
 
+{-# NOINLINE syntheticName #-}
+syntheticName :: String
+syntheticName = "__synthetic__"
+
+handleException :: SomeException -> IO Progress
+handleException e =
+  do
+    logError ("Exception occurred during test:\n" ++ show e)
+    checkTestInfo
+
+wrapProgressTest :: IO Progress -> IO Progress
+wrapProgressTest t =
+  let
+    normalFinish :: IO Progress
+    normalFinish =
+      do
+        progress <- t
+        case progress of
+          Progress _ _ -> return progress
+          Finished Pass -> checkTestInfo
+          Finished (Error errstr) ->
+            do
+              logError errstr
+              checkTestInfo
+          Finished (Fail failstr) ->
+            do
+              logFailure failstr
+              checkTestInfo
+  in do
+    resetTestInfo
+    ignoreResult
+    catch normalFinish handleException
+
+wrapTest :: IO a -> IO Progress
+wrapTest t =
+  do
+    resetTestInfo
+    ignoreResult
+    catch (t >> checkTestInfo) handleException
+
+checkTestInfo :: IO Progress
+checkTestInfo =
+  do
+    errors <- getErrors
+    case errors of
+      Nothing ->
+        do
+          failures <- getFailures
+          case failures of
+            Nothing -> return (Finished Pass)
+            Just failstr -> return (Finished (Fail failstr))
+      Just errstr -> return (Finished (Error errstr))
+
 -- | Provides a way to convert data into a @Test@ or set of @Test@.
-class Testable t
- where test :: t -> Test
+class Testable t where
+  -- | Create a test with a given name and tag set from a @Testable@ value
+  testNameTags :: String -> [String] -> t -> Test
 
-instance Testable Test
- where test = id
+  -- | Create a test with a given name and no tags from a @Testable@ value
+  testName :: String -> t -> Test
+  testName testname t = testNameTags testname [] t
 
-instance (Assertable t) => Testable (IO t)
- where test = TestCase . assert
+  -- | Create a test with a given name and no tags from a @Testable@ value
+  testTags :: [String] -> t -> Test
+  testTags tagset t = testNameTags syntheticName tagset t
 
-instance (Testable t) => Testable [t]
- where test = TestList . map test
+  -- | Create a test with a synthetic name and no tags from a @Testable@ value
+  test :: Testable t => t -> Test
+  test t = testNameTags syntheticName [] t
+
+instance Testable Test where
+  testNameTags newname newtags g @ Group { groupTests = testlist } =
+    g { groupName = newname, groupTests = map (testTags newtags) testlist }
+  testNameTags newname newtags (Test t @ TestInstance { tags = oldtags }) =
+    Test t { name = newname, tags = newtags ++ oldtags }
+  testNameTags newname newtags (ExtraOptions opts t) =
+    ExtraOptions opts (testNameTags newname newtags t)
+
+  testTags newtags g @ Group { groupTests = testlist } =
+    g { groupTests = map (testTags newtags) testlist }
+  testTags newtags (Test t @ TestInstance { tags = oldtags }) =
+    Test t { tags = newtags ++ oldtags }
+  testTags newtags (ExtraOptions opts t) =
+    ExtraOptions opts (testTags newtags t)
+
+  testName newname g @ Group {} = g { groupName = newname }
+  testName newname (Test t) = Test t { name = newname }
+  testName newname (ExtraOptions opts t) =
+    ExtraOptions opts (testName newname t)
+
+  test = id
+
+instance (Assertable t) => Testable (IO t) where
+  testNameTags testname testtags t =
+    Test TestInstance { name = testname, tags = testtags,
+                        run = wrapTest (assert t),
+                        options = [], setOption = undefined }
+
+instance Testable (IO Progress) where
+  testNameTags testname testtags t =
+    Test TestInstance { name = testname, tags = testtags,
+                        run = wrapProgressTest t,
+                        options = [], setOption = undefined }
+
+instance (Testable t) => Testable [t] where
+  testNameTags testname testtags ts =
+    Group { groupName = testname, groupTests = map (testTags testtags) ts,
+            concurrently = True }
 
 -- Test Construction Operators
 -- ---------------------------
@@ -270,7 +502,7 @@ infixr 0 ~:
      -> String
      -- ^ A message that is displayed on test failure
      -> Test
-predi ~? msg = TestCase (predi @? msg)
+predi ~? msg = test (predi @? msg)
 
 -- | Shorthand for a test case that asserts equality (with the expected 
 --   value on the left-hand side, and the actual value on the right-hand
@@ -281,7 +513,7 @@ predi ~? msg = TestCase (predi @? msg)
       -> a
       -- ^ The actual value
       -> Test
-expected ~=? actual = TestCase (expected @=? actual)
+expected ~=? actual = test (expected @=? actual)
 
 -- | Shorthand for a test case that asserts equality (with the actual 
 --   value on the left-hand side, and the expected value on the right-hand
@@ -292,7 +524,7 @@ expected ~=? actual = TestCase (expected @=? actual)
       -> a
       -- ^ The expected value 
       -> Test
-actual ~?= expected = TestCase (actual @?= expected)
+actual ~?= expected = test (actual @?= expected)
 
 -- | Creates a test from the specified 'Testable', with the specified 
 --   label attached to it.
@@ -300,8 +532,7 @@ actual ~?= expected = TestCase (actual @?= expected)
 -- Since 'Test' is @Testable@, this can be used as a shorthand way of
 -- attaching a 'TestLabel' to one or more tests.
 (~:) :: (Testable t) => String -> t -> Test
-label ~: t = TestLabel label (test t)
--}
+label ~: t = testName label t
 
 
 -- Test Execution
