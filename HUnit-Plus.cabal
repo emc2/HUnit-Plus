@@ -14,15 +14,15 @@ Cabal-version:          >= 1.9.2
 
 Library
   build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit,
-                        cmdargs, hashable, containers, time, old-locale, hostname
+                        cmdargs, hashable, containers, time, old-locale, hostname,
+                        parsec
   exposed-modules:      Test.HUnit.Base
                         Test.HUnit.Execution
                         Test.HUnit.Filter
---                        Test.HUnit.OldTest
+--                        Test.HUnit.Main
+                        Test.HUnit.OldTest
                         Test.HUnit.Reporting
                         Test.HUnit.Terminal
                         Test.HUnit.Text
                         Test.HUnit.XML
                         Test.HUnit
-  other-modules:
-                        Test.HUnit.Lang
