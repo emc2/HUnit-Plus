@@ -297,8 +297,11 @@ parseFilter :: String
             -- ^ The name of the source
             -> String
             -- ^ The input
-            -> Either ParseError Filter
-parseFilter sourcename input = parse filterParser sourcename input
+            -> Either String Filter
+parseFilter sourcename input =
+  case parse filterParser sourcename input of
+    Left e -> Left (show e)
+    Right out -> Right out
 
 commentParser :: GenParser Char st ()
 commentParser =
