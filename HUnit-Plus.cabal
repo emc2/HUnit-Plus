@@ -13,7 +13,8 @@ Build-type:             Simple
 Cabal-version:          >= 1.9.2
 
 Test-Suite unit-tests
-    type:               detailed-0.9
+  type:                 detailed-0.9
+  hs-source-dirs:       src
   build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit,
                         cmdargs, hashable, containers, time, old-locale, hostname,
                         parsec, bytestring
@@ -30,6 +31,7 @@ Test-Suite unit-tests
                         Test.HUnit
 
 Library
+  hs-source-dirs:       src
   build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit,
                         cmdargs, hashable, containers, time, old-locale, hostname,
                         parsec, bytestring

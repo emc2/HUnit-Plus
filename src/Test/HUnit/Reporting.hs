@@ -67,85 +67,85 @@ data Reporter us = Reporter {
     reporterStart :: IO us,
     -- | Called at the end of a test run
     reporterEnd :: Double
-                -- ^ The total time it took to run the tests
+                --  The total time it took to run the tests
                 -> Counts
-                -- ^ The counts from running the tests
+                --  The counts from running the tests
                 -> us
-                -- ^ The user state for this test reporter
+                --  The user state for this test reporter
                 -> IO us,
     -- | Called at the start of a test suite run
     reporterStartSuite :: State
-                       -- ^ Options given to the test suite
+                       --  Options given to the test suite
                        -> us
-                       -- ^ The user state for this test reporter
+                       --  The user state for this test reporter
                        -> IO us,
     -- | Called at the end of a test suite run
     reporterEndSuite :: Double
-                     -- ^ The total time it took to run the test suite
+                     --  The total time it took to run the test suite
                      -> State
-                     -- ^ The counts from running the tests
+                     --  The counts from running the tests
                      -> us
-                     -- ^ The user state for this test reporter
+                     --  The user state for this test reporter
                      -> IO us,
     -- | Called at the start of a test case run
     reporterStartCase :: State
-                      -- ^ The HUnit internal state
+                      --  The HUnit internal state
                       -> us
-                      -- ^ The user state for this test reporter
+                      --  The user state for this test reporter
                       -> IO us,
     -- | Called to report progress of a test case run
     reporterCaseProgress :: String
-                         -- ^ A progress message
+                         --  A progress message
                          -> State
-                         -- ^ The HUnit internal state
+                         --  The HUnit internal state
                          -> us
-                         -- ^ The user state for this test reporter
+                         --  The user state for this test reporter
                          -> IO us,
     -- | Called at the end of a test case run
     reporterEndCase :: Double
-                    -- ^ The total time it took to run the test suite
+                    --  The total time it took to run the test suite
                     -> State
-                    -- ^ The HUnit internal state
+                    --  The HUnit internal state
                     -> us
-                    -- ^ The user state for this test reporter
+                    --  The user state for this test reporter
                     -> IO us,
     -- | Called when skipping a test case
     reporterSkipCase :: State
-                     -- ^ The HUnit internal state
+                     --  The HUnit internal state
                      -> us
-                     -- ^ The user state for this test reporter
+                     --  The user state for this test reporter
                      -> IO us,
     -- | Called to report output printed to the system output stream
     reporterSystemOut :: String
-                      -- ^ The content printed to system out
+                      --  The content printed to system out
                       -> State
-                      -- ^ The HUnit internal state
+                      --  The HUnit internal state
                       -> us
-                      -- ^ The user state for this test reporter
+                      --  The user state for this test reporter
                       -> IO us,
     -- | Called to report output printed to the system error stream
     reporterSystemErr :: String
-                      -- ^ The content printed to system out
+                      --  The content printed to system out
                       -> State
-                      -- ^ The HUnit internal state
+                      --  The HUnit internal state
                       -> us
-                      -- ^ The user state for this test reporter
+                      --  The user state for this test reporter
                       -> IO us,
     -- | Called when a test fails
     reporterFailure :: String
-                    -- ^ A message relating to the error
+                    --  A message relating to the error
                     -> State
-                    -- ^ The HUnit internal state
+                    --  The HUnit internal state
                     -> us
-                    -- ^ The user state for this test reporter
+                    --  The user state for this test reporter
                     -> IO us,
     -- | Called when a test reports an error
     reporterError :: String
-                  -- ^ A message relating to the error
+                  --  A message relating to the error
                   -> State
-                  -- ^ The HUnit internal state
+                  --  The HUnit internal state
                   -> us
-                  -- ^ The user state for this test reporter
+                  --  The user state for this test reporter
                   -> IO us
   }
 
