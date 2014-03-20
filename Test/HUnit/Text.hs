@@ -7,10 +7,12 @@ module Test.HUnit.Text(
        PutText(..),
        putTextToHandle,
        putTextToShowS,
+       textReporter,
        runTestText,
        runSuiteText,
        runSuitesText,
        showCounts,
+       terminalReporter,
        runTestTT,
        runSuiteTT,
        runSuitesTT
