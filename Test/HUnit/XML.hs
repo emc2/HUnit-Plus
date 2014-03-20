@@ -15,7 +15,7 @@ module Test.HUnit.XML(
        testSuiteElem,
        testSuitesElem,
        -- * Reporter
-       reporter
+       xmlReporter
        ) where
 
 import Data.Map(Map)
@@ -155,8 +155,8 @@ testSuitesElem time suites =
             eAttributes = [("time ", show time)] }
 
 -- | A reporter that generates JUnit XML reports
-reporter :: Reporter [[Node String String]]
-reporter =
+xmlReporter :: Reporter [[Node String String]]
+xmlReporter =
   let
     reportStart = return [[]]
 
