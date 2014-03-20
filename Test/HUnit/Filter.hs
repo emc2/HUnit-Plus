@@ -326,25 +326,25 @@ linesParser =
     return (catMaybes filters)
 
 -- | Parse the contents of a testlist file
-parseFilterFile :: FilePath -> IO (Either String [Filter])
+parseFilterFile :: FilePath -> IO (Either [String] [Filter])
 parseFilterFile filename =
   do
     input <- try (readFile filename)
     case input of
       Left e
         | isAlreadyInUseError e ->
-          return (Left ("Error reading testlist file " ++ filename ++
-                        ": File is already in use\n"))
+          return (Left ["Error reading testlist file " ++ filename ++
+                        ": File is already in use"])
         | isDoesNotExistError e ->
-          return (Left ("Error reading testlist file " ++ filename ++
-                        ": File does not exist\n"))
+          return (Left ["Error reading testlist file " ++ filename ++
+                        ": File does not exist"])
         | isPermissionError e ->
-          return (Left ("Error reading testlist file " ++ filename ++
-                        ": Permission denied\n"))
+          return (Left ["Error reading testlist file " ++ filename ++
+                        ": Permission denied"])
         | otherwise ->
-          return (Left ("Cannot read testlist file " ++ filename ++
-                        ": Miscellaneous error\n"))
+          return (Left ["Cannot read testlist file " ++ filename ++
+                        ": Miscellaneous error"])
       Right contents ->
         case parse linesParser filename contents of
-          Left e -> return (Left (show e))
+          Left e -> return (Left [show e])
           Right out -> return (Right out)
