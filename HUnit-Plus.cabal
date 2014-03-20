@@ -12,6 +12,14 @@ Category:               Testing
 Build-type:             Simple
 Cabal-version:          >= 1.9.2
 
+Executable RunTests
+  Main-Is:              RunTests.hs
+  hs-source-dirs:       src test
+  build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit,
+                        cmdargs, hashable, containers, time, old-locale, hostname,
+                        parsec, bytestring
+  ghc-options           -fhpc
+
 Test-Suite unit-tests
   type:                 detailed-0.9
   hs-source-dirs:       src test
