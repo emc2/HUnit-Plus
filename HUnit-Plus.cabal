@@ -29,6 +29,9 @@ Test-Suite unit-tests
                         Test.HUnit.Text
                         Test.HUnit.XML
                         Test.HUnit
+                        Tests.Test
+                        Tests.Test.HUnit
+                        Tests.Test.HUnit.XML
 
 Library
   hs-source-dirs:       src
