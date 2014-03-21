@@ -169,7 +169,7 @@ xmlReporter =
     reportStartSuite _ stack = return ([] : stack)
 
     reportEndSuite time State { stName = name, stOptions = options,
-                                stCounts = Counts { cTried = tried,
+                                stCounts = Counts { cCases = cases,
                                                     cErrors = errors,
                                                     cFailures = failures,
                                                     cSkipped = skipped } }
@@ -177,7 +177,7 @@ xmlReporter =
       do
         hostname <- getHostName
         timestamp <- getCurrentTime
-        return ((testSuiteElem name options tried failures errors skipped
+        return ((testSuiteElem name options cases failures errors skipped
                                hostname timestamp time (reverse events) :
                  rest) : stack)
     reportEndSuite _ _ _ = fail "Node stack underflow"
