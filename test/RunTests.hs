@@ -82,7 +82,8 @@ wrapTrees Counts { cTried = tried, cErrors = errors, cFailures = failed } trees 
                                    eAttributes = [("name", "Test"),
                                                   ("tests", show tried),
                                                   ("failures", show failed),
-                                                  ("errors", show errors)],
+                                                  ("errors", show errors),
+                                                  ("skipped", "0")],
                                    eChildren = trees }] }
 
 
