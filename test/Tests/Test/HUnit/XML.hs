@@ -228,7 +228,7 @@ reporterTestCases =
               eAttributes = [("name", "Test"),
                              ("hostname", hostname),
                              ("time", show pi),
-                             ("tests", show 10),
+                             ("tests", show 7),
                              ("failures", show 1),
                              ("errors", show 2),
                              ("skipped", show 3)] })
