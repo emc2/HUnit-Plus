@@ -64,12 +64,6 @@ countFail count (s @ State { stCounts = c @ Counts { cFailures = failed } },
                  repstate) =
   return (s { stCounts = c { cFailures = failed + count } }, repstate)
 
-reportSkip :: ReporterOp
-reportSkip (state, repstate) =
-  do
-    repstate' <- (reporterSkipCase xmlReporter) state repstate
-    return (state, repstate')
-
 reportSystemErr :: String -> ReporterOp
 reportSystemErr msg (state, repstate) =
   do
@@ -80,6 +74,36 @@ reportSystemOut :: String -> ReporterOp
 reportSystemOut msg (state, repstate) =
   do
     repstate' <- (reporterSystemOut xmlReporter) msg state repstate
+    return (state, repstate')
+
+reportFailure :: String -> ReporterOp
+reportFailure msg (state, repstate) =
+  do
+    repstate' <- (reporterFailure xmlReporter) msg state repstate
+    return (state, repstate')
+
+reportError :: String -> ReporterOp
+reportError msg (state, repstate) =
+  do
+    repstate' <- (reporterError xmlReporter) msg state repstate
+    return (state, repstate')
+
+reportSkip :: ReporterOp
+reportSkip (state, repstate) =
+  do
+    repstate' <- (reporterSkipCase xmlReporter) state repstate
+    return (state, repstate')
+
+reportStartCase :: ReporterOp
+reportStartCase (state, repstate) =
+  do
+    repstate' <- (reporterStartCase xmlReporter) state repstate
+    return (state, repstate')
+
+reportEndCase :: Double -> ReporterOp
+reportEndCase time (state, repstate) =
+  do
+    repstate' <- (reporterEndCase xmlReporter) time state repstate
     return (state, repstate')
 
 runReporterTest :: [ReporterOp] -> Node String String -> IO Result
@@ -97,20 +121,85 @@ runReporterTest tests expected =
 
 reporterTestCases :: [(String, [ReporterOp], Node String String)]
 reporterTestCases =
-  [("xmlReporter_skip", [setName "Test", pushPath "Path", reportSkip],
+  [("xmlReporter_systemErr", [reportSystemErr "Error Message Content"],
+    Element { eName = "system-err", eChildren = [Text "Error Message Content"],
+              eAttributes = [] }),
+   ("xmlReporter_systemOut", [reportSystemOut "Message Content"],
+    Element { eName = "system-out", eChildren = [Text "Message Content"],
+              eAttributes = [] }),
+   ("xmlReporter_failure", [reportFailure "Failure Message"],
+    Element { eName = "failure", eChildren = [],
+              eAttributes = [("message", "Failure Message")] }),
+   ("xmlReporter_error", [reportError "Error Message"],
+    Element { eName = "error", eChildren = [],
+              eAttributes = [("message", "Error Message")] }),
+   ("xmlReporter_skip", [setName "Test", pushPath "Path", reportSkip],
     Element { eName = "testcase",
               eChildren = [Element { eName = "skipped",
                                      eAttributes = [],
                                      eChildren = [] }],
               eAttributes = [("name", "Test"),
                              ("classname", "Path")] }),
-   ("xmlReporter_systemErr", [reportSystemErr "Error Message Content"],
-    Element { eName = "system-err", eChildren = [Text "Error Message Content"],
-              eAttributes = [] }),
-   ("xmlReporter_systemOut", [reportSystemErr "Message Content"],
-    Element { eName = "system-out", eChildren = [Text "Message Content"],
-              eAttributes = [] })
-  ]
+   ("xmlReporter_empty_case",
+    [setName "Test", pushPath "Path", reportStartCase,
+     countAsserts 3, reportEndCase pi],
+    Element { eName = "testcase", eChildren = [],
+              eAttributes = [("name", "Test"),
+                             ("classname", "Path"),
+                             ("assertions", show 3),
+                             ("time", show pi)] }),
+   ("xmlReporter_output_case",
+    [setName "Test", pushPath "Path", reportStartCase, countAsserts 3,
+     reportSystemErr "Error Message Content", reportSystemOut "Message Content",
+     reportEndCase pi],
+    Element { eName = "testcase",
+              eChildren = [Element { eName = "system-err",
+                                     eChildren = [Text "Error Message Content"],
+                                     eAttributes = [] },
+                           Element { eName = "system-out",
+                                     eChildren = [Text "Message Content"],
+                                     eAttributes = [] }],
+              eAttributes = [("name", "Test"),
+                             ("classname", "Path"),
+                             ("assertions", show 3),
+                             ("time", show pi)] }),
+   ("xmlReporter_failing_case",
+    [setName "Test", pushPath "Path", reportStartCase, countAsserts 3,
+     reportSystemErr "Error Message Content", reportSystemOut "Message Content",
+     reportFailure "Failure Message", reportEndCase pi],
+    Element { eName = "testcase",
+              eChildren = [Element { eName = "system-err",
+                                     eChildren = [Text "Error Message Content"],
+                                     eAttributes = [] },
+                           Element { eName = "system-out",
+                                     eChildren = [Text "Message Content"],
+                                     eAttributes = [] },
+                           Element { eName = "failure", eChildren = [],
+                                     eAttributes = [("message",
+                                                     "Failure Message")] }],
+              eAttributes = [("name", "Test"),
+                             ("classname", "Path"),
+                             ("assertions", show 3),
+                             ("time", show pi)] }),
+   ("xmlReporter_error_case",
+    [setName "Test", pushPath "Path", reportStartCase, countAsserts 3,
+     reportSystemErr "Error Message Content", reportSystemOut "Message Content",
+     reportError "Error Message", reportEndCase pi],
+    Element { eName = "testcase",
+              eChildren = [Element { eName = "system-err",
+                                     eChildren = [Text "Error Message Content"],
+                                     eAttributes = [] },
+                           Element { eName = "system-out",
+                                     eChildren = [Text "Message Content"],
+                                     eAttributes = [] },
+                           Element { eName = "error", eChildren = [],
+                                     eAttributes = [("message",
+                                                     "Error Message")] }],
+              eAttributes = [("name", "Test"),
+                             ("classname", "Path"),
+                             ("assertions", show 3),
+                             ("time", show pi)] })
+   ]
 
 genReporterTest :: (String, [ReporterOp], Node String String) -> Test
 genReporterTest (name, op, expected) =
