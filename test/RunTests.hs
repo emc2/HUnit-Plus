@@ -72,7 +72,7 @@ runTest path (counts, trees) Group { groupName = gname, groupTests = gtests } =
   let
     newpath = gname : path
   in
-    foldM (runTest path) (counts, trees) gtests
+    foldM (runTest newpath) (counts, trees) gtests
 runTest _ _ (ExtraOptions _ _) = error "ExtraOptions not supported"
 
 wrapTrees :: Counts -> [Node String String] -> Node String String
@@ -86,7 +86,6 @@ wrapTrees Counts { cTried = tried, cErrors = errors, cFailures = failed } trees 
                                                   ("errors", show errors),
                                                   ("skipped", "0")],
                                    eChildren = trees }] }
-
 
 main :: IO ()
 main =
