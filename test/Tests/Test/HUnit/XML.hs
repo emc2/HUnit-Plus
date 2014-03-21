@@ -3,6 +3,8 @@ module Tests.Test.HUnit.XML where
 import Control.Monad
 import Data.Word
 import Distribution.TestSuite
+import Network.HostName
+import System.IO.Unsafe
 import Test.HUnit.XML
 import Test.HUnit.Reporting hiding (Node)
 import Text.XML.Expat.Format
@@ -46,22 +48,22 @@ countTried count (s @ State { stCounts = c @ Counts { cCases = cases,
                              cTried = tried + count } },
           repstate)
 
-countSkips :: Word -> ReporterOp
-countSkips count (s @ State { stCounts = c @ Counts { cSkipped = skipped,
-                                                      cCases = cases } },
+countSkipped :: Word -> ReporterOp
+countSkipped count (s @ State { stCounts = c @ Counts { cSkipped = skipped,
+                                                        cCases = cases } },
                   repstate) =
   return (s { stCounts = c { cSkipped = skipped + count,
                              cCases = cases + count } },
           repstate)
 
-countError :: Word -> ReporterOp
-countError count (s @ State { stCounts = c @ Counts { cErrors = errors } },
-                  repstate) =
+countErrors :: Word -> ReporterOp
+countErrors count (s @ State { stCounts = c @ Counts { cErrors = errors } },
+                   repstate) =
   return (s { stCounts = c { cErrors = errors + count } }, repstate)
 
-countFail :: Word -> ReporterOp
-countFail count (s @ State { stCounts = c @ Counts { cFailures = failed } },
-                 repstate) =
+countFailed :: Word -> ReporterOp
+countFailed count (s @ State { stCounts = c @ Counts { cFailures = failed } },
+                   repstate) =
   return (s { stCounts = c { cFailures = failed + count } }, repstate)
 
 reportSystemErr :: String -> ReporterOp
@@ -119,6 +121,22 @@ runReporterTest tests expected =
       _ -> return (Fail ("Ending node stack had more than one item:\n" ++
                          show res))
 
+reportStartSuite :: ReporterOp
+reportStartSuite (state, repstate) =
+  do
+    repstate' <- (reporterStartSuite xmlReporter) state repstate
+    return (state, repstate')
+
+reportEndSuite :: Double -> ReporterOp
+reportEndSuite time (state, repstate) =
+  let
+    removeTimestamp ((e @ Element { eAttributes = attrs } : rest) : stack) =
+      (e { eAttributes = filter ((/= "timestamp") . fst) attrs } : rest) : stack
+    removeTimestamp out = out
+  in do
+    repstate' <- (reporterEndSuite xmlReporter) time state repstate
+    return (state, removeTimestamp repstate')
+
 reporterTestCases :: [(String, [ReporterOp], Node String String)]
 reporterTestCases =
   [("xmlReporter_systemErr", [reportSystemErr "Error Message Content"],
@@ -141,15 +159,16 @@ reporterTestCases =
               eAttributes = [("name", "Test"),
                              ("classname", "Path")] }),
    ("xmlReporter_empty_case",
-    [setName "Test", pushPath "Path", reportStartCase,
+    [setName "Test", pushPath "Path", pushPath "Inner", reportStartCase,
      countAsserts 3, reportEndCase pi],
     Element { eName = "testcase", eChildren = [],
               eAttributes = [("name", "Test"),
-                             ("classname", "Path"),
+                             ("classname", "Path.Inner"),
                              ("assertions", show 3),
                              ("time", show pi)] }),
    ("xmlReporter_output_case",
-    [setName "Test", pushPath "Path", reportStartCase, countAsserts 3,
+    [setName "Test", pushPath "Path", pushPath "Inner",
+     reportStartCase, countAsserts 3,
      reportSystemErr "Error Message Content", reportSystemOut "Message Content",
      reportEndCase pi],
     Element { eName = "testcase",
@@ -160,11 +179,12 @@ reporterTestCases =
                                      eChildren = [Text "Message Content"],
                                      eAttributes = [] }],
               eAttributes = [("name", "Test"),
-                             ("classname", "Path"),
+                             ("classname", "Path.Inner"),
                              ("assertions", show 3),
                              ("time", show pi)] }),
    ("xmlReporter_failing_case",
-    [setName "Test", pushPath "Path", reportStartCase, countAsserts 3,
+    [setName "Test", pushPath "Path", pushPath "Inner",
+     reportStartCase, countAsserts 3,
      reportSystemErr "Error Message Content", reportSystemOut "Message Content",
      reportFailure "Failure Message", reportEndCase pi],
     Element { eName = "testcase",
@@ -178,11 +198,12 @@ reporterTestCases =
                                      eAttributes = [("message",
                                                      "Failure Message")] }],
               eAttributes = [("name", "Test"),
-                             ("classname", "Path"),
+                             ("classname", "Path.Inner"),
                              ("assertions", show 3),
                              ("time", show pi)] }),
    ("xmlReporter_error_case",
-    [setName "Test", pushPath "Path", reportStartCase, countAsserts 3,
+    [setName "Test", pushPath "Path", pushPath "Inner",
+     reportStartCase, countAsserts 3,
      reportSystemErr "Error Message Content", reportSystemOut "Message Content",
      reportError "Error Message", reportEndCase pi],
     Element { eName = "testcase",
@@ -196,10 +217,26 @@ reporterTestCases =
                                      eAttributes = [("message",
                                                      "Error Message")] }],
               eAttributes = [("name", "Test"),
-                             ("classname", "Path"),
+                             ("classname", "Path.Inner"),
                              ("assertions", show 3),
-                             ("time", show pi)] })
+                             ("time", show pi)] }),
+   ("xmlReporter_empty_suite",
+    [setName "Test", pushPath "Path", reportStartSuite,
+     countTried 4, countSkipped 3, countErrors 2, countFailed 1,
+     reportEndSuite pi],
+    Element { eName = "testsuite", eChildren = [],
+              eAttributes = [("name", "Test"),
+                             ("hostname", hostname),
+                             ("time", show pi),
+                             ("tests", show 10),
+                             ("failures", show 1),
+                             ("errors", show 2),
+                             ("skipped", show 3)] })
    ]
+
+{-# NOINLINE hostname #-}
+hostname :: String
+hostname = unsafePerformIO $ getHostName
 
 genReporterTest :: (String, [ReporterOp], Node String String) -> Test
 genReporterTest (name, op, expected) =

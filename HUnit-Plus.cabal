@@ -7,7 +7,7 @@ Description:
 License:                BSD3
 Author:                 Eric McCorkle, Dean Herington
 Maintainer:             eric@metricspace.net
-Stability:              Pre-alpha
+Stability:              Alpha
 Category:               Testing
 Build-type:             Simple
 Cabal-version:          >= 1.9.2
