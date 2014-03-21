@@ -80,6 +80,7 @@ wrapTrees Counts { cTried = tried, cErrors = errors, cFailures = failed } trees 
   Element { eName = "testsuites", eAttributes = [],
             eChildren = [Element { eName = "testsuite",
                                    eAttributes = [("name", "Test"),
+                                                  ("package", "HUnit-Plus"),
                                                   ("tests", show tried),
                                                   ("failures", show failed),
                                                   ("errors", show errors),
