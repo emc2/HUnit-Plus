@@ -39,11 +39,12 @@ Test-Suite unit-tests
                         Test.HUnit
                         Tests.Test
                         Tests.Test.HUnit
+                        Tests.Test.HUnit.Base
                         Tests.Test.HUnit.Execution
                         Tests.Test.HUnit.Filter
+                        Tests.Test.HUnit.Main
                         Tests.Test.HUnit.Text
                         Tests.Test.HUnit.XML
-
 Library
   hs-source-dirs:       src
   build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit,
