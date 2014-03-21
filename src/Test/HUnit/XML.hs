@@ -131,10 +131,13 @@ testSuiteElem :: String
 testSuiteElem name propmap tests failures errors skipped
               hostname timestamp time content =
   let
-    props = Map.assocs propmap
+    contentWithProps =
+      case Map.assocs propmap of
+        [] -> content
+        props -> propertiesElem props : content
     timestr = formatTime defaultTimeLocale "%c" timestamp
   in
-    Element { eName = "testsuite", eChildren = propertiesElem props : content,
+    Element { eName = "testsuite", eChildren = contentWithProps,
               eAttributes = [("name", name),
                              ("hostname", hostname),
                              ("timestamp", timestr),
