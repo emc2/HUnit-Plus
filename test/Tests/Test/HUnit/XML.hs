@@ -105,9 +105,15 @@ runReporterTests tests =
     return (Finished res)
 
 reporterTestCases :: [([ReporterOp], Node String String)]
-reporterTestCases = [([reportSkip], Element { eName = "skipped",
-                                              eAttributes = [],
-                                              eChildren = [] })]
+reporterTestCases =
+  [([setName "Test", pushPath "Path", reportSkip],
+    Element { eName = "testcase",
+              eChildren = [Element { eName = "skipped",
+                                     eAttributes = [],
+                                     eChildren = [] }],
+              eAttributes = [("name", "Test"),
+                             ("classname", "Path")] })
+  ]
 
 reporterTest =
   TestInstance { name = "Reporter", options = [],
