@@ -70,6 +70,18 @@ reportSkip (state, repstate) =
     repstate' <- (reporterSkipCase xmlReporter) state repstate
     return (state, repstate')
 
+reportSystemErr :: String -> ReporterOp
+reportSystemErr msg (state, repstate) =
+  do
+    repstate' <- (reporterSystemErr xmlReporter) msg state repstate
+    return (state, repstate')
+
+reportSystemOut :: String -> ReporterOp
+reportSystemOut msg (state, repstate) =
+  do
+    repstate' <- (reporterSystemOut xmlReporter) msg state repstate
+    return (state, repstate')
+
 runReporterTest :: [ReporterOp] -> Node String String -> IO Result
 runReporterTest tests expected =
   do
@@ -83,42 +95,32 @@ runReporterTest tests expected =
       _ -> return (Fail ("Ending node stack had more than one item:\n" ++
                          show res))
 
-runReporterTests :: [([ReporterOp], Node String String)] ->
-                    IO Progress
-runReporterTests tests =
-  let
-    combineResults Pass Pass = Pass
-    combineResults (Error msg1) (Error msg2) = Error (msg1 ++ msg2)
-    combineResults (Error msg1) (Fail msg2) = Error (msg1 ++ msg2)
-    combineResults (Fail msg1) (Error msg2) = Error (msg1 ++ msg2)
-    combineResults (Error msg) _ = Error msg
-    combineResults _ (Error msg) = Error msg
-    combineResults (Fail msg) _ = Fail msg
-    combineResults _ (Fail msg) = Fail msg
-
-    foldfun prevres (test, expected) =
-      do
-        res <- runReporterTest test expected
-        return (combineResults res prevres)
-  in do
-    res <- foldM foldfun Pass tests
-    return (Finished res)
-
-reporterTestCases :: [([ReporterOp], Node String String)]
+reporterTestCases :: [(String, [ReporterOp], Node String String)]
 reporterTestCases =
-  [([setName "Test", pushPath "Path", reportSkip],
+  [("xmlReporter_skip", [setName "Test", pushPath "Path", reportSkip],
     Element { eName = "testcase",
               eChildren = [Element { eName = "skipped",
                                      eAttributes = [],
                                      eChildren = [] }],
               eAttributes = [("name", "Test"),
-                             ("classname", "Path")] })
+                             ("classname", "Path")] }),
+   ("xmlReporter_systemErr", [reportSystemErr "Error Message Content"],
+    Element { eName = "system-err", eChildren = [Text "Error Message Content"],
+              eAttributes = [] }),
+   ("xmlReporter_systemOut", [reportSystemErr "Message Content"],
+    Element { eName = "system-out", eChildren = [Text "Message Content"],
+              eAttributes = [] })
   ]
 
-reporterTest =
-  TestInstance { name = "Reporter", options = [],
-                 setOption = (\_ _ -> Right reporterTest),
-                 tags = [], run = runReporterTests reporterTestCases }
+genReporterTest :: (String, [ReporterOp], Node String String) -> Test
+genReporterTest (name, op, expected) =
+  let
+    out = TestInstance { name = name, tags = [], options = [],
+                         setOption = (\_ _ -> Right out),
+                         run = runReporterTest op expected >>=
+                               return . Finished }
+  in
+    Test out
 
 tests :: Test
-tests = testGroup "XML" [ Test reporterTest ]
+tests = testGroup "XML" (map genReporterTest reporterTestCases)
