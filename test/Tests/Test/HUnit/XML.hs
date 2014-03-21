@@ -5,6 +5,7 @@ import Data.Word
 import Distribution.TestSuite
 import Test.HUnit.XML
 import Test.HUnit.Reporting hiding (Node)
+import Text.XML.Expat.Format
 import Text.XML.Expat.Tree
 
 import qualified Data.Map as Map
@@ -77,8 +78,8 @@ runReporterTest tests expected =
     case res of
       [[actual]]
         | actual == expected -> return Pass
-        | otherwise -> return (Fail ("Expected " ++ show expected ++
-                                     " but got " ++ show actual))
+        | otherwise -> return (Fail ("Expected " ++ show (formatNode expected) ++
+                                     " but got " ++ show (formatNode actual)))
       _ -> return (Fail ("Ending node stack had more than one item:\n" ++
                          show res))
 
