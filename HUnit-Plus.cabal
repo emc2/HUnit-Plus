@@ -39,6 +39,9 @@ Test-Suite unit-tests
                         Test.HUnit
                         Tests.Test
                         Tests.Test.HUnit
+                        Tests.Test.HUnit.Execution
+                        Tests.Test.HUnit.Filter
+                        Tests.Test.HUnit.Text
                         Tests.Test.HUnit.XML
 
 Library
