@@ -324,7 +324,7 @@ reporterTestCases =
      setName "Error", countFailed 1, reportStartCase, countAsserts 2,
      reportError "Error Message", reportEndCase pi,
      reportSystemErr "Suite Error Message", reportSystemOut "Suite Message",
-     reportEndSuite (pi * pi), reportEnd pi],
+     reportEndSuite (pi * pi), reportEnd (sqrt pi)],
     Element {
       eName = "testsuites", eAttributes = [("time", show (sqrt pi))],
       eChildren =
@@ -342,10 +342,10 @@ reporterTestCases =
            eAttributes = [("name", "Test"),
                           ("hostname", hostname),
                           ("time", show (pi * pi)),
-                          ("tests", show 4),
-                          ("failures", show 1),
-                          ("errors", show 1),
-                          ("skipped", show 1)],
+                          ("tests", show 14),
+                          ("failures", show 2),
+                          ("errors", show 3),
+                          ("skipped", show 5)],
            eChildren =
              [Element {
                  eName = "testcase",
