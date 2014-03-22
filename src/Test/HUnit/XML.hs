@@ -155,7 +155,7 @@ testSuitesElem :: Double
                -> Node String String
 testSuitesElem time suites =
   Element { eName = "testsuites", eChildren = suites,
-            eAttributes = [("time ", show time)] }
+            eAttributes = [("time", show time)] }
 
 -- | A reporter that generates JUnit XML reports
 xmlReporter :: Reporter [[Node String String]]
