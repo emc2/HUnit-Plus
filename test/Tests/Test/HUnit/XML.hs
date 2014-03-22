@@ -116,8 +116,9 @@ runReporterTest tests expected =
     case res of
       [[actual]]
         | actual == expected -> return Pass
-        | otherwise -> return (Fail ("Expected " ++ show (formatNode expected) ++
-                                     " but got " ++ show (formatNode actual)))
+        | otherwise ->
+          return (Fail ("Expected " ++ show (formatNode (indent 2 expected)) ++
+                        "\nbut got " ++ show (formatNode (indent 2 actual))))
       _ -> return (Fail ("Ending node stack had more than one item:\n" ++
                          show res))
 
