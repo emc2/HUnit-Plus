@@ -59,7 +59,7 @@ runTest path (counts, trees) (Test TestInstance { run = runTest,
                                                       ("classname", pathstr)],
                    eChildren = [Element { eName = "error",
                                           eChildren = [Text str],
-                                          eAttributes = [("message", str)] }] } :
+                                          eAttributes = [] }] } :
          trees)
       Fail str -> return
         (counts { cTried = tried + 1, cFailures = failed + 1 },
@@ -67,7 +67,7 @@ runTest path (counts, trees) (Test TestInstance { run = runTest,
                                                       ("classname", pathstr)],
                    eChildren = [Element { eName = "failure",
                                           eChildren = [Text str],
-                                          eAttributes = [("message", str)] }] } :
+                                          eAttributes = [] }] } :
          trees)
 
 runTest path (counts, trees) Group { groupName = gname, groupTests = gtests } =

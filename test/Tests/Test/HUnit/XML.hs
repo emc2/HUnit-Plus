@@ -313,7 +313,7 @@ reporterTestCases =
    ("xmlReporter_content_suites",
     [setName "Empty", reportStartSuite,
      countTried 5, countSkipped 4, countErrors 2, countFailed 1,
-     reportEndSuite (sqrt pi),
+     reportEndSuite pi,
      setName "Test", pushPath "Path", reportStartSuite,
      countTried 4, setName "Pass", reportStartCase, countAsserts 3,
      reportSystemErr "Error Message Content", reportSystemOut "Message Content",
@@ -324,7 +324,7 @@ reporterTestCases =
      setName "Error", countFailed 1, reportStartCase, countAsserts 2,
      reportError "Error Message", reportEndCase pi,
      reportSystemErr "Suite Error Message", reportSystemOut "Suite Message",
-     reportEndSuite (pi * pi), reportEnd (sqrt pi)],
+     setName "Test", reportEndSuite (pi * pi), reportEnd (sqrt pi)],
     Element {
       eName = "testsuites", eAttributes = [("time", show (sqrt pi))],
       eChildren =
@@ -336,7 +336,7 @@ reporterTestCases =
                            ("tests", show 9),
                            ("failures", show 1),
                            ("errors", show 2),
-                           ("skipped", show 3)] },
+                           ("skipped", show 4)] },
          Element {
            eName = "testsuite",
            eAttributes = [("name", "Test"),
