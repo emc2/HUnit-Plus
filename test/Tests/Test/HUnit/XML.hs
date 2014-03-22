@@ -137,6 +137,12 @@ reportEndSuite time (state, repstate) =
     repstate' <- (reporterEndSuite xmlReporter) time state repstate
     return (state, removeTimestamp repstate')
 
+reportEnd :: Double -> ReporterOp
+reportEnd time (state @ State { stCounts = counts }, repstate) =
+  do
+    repstate' <- (reporterEnd xmlReporter) time counts repstate
+    return (state, repstate')
+
 reporterTestCases :: [(String, [ReporterOp], Node String String)]
 reporterTestCases =
   [("xmlReporter_systemErr", [reportSystemErr "Error Message Content"],
@@ -231,7 +237,158 @@ reporterTestCases =
                              ("tests", show 7),
                              ("failures", show 1),
                              ("errors", show 2),
-                             ("skipped", show 3)] })
+                             ("skipped", show 3)] }),
+   ("xmlReporter_content_suite",
+    [setName "Test", pushPath "Path", reportStartSuite,
+     countTried 4, setName "Pass", reportStartCase, countAsserts 3,
+     reportSystemErr "Error Message Content", reportSystemOut "Message Content",
+     reportEndCase (pi - 1),
+     setName "Skip", pushPath "Inner", reportSkip, countSkipped 1, popPath,
+     setName "Error", countErrors 1, reportStartCase, countAsserts 4,
+     reportFailure "Failure Message", reportEndCase (pi / 2),
+     setName "Fail", countFailed 1, reportStartCase, countAsserts 2,
+     reportError "Error Message", reportEndCase pi,
+     reportSystemErr "Suite Error Message", reportSystemOut "Suite Message",
+     reportEndSuite (pi * pi)],
+    Element { eName = "testsuite",
+              eAttributes = [("name", "Test"),
+                             ("hostname", hostname),
+                             ("time", show (pi * pi)),
+                             ("tests", show 4),
+                             ("failures", show 1),
+                             ("errors", show 1),
+                             ("skipped", show 1)],
+              eChildren =
+                [Element { eName = "testcase",
+                           eChildren =
+                             [Element { eName = "system-err",
+                                        eChildren =
+                                          [Text "Error Message Content"],
+                                        eAttributes = [] },
+                              Element { eName = "system-out",
+                                        eChildren = [Text "Message Content"],
+                                        eAttributes = [] }],
+                           eAttributes = [("name", "Pass"),
+                                          ("classname", "Path"),
+                                          ("assertions", show 3),
+                                          ("time", show (pi - 1))] },
+                 Element { eName = "testcase",
+                           eChildren = [Element { eName = "skipped",
+                                                  eAttributes = [],
+                                                  eChildren = [] }],
+                           eAttributes = [("name", "Skip"),
+                                          ("classname", "Path.Inner")] },
+                 Element { eName = "testcase",
+                           eChildren =
+                             [Element { eName = "failure", eChildren = [],
+                                        eAttributes = [("message",
+                                                        "Failure Message")] }],
+                           eAttributes = [("name", "Fail"),
+                                          ("classname", "Path"),
+                                          ("assertions", show 7),
+                                          ("time", show (pi / 2))] },
+                 Element { eName = "testcase",
+                           eChildren =
+                             [Element { eName = "error", eChildren = [],
+                                        eAttributes = [("message",
+                                                        "Error Message")] }],
+                           eAttributes = [("name", "Test"),
+                                          ("classname", "Path"),
+                                          ("assertions", show 9),
+                                          ("time", show pi)] },
+                 Element { eName = "system-err",
+                           eChildren = [Text "Suite Error Message"],
+                           eAttributes = [] },
+                 Element { eName = "system-out",
+                           eChildren = [Text "Suite Message"],
+                           eAttributes = [] }
+                 ] }),
+   ("xmlReporter_empty_suites", [reportEnd pi],
+    Element { eName = "testsuites", eChildren = [],
+              eAttributes = [("time", show pi)] }),
+   ("xmlReporter_content_suites",
+    [setName "Empty", reportStartSuite,
+     countTried 5, countSkipped 4, countErrors 2, countFailed 1,
+     reportEndSuite (sqrt pi),
+     setName "Test", pushPath "Path", reportStartSuite,
+     countTried 4, setName "Pass", reportStartCase, countAsserts 3,
+     reportSystemErr "Error Message Content", reportSystemOut "Message Content",
+     reportEndCase (pi - 1),
+     setName "Skip", pushPath "Inner", reportSkip, countSkipped 1, popPath,
+     setName "Error", countErrors 1, reportStartCase, countAsserts 4,
+     reportFailure "Failure Message", reportEndCase (pi / 2),
+     setName "Fail", countFailed 1, reportStartCase, countAsserts 2,
+     reportError "Error Message", reportEndCase pi,
+     reportSystemErr "Suite Error Message", reportSystemOut "Suite Message",
+     reportEndSuite (pi * pi), reportEnd pi],
+    Element {
+      eName = "testsuites", eAttributes = [("time", show (sqrt pi))],
+      eChildren =
+        [Element {
+            eName = "testsuite", eChildren = [],
+            eAttributes = [("name", "Empty"),
+                           ("hostname", hostname),
+                           ("time", show pi),
+                           ("tests", show 9),
+                           ("failures", show 1),
+                           ("errors", show 2),
+                           ("skipped", show 3)] },
+         Element {
+           eName = "testsuite",
+           eAttributes = [("name", "Test"),
+                          ("hostname", hostname),
+                          ("time", show (pi * pi)),
+                          ("tests", show 4),
+                          ("failures", show 1),
+                          ("errors", show 1),
+                          ("skipped", show 1)],
+           eChildren =
+             [Element {
+                 eName = "testcase",
+                 eChildren =
+                   [Element { eName = "system-err",
+                              eChildren =
+                                [Text "Error Message Content"],
+                              eAttributes = [] },
+                    Element { eName = "system-out",
+                              eChildren = [Text "Message Content"],
+                              eAttributes = [] }],
+                 eAttributes = [("name", "Pass"),
+                                ("classname", "Path"),
+                                ("assertions", show 3),
+                                ("time", show (pi - 1))] },
+              Element { eName = "testcase",
+                        eChildren = [Element { eName = "skipped",
+                                               eAttributes = [],
+                                               eChildren = [] }],
+                        eAttributes = [("name", "Skip"),
+                                       ("classname", "Path.Inner")] },
+              Element { eName = "testcase",
+                        eChildren =
+                          [Element { eName = "failure", eChildren = [],
+                                     eAttributes = [("message",
+                                                     "Failure Message")] }],
+                        eAttributes = [("name", "Fail"),
+                                       ("classname", "Path"),
+                                       ("assertions", show 7),
+                                       ("time", show (pi / 2))] },
+              Element { eName = "testcase",
+                        eChildren =
+                          [Element { eName = "error", eChildren = [],
+                                     eAttributes = [("message",
+                                                     "Error Message")] }],
+                        eAttributes = [("name", "Test"),
+                                       ("classname", "Path"),
+                                       ("assertions", show 9),
+                                       ("time", show pi)] },
+              Element { eName = "system-err",
+                        eChildren = [Text "Suite Error Message"],
+                        eAttributes = [] },
+              Element { eName = "system-out",
+                        eChildren = [Text "Suite Message"],
+                        eAttributes = [] }
+             ] }
+        ] })
    ]
 
 {-# NOINLINE hostname #-}

@@ -180,7 +180,8 @@ xmlReporter =
         return ((testSuiteElem name options cases failures errors skipped
                                hostname timestamp time (reverse events) :
                  rest) : stack)
-    reportEndSuite _ _ _ = fail "Node stack underflow"
+    reportEndSuite _ _ stack =
+      fail ("Node stack underflow in end suite.\n" ++ show stack)
 
     reportStartCase _ stack = return ([] : stack)
 
@@ -189,27 +190,27 @@ xmlReporter =
                   (events : rest : stack) =
       return ((testcaseElem name (showPath testpath)
                             asserts time (reverse events) : rest) : stack)
-    reportEndCase _ _ _ = fail "Node stack underflow"
+    reportEndCase _ _ _ = fail "Node stack underflow in end case"
 
     reportSkipCase State { stName = name, stPath = testpath } (rest : stack) =
       return ((skippedTestElem name (showPath testpath) : rest) : stack)
-    reportSkipCase _ _ = fail "Node stack underflow"
+    reportSkipCase _ _ = fail "Node stack underflow in skip case"
 
     reportFailure msg _ (rest : stack) =
       return ((failureElem msg : rest) : stack)
-    reportFailure _ _ _ = fail "Node stack underflow"
+    reportFailure _ _ _ = fail "Node stack underflow in report failure"
 
     reportError msg _ (rest : stack) =
       return ((errorElem msg : rest) : stack)
-    reportError _ _ _ = fail "Node stack underflow"
+    reportError _ _ _ = fail "Node stack underflow in report error"
 
     reportSystemOut msg _ (rest : stack) =
       return ((systemOutElem msg : rest) : stack)
-    reportSystemOut _ _ _ = fail "Node stack underflow"
+    reportSystemOut _ _ _ = fail "Node stack underflow in system out"
 
     reportSystemErr msg _ (rest : stack) =
       return ((systemErrElem msg : rest) : stack)
-    reportSystemErr _ _ _ = fail "Node stack underflow"
+    reportSystemErr _ _ _ = fail "Node stack underflow in system err"
   in
     defaultReporter {
       reporterStart = reportStart,
