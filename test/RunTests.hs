@@ -57,14 +57,16 @@ runTest path (counts, trees) (Test TestInstance { run = runTest,
         (counts { cTried = tried + 1, cErrors = errors + 1 },
          Element { eName = "testcase", eAttributes = [("name", tname),
                                                       ("classname", pathstr)],
-                   eChildren = [Element { eName = "error", eChildren = [],
+                   eChildren = [Element { eName = "error",
+                                          eChildren = [Text str],
                                           eAttributes = [("message", str)] }] } :
          trees)
       Fail str -> return
         (counts { cTried = tried + 1, cFailures = failed + 1 },
          Element { eName = "testcase", eAttributes = [("name", tname),
                                                       ("classname", pathstr)],
-                   eChildren = [Element { eName = "failure", eChildren = [],
+                   eChildren = [Element { eName = "failure",
+                                          eChildren = [Text str],
                                           eAttributes = [("message", str)] }] } :
          trees)
 
