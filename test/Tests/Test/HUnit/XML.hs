@@ -24,6 +24,10 @@ setName :: String -> ReporterOp
 setName name (s @ State { stName = _ }, repstate) =
   return (s { stName = name }, repstate)
 
+setOpt :: String -> String -> ReporterOp
+setOpt key value (s @ State { stOptions = opts }, repstate) =
+  return (s { stOptions = Map.insert key value opts }, repstate)
+
 pushPath :: String -> ReporterOp
 pushPath name (s @ State { stPath = path }, repstate) =
   return (s { stPath = Label name : path }, repstate)
@@ -242,6 +246,29 @@ reporterTestCases =
                              ("failures", show 1),
                              ("errors", show 2),
                              ("skipped", show 3)] }),
+   ("xmlReporter_options_suite",
+    [setName "Test", pushPath "Path", reportStartSuite,
+     setOpt "option1" "value1", setOpt "option2" "value2",
+     countTried 4, countSkipped 3, countErrors 2, countFailed 1,
+     reportEndSuite pi],
+    Element { eName = "testsuite",
+              eChildren =
+                [Element { eName = "properties", eAttributes = [],
+                           eChildren =
+                             [Element { eName = "property", eChildren = [],
+                                        eAttributes = [("name", "option1"),
+                                                       ("value", "value1")] },
+                              Element { eName = "property", eChildren = [],
+                                        eAttributes = [("name", "option2"),
+                                                       ("value", "value2")] }
+                             ] }],
+              eAttributes = [("name", "Test"),
+                             ("hostname", hostname),
+                             ("time", show pi),
+                             ("tests", show 7),
+                             ("failures", show 1),
+                             ("errors", show 2),
+                             ("skipped", show 3)] }),
    ("xmlReporter_content_suite",
     [setName "Test", pushPath "Path", reportStartSuite,
      countTried 4, setName "Pass", reportStartCase, countAsserts 3,
@@ -315,6 +342,7 @@ reporterTestCases =
      countTried 5, countSkipped 4, countErrors 2, countFailed 1,
      reportEndSuite pi,
      setName "Test", pushPath "Path", reportStartSuite,
+     setOpt "option1" "value1", setOpt "option2" "value2",
      countTried 4, setName "Pass", reportStartCase, countAsserts 3,
      reportSystemErr "Error Message Content", reportSystemOut "Message Content",
      reportEndCase (pi - 1),
@@ -347,7 +375,16 @@ reporterTestCases =
                           ("errors", show 3),
                           ("skipped", show 5)],
            eChildren =
-             [Element {
+             [Element { eName = "properties", eAttributes = [],
+                           eChildren =
+                             [Element { eName = "property", eChildren = [],
+                                        eAttributes = [("name", "option1"),
+                                                       ("value", "value1")] },
+                              Element { eName = "property", eChildren = [],
+                                        eAttributes = [("name", "option2"),
+                                                       ("value", "value2")] }
+                             ] },
+              Element {
                  eName = "testcase",
                  eChildren =
                    [Element { eName = "system-err",
