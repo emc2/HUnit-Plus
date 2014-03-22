@@ -11,6 +11,7 @@ import Text.XML.Expat.Format
 import Text.XML.Expat.Tree
 
 import qualified Data.Map as Map
+import qualified Data.ByteString.Lazy.Char8 as BC
 
 type ReporterState = [[Node String String]]
 type ReporterOp = (State, ReporterState) -> IO (State, ReporterState)
@@ -117,8 +118,10 @@ runReporterTest tests expected =
       [[actual]]
         | actual == expected -> return Pass
         | otherwise ->
-          return (Fail ("Expected " ++ show (formatNode (indent 2 expected)) ++
-                        "\nbut got " ++ show (formatNode (indent 2 actual))))
+          return (Fail ("Expected " ++
+                        BC.unpack (formatNode (indent 2 expected)) ++
+                        "\nbut got " ++
+                        BC.unpack (formatNode (indent 2 actual))))
       _ -> return (Fail ("Ending node stack had more than one item:\n" ++
                          show res))
 
