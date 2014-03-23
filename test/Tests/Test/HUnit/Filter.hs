@@ -45,11 +45,23 @@ makeFilter :: [String] -> Selector -> Filter
 makeFilter names selector = Filter { filterSuites = Set.fromList names,
                                      filterSelector = selector }
 
+suitesName :: [String] -> String
+suitesName [] = "no_suites"
+suitesName suites = intercalate "_" suites
+
+pathName :: [String] -> String
+pathName [] = "no_path"
+pathName path = intercalate "_" path
+
+tagsName :: [String] -> String
+tagsName [] = "no_tags"
+tagsName tags = intercalate "_" tags
+
 makeFilterParseTest :: [String] -> [String] -> [String] -> Test
 makeFilterParseTest suites path tags =
   let
-    name = "parseFilter_" ++ intercalate "_" suites ++ "__" ++
-           intercalate "_" path ++ "__" ++ intercalate "_" tags
+    name = "parseFilter_" ++ suitesName suites ++ "__" ++
+           pathName path ++ "__" ++ tagsName tags
     string = suiteString suites ++ pathString path ++ tagsString tags
     expected = makeFilter suites (tagsSelector tags (pathSelector path))
 
