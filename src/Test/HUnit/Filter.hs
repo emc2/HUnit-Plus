@@ -266,7 +266,7 @@ remainingPathParser = (char '.' >> pathParser) <|> (return allSelector)
 pathParser :: GenParser Char st Selector
 pathParser =
   do
-    elem <- many alphaNum
+    elem <- many1 alphaNum
     inner <- remainingPathParser
     return Path { pathElem = elem, pathInner = inner }
 
