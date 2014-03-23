@@ -12,144 +12,40 @@ import Text.XML.Expat.Tree
 
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy.Char8 as BC
+import qualified Tests.Test.HUnit.ReporterUtils as Utils
 
 type ReporterState = [[Node String String]]
-type ReporterOp = (State, ReporterState) -> IO (State, ReporterState)
+type ReporterOp = Utils.ReporterOp ReporterState
 
-initState :: State
-initState = State { stName = "", stPath = [], stCounts = zeroCounts,
-                    stOptions = Map.empty, stOptionDescs = [] }
-
-setName :: String -> ReporterOp
-setName name (s @ State { stName = _ }, repstate) =
-  return (s { stName = name }, repstate)
-
-setOpt :: String -> String -> ReporterOp
-setOpt key value (s @ State { stOptions = opts }, repstate) =
-  return (s { stOptions = Map.insert key value opts }, repstate)
-
-pushPath :: String -> ReporterOp
-pushPath name (s @ State { stPath = path }, repstate) =
-  return (s { stPath = Label name : path }, repstate)
-
-popPath :: ReporterOp
-popPath (s @ State { stPath = _ : path }, repstate) =
-  return (s { stPath = path }, repstate)
-
-addOption :: String -> String -> ReporterOp
-addOption key value (s @ State { stOptions = opts }, repstate) =
-  return (s { stOptions = Map.insert key value opts }, repstate)
-
-countAsserts :: Word -> ReporterOp
-countAsserts count (s @ State { stCounts = c @ Counts { cAsserts = n } },
-                    repstate) =
-  return (s { stCounts = c { cAsserts = n + count } }, repstate)
-
-countTried :: Word -> ReporterOp
-countTried count (s @ State { stCounts = c @ Counts { cCases = cases,
-                                                      cTried = tried } },
-                  repstate) =
-  return (s { stCounts = c { cCases = cases + count,
-                             cTried = tried + count } },
-          repstate)
-
-countSkipped :: Word -> ReporterOp
-countSkipped count (s @ State { stCounts = c @ Counts { cSkipped = skipped,
-                                                        cCases = cases } },
-                  repstate) =
-  return (s { stCounts = c { cSkipped = skipped + count,
-                             cCases = cases + count } },
-          repstate)
-
-countErrors :: Word -> ReporterOp
-countErrors count (s @ State { stCounts = c @ Counts { cErrors = errors } },
-                   repstate) =
-  return (s { stCounts = c { cErrors = errors + count } }, repstate)
-
-countFailed :: Word -> ReporterOp
-countFailed count (s @ State { stCounts = c @ Counts { cFailures = failed } },
-                   repstate) =
-  return (s { stCounts = c { cFailures = failed + count } }, repstate)
-
-reportSystemErr :: String -> ReporterOp
-reportSystemErr msg (state, repstate) =
-  do
-    repstate' <- (reporterSystemErr xmlReporter) msg state repstate
-    return (state, repstate')
-
-reportSystemOut :: String -> ReporterOp
-reportSystemOut msg (state, repstate) =
-  do
-    repstate' <- (reporterSystemOut xmlReporter) msg state repstate
-    return (state, repstate')
-
-reportFailure :: String -> ReporterOp
-reportFailure msg (state, repstate) =
-  do
-    repstate' <- (reporterFailure xmlReporter) msg state repstate
-    return (state, repstate')
-
-reportError :: String -> ReporterOp
-reportError msg (state, repstate) =
-  do
-    repstate' <- (reporterError xmlReporter) msg state repstate
-    return (state, repstate')
-
-reportSkip :: ReporterOp
-reportSkip (state, repstate) =
-  do
-    repstate' <- (reporterSkipCase xmlReporter) state repstate
-    return (state, repstate')
-
-reportStartCase :: ReporterOp
-reportStartCase (state, repstate) =
-  do
-    repstate' <- (reporterStartCase xmlReporter) state repstate
-    return (state, repstate')
-
-reportEndCase :: Double -> ReporterOp
-reportEndCase time (state, repstate) =
-  do
-    repstate' <- (reporterEndCase xmlReporter) time state repstate
-    return (state, repstate')
-
-runReporterTest :: [ReporterOp] -> Node String String -> IO Result
-runReporterTest tests expected =
-  do
-    initrepstate <- reporterStart xmlReporter
-    (_, res) <- foldM (\state op -> op state) (initState, initrepstate) tests
-    case res of
-      [[actual]]
-        | actual == expected -> return Pass
-        | otherwise ->
-          return (Fail ("Expected " ++
-                        BC.unpack (formatNode (indent 2 expected)) ++
-                        "\nbut got " ++
-                        BC.unpack (formatNode (indent 2 actual))))
-      _ -> return (Fail ("Ending node stack had more than one item:\n" ++
-                         show res))
-
-reportStartSuite :: ReporterOp
-reportStartSuite (state, repstate) =
-  do
-    repstate' <- (reporterStartSuite xmlReporter) state repstate
-    return (state, repstate')
+countAsserts = Utils.countAsserts
+countTried = Utils.countTried
+countSkipped = Utils.countSkipped
+countErrors = Utils.countErrors
+countFailed = Utils.countFailed
+setOpt = Utils.setOpt
+setName = Utils.setName
+pushPath = Utils.pushPath
+popPath = Utils.popPath
+reportSystemErr = Utils.reportSystemErr xmlReporter
+reportSystemOut = Utils.reportSystemOut xmlReporter
+reportFailure = Utils.reportFailure xmlReporter
+reportError = Utils.reportError xmlReporter
+reportSkip = Utils.reportSkip xmlReporter
+reportStartCase = Utils.reportStartCase xmlReporter
+reportEndCase = Utils.reportEndCase xmlReporter
+runReporterTest = Utils.runReporterTest xmlReporter
+reportStartSuite = Utils.reportStartSuite xmlReporter
+reportEnd = Utils.reportEnd xmlReporter
 
 reportEndSuite :: Double -> ReporterOp
-reportEndSuite time (state, repstate) =
+reportEndSuite time state =
   let
     removeTimestamp ((e @ Element { eAttributes = attrs } : rest) : stack) =
       (e { eAttributes = filter ((/= "timestamp") . fst) attrs } : rest) : stack
     removeTimestamp out = out
   in do
-    repstate' <- (reporterEndSuite xmlReporter) time state repstate
-    return (state, removeTimestamp repstate')
-
-reportEnd :: Double -> ReporterOp
-reportEnd time (state @ State { stCounts = counts }, repstate) =
-  do
-    repstate' <- (reporterEnd xmlReporter) time counts repstate
-    return (state, repstate')
+    (state, repstate) <- Utils.reportEndSuite xmlReporter time state
+    return (state, removeTimestamp repstate)
 
 reporterTestCases :: [(String, [ReporterOp], Node String String)]
 reporterTestCases =
@@ -439,9 +335,12 @@ hostname = unsafePerformIO $ getHostName
 genReporterTest :: (String, [ReporterOp], Node String String) -> Test
 genReporterTest (name, op, expected) =
   let
+    format :: [[Node String String]] -> String
+    format = concat . map (concat . map (BC.unpack . formatNode . indent 2))
+
     out = TestInstance { name = name, tags = [], options = [],
                          setOption = (\_ _ -> Right out),
-                         run = runReporterTest op expected >>=
+                         run = runReporterTest op [[expected]] format >>=
                                return . Finished }
   in
     Test out
