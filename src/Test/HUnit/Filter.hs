@@ -250,46 +250,33 @@ suiteSelectors allsuites filters
   in
     Map.map mapfun suiteMap
 
-namesParser :: GenParser Char st (Set String)
-namesParser =
-  do
-    names <- sepBy1 (string ",") (many1 alphaNum)
-    return (Set.fromList names)
+namesParser :: GenParser Char st [String]
+namesParser = sepBy1 (many1 alphaNum) (string ",")
 
-remainingPathParser :: GenParser Char st Selector
-remainingPathParser = (char '.' >> pathParser) <|> (return allSelector)
+pathParser :: GenParser Char st [String]
+pathParser = sepBy (many1 alphaNum) (string ".")
 
-pathParser :: GenParser Char st Selector
-pathParser =
-  do
-    elem <- many1 alphaNum
-    inner <- remainingPathParser
-    return Path { pathElem = elem, pathInner = inner }
-
-optPathParser :: GenParser Char st Selector
-optPathParser = option allSelector pathParser
-
-suitesParser :: GenParser Char st (Set String)
-suitesParser =
-  do
-    suites <- namesParser
-    _ <- string "::"
-    return suites
+suitesParser :: GenParser Char st [String]
+suitesParser = between (string "[") (string "]") namesParser
 
 tagsParser :: Selector -> GenParser Char st Selector
 tagsParser selector =
-  (char '@' >> namesParser >>=
-    (\tags -> return Tags { tagsNames = tags,
-                            tagsInner = selector })) <|>
-  (return selector)
+  do
+    _ <- char '@'
+    tags <- namesParser
+    return Tags { tagsNames = Set.fromList tags, tagsInner = selector }
 
 filterParser :: GenParser Char st Filter
 filterParser =
-  do
-    suites <- option Set.empty suitesParser
-    selector <- optPathParser
-    tagselector <- tagsParser selector
-    return Filter { filterSuites = suites, filterSelector = tagselector }
+  let
+    genPath [] = allSelector
+    genPath (elem : path) = Path { pathElem = elem, pathInner = genPath path }
+  in do
+    suites <- option [] (suitesParser)
+    path <- pathParser
+    tagselector <- option (genPath path) (tagsParser (genPath path))
+    return Filter { filterSuites = Set.fromList suites,
+                    filterSelector = tagselector }
 
 -- | Parse a Filter expression
 parseFilter :: String

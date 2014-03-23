@@ -17,7 +17,7 @@ tagNames = [[], ["tag1"], ["tag2"], ["tag1", "tag2"]]
 
 suiteString :: [String] -> String
 suiteString [] = ""
-suiteString suites = intercalate "," suites ++ "::"
+suiteString suites = "[" ++ intercalate "," suites ++ "]"
 
 pathString :: [String] -> String
 pathString [] = ""
@@ -73,7 +73,8 @@ makeFilterParseTest suites path tags =
           Right actual
             | expected == actual -> return (Finished Pass)
             | otherwise ->
-              return (Finished (Fail ("expected " ++ show expected ++
+              return (Finished (Fail ("I parse of " ++ string ++
+                                      "\nexpected " ++ show expected ++
                                       "\nactual " ++ show actual)))
 
     testInstance = TestInstance { name = name, run = runTest,
