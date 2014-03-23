@@ -250,15 +250,11 @@ suiteSelectors allsuites filters
   in
     Map.map mapfun suiteMap
 
-remainingNamesParser :: GenParser Char st (Set String)
-remainingNamesParser = (char ',' >> namesParser) <|> (return Set.empty)
-
 namesParser :: GenParser Char st (Set String)
 namesParser =
   do
-    first <- many alphaNum
-    next <- remainingNamesParser
-    return (Set.insert first next)
+    names <- sepBy1 (string ",") (many1 alphaNum)
+    return (Set.fromList names)
 
 remainingPathParser :: GenParser Char st Selector
 remainingPathParser = (char '.' >> pathParser) <|> (return allSelector)
