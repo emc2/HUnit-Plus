@@ -68,7 +68,8 @@ makeFilterParseTest suites path tags =
     runTest :: IO Progress
     runTest =
       do case parseFilter "test input" string of
-          Left e -> return (Finished (Fail ("Parse failed: " ++ e)))
+          Left e -> return (Finished (Fail ("Parse of " ++ string ++
+                                            " failed: " ++ e)))
           Right actual
             | expected == actual -> return (Finished Pass)
             | otherwise ->

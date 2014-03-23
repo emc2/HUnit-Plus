@@ -274,8 +274,11 @@ optPathParser :: GenParser Char st Selector
 optPathParser = option allSelector pathParser
 
 suitesParser :: GenParser Char st (Set String)
-suitesParser = (do suites <- namesParser; _ <- string "::"; return suites) <|>
-               (return Set.empty)
+suitesParser =
+  do
+    suites <- namesParser
+    _ <- string "::"
+    return suites
 
 tagsParser :: Selector -> GenParser Char st Selector
 tagsParser selector =
@@ -287,7 +290,7 @@ tagsParser selector =
 filterParser :: GenParser Char st Filter
 filterParser =
   do
-    suites <- suitesParser
+    suites <- option Set.empty suitesParser
     selector <- optPathParser
     tagselector <- tagsParser selector
     return Filter { filterSuites = suites, filterSelector = tagselector }
