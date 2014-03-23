@@ -73,7 +73,7 @@ makeFilterParseTest suites path tags =
           Right actual
             | expected == actual -> return (Finished Pass)
             | otherwise ->
-              return (Finished (Fail ("I parse of " ++ string ++
+              return (Finished (Fail ("In parse of " ++ string ++
                                       "\nexpected " ++ show expected ++
                                       "\nactual " ++ show actual)))
 
@@ -83,15 +83,79 @@ makeFilterParseTest suites path tags =
   in
     Test testInstance
 
-filterParseTests :: [Test]
-filterParseTests =
+filterComponents :: [([String], [String], [String])]
+filterComponents =
   foldr (\suiteName tests ->
           foldr (\path tests ->
-                  foldr (\tag tests ->
-                          makeFilterParseTest suiteName path tag : tests)
+                  foldr (\tag tests -> (suiteName, path, tag) : tests)
                         tests tagNames)
                 tests paths)
         [] suiteNames
 
+whitespaceStrings :: [String]
+whitespaceStrings = [ "", " ", "\t" ]
+
+commentStrings = [ "#", "# [Suite]"]
+
+filterParseTests :: [Test]
+filterParseTests = map (\(suiteName, path, tag) ->
+                         makeFilterParseTest suiteName path tag)
+                       filterComponents
+
+makeFileParserTest :: String -> String -> [Filter] -> Test
+makeFileParserTest name content expected =
+  let
+    runTest :: IO Progress
+    runTest =
+      do case parseFilterFileContent name content of
+          Left e -> return (Finished (Fail ("Parse of\n************\n" ++
+                                            content ++
+                                            "\n************\nfailed: " ++
+                                            concat e)))
+          Right actual
+            | expected == actual -> return (Finished Pass)
+            | otherwise ->
+              return (Finished (Fail ("In parse of\n************\n" ++ content ++
+                                      "\n************\nexpected " ++
+                                      show expected ++ "\nactual " ++
+                                      show actual)))
+
+    testInstance =
+      TestInstance { name = name, tags = [], run = runTest, options = [],
+                     setOption = (\_ _ -> Right testInstance) }
+  in
+    Test testInstance
+
+emptyFileTests :: [(String, String)]
+emptyFileTests = [("empty", ""),
+                  ("whitespace", "  "),
+                  ("tab", "\t"),
+                  ("newline", "\n"),
+                  ("comment", "# Outer@tag"),
+                  ("comment_comment", "# Outer@tag # hello"),
+                  ("comment_newline_comment", "# Outer@tag\n# hello"),
+                  ("whitespace_comment", " # Outer@tag"),
+                  ("tab_comment", "\t# Outer@tag"),
+                  ("newline_comment", "\n# [Suite]"),
+                  ("newline_whitespace_comment", "\n # [Suite]"),
+                  ("newline_tab_comment", "\n\t# [Suite]"),
+                  ("comment_newline", "# Outer@tag\n"),
+                  ("comment_newline_whitespace", "# Outer@tag\n "),
+                  ("comment_newline_tab", "# Outer@tag\n\t"),
+                  ("whitespace_comment_newline", " # Outer@tag\n"),
+                  ("whitespace_comment_newline_whitespace", " # Outer@tag\n "),
+                  ("whitespace_comment_newline_tab", " # Outer@tag\n\t"),
+                  ("tab_comment_newline", "\t# Outer@tag\n"),
+                  ("tab_comment_newline_whitespace", "\t# Outer@tag\n "),
+                  ("tab_comment_newline_tab", "\t# Outer@tag\n\t")]
+
+emptyFileParserTests =
+  map (\(name, content) -> makeFileParserTest ("parseFilterFile_" ++ name)
+                                              content []) emptyFileTests
+
+testlist =
+  emptyFileParserTests ++
+  filterParseTests
+
 tests :: Test
-tests = testGroup "Filter" filterParseTests
+tests = testGroup "Filter" testlist

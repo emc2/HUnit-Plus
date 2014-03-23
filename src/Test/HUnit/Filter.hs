@@ -12,14 +12,16 @@ module Test.HUnit.Filter(
        normalizeSelector,
        suiteSelectors,
        parseFilter,
-       parseFilterFile
+       parseFilterFile,
+       parseFilterFileContent
        ) where
 
 import Control.Exception
 import Data.Foldable(foldr)
-import Data.Set(Set)
+import Data.Either
 import Data.Map(Map)
 import Data.Maybe
+import Data.Set(Set)
 import Prelude hiding (foldr, elem)
 import System.IO.Error
 import Text.ParserCombinators.Parsec hiding (try)
@@ -259,24 +261,29 @@ pathParser = sepBy (many1 alphaNum) (string ".")
 suitesParser :: GenParser Char st [String]
 suitesParser = between (string "[") (string "]") namesParser
 
-tagsParser :: Selector -> GenParser Char st Selector
-tagsParser selector =
-  do
-    _ <- char '@'
-    tags <- namesParser
-    return Tags { tagsNames = Set.fromList tags, tagsInner = selector }
+tagsParser :: GenParser Char st [String]
+tagsParser = char '@' >> namesParser
 
-filterParser :: GenParser Char st Filter
+filterParser :: GenParser Char st ([String], [String], [String])
 filterParser =
-  let
-    genPath [] = allSelector
-    genPath (elem : path) = Path { pathElem = elem, pathInner = genPath path }
-  in do
+  do
     suites <- option [] (suitesParser)
     path <- pathParser
-    tagselector <- option (genPath path) (tagsParser (genPath path))
-    return Filter { filterSuites = Set.fromList suites,
-                    filterSelector = tagselector }
+    tagselector <- option [] tagsParser
+    return (suites, path, tagselector)
+
+makeFilter :: ([String], [String], [String]) -> Filter
+makeFilter (suites, path, tags) =
+  let
+    genPath [] = allSelector
+    genPath (elem : rest) = Path { pathElem = elem, pathInner = genPath rest }
+
+    withPath = genPath path
+    withTags = case tags of
+      [] -> withPath
+      _ -> Tags { tagsNames = Set.fromList tags, tagsInner = withPath }
+  in
+   Filter { filterSuites = Set.fromList suites, filterSelector = withTags }
 
 -- | Parse a Filter expression
 parseFilter :: String
@@ -287,7 +294,7 @@ parseFilter :: String
 parseFilter sourcename input =
   case parse filterParser sourcename input of
     Left e -> Left (show e)
-    Right out -> Right out
+    Right res -> Right (makeFilter res)
 
 commentParser :: GenParser Char st ()
 commentParser =
@@ -300,16 +307,26 @@ lineParser :: GenParser Char st (Maybe Filter)
 lineParser =
   do
     _ <- many space
-    content <- option Nothing (filterParser >>= return . Just)
+    content <- filterParser
     _ <- many space
-    commentParser
-    return content
+    optional commentParser
+    case content of
+      ([], [], []) -> return Nothing
+      _ -> return (Just (makeFilter content))
 
-linesParser :: GenParser Char st [Filter]
-linesParser =
-  do
-    filters <- many lineParser
-    return (catMaybes filters)
+-- | Parse content from a filter file
+parseFilterFileContent :: String
+                       -- ^ The name of the input file
+                       -> String
+                       -- ^ The file content
+                       -> Either [String] [Filter]
+parseFilterFileContent sourcename input =
+  let
+    inputlines = lines input
+    results = map (parse lineParser sourcename) inputlines
+  in case partitionEithers results of
+    ([], maybes) -> Right (catMaybes maybes)
+    (errs, _) -> Left (map show errs)
 
 -- | Parse the contents of a testlist file
 parseFilterFile :: FilePath -> IO (Either [String] [Filter])
@@ -331,6 +348,6 @@ parseFilterFile filename =
           return (Left ["Cannot read testlist file " ++ filename ++
                         ": Miscellaneous error"])
       Right contents ->
-        case parse linesParser filename contents of
-          Left e -> return (Left [show e])
+        case parseFilterFileContent filename contents of
+          Left errs -> return (Left errs)
           Right out -> return (Right out)
