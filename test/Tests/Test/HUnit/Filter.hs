@@ -60,8 +60,7 @@ tagsName tags = intercalate "_" tags
 makeFilterParseTest :: [String] -> [String] -> [String] -> Test
 makeFilterParseTest suites path tags =
   let
-    name = "parseFilter_" ++ suitesName suites ++ "__" ++
-           pathName path ++ "__" ++ tagsName tags
+    name = suitesName suites ++ "__" ++ pathName path ++ "__" ++ tagsName tags
     string = suiteString suites ++ pathString path ++ tagsString tags
     expected = makeFilter suites (tagsSelector tags (pathSelector path))
 
@@ -126,36 +125,453 @@ makeFileParserTest name content expected =
   in
     Test testInstance
 
-emptyFileTests :: [(String, String)]
-emptyFileTests = [("empty", ""),
-                  ("whitespace", "  "),
-                  ("tab", "\t"),
-                  ("newline", "\n"),
-                  ("comment", "# Outer@tag"),
-                  ("comment_comment", "# Outer@tag # hello"),
-                  ("comment_newline_comment", "# Outer@tag\n# hello"),
-                  ("whitespace_comment", " # Outer@tag"),
-                  ("tab_comment", "\t# Outer@tag"),
-                  ("newline_comment", "\n# [Suite]"),
-                  ("newline_whitespace_comment", "\n # [Suite]"),
-                  ("newline_tab_comment", "\n\t# [Suite]"),
-                  ("comment_newline", "# Outer@tag\n"),
-                  ("comment_newline_whitespace", "# Outer@tag\n "),
-                  ("comment_newline_tab", "# Outer@tag\n\t"),
-                  ("whitespace_comment_newline", " # Outer@tag\n"),
-                  ("whitespace_comment_newline_whitespace", " # Outer@tag\n "),
-                  ("whitespace_comment_newline_tab", " # Outer@tag\n\t"),
-                  ("tab_comment_newline", "\t# Outer@tag\n"),
-                  ("tab_comment_newline_whitespace", "\t# Outer@tag\n "),
-                  ("tab_comment_newline_tab", "\t# Outer@tag\n\t")]
+fileTests :: [(String, String, [Filter])]
+fileTests =
+  let
+    simplePath = Path { pathElem = "Outer",
+                        pathInner = Path { pathElem = "Inner",
+                                           pathInner = allSelector
+                                         }
+                      }
+    simplePathStr = "Outer.Inner"
 
-emptyFileParserTests =
-  map (\(name, content) -> makeFileParserTest ("parseFilterFile_" ++ name)
-                                              content []) emptyFileTests
+    onlyTags = Tags { tagsNames = Set.fromList ["tag1", "tag2"],
+                      tagsInner = allSelector }
+    onlyTagsStr = "@tag1,tag2"
+    pathTags = Tags { tagsNames = Set.fromList ["tag1", "tag2"],
+                      tagsInner = simplePath }
+    pathTagsStr = "Outer.Inner@tag1,tag2"
+    suiteAllFilter = Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+                              filterSelector = allSelector }
+    suiteFilterStr = "[Suite1,Suite2]"
+    simplePathFilter = Filter { filterSuites = Set.empty,
+                                filterSelector = simplePath }
+    suitePathFilter = Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+                               filterSelector = simplePath }
+    suitePathStr = suiteFilterStr ++ simplePathStr
+    onlyTagsFilter = Filter { filterSuites = Set.empty,
+                                filterSelector = onlyTags }
+    suiteTagsFilter = Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+                               filterSelector = onlyTags }
+    suiteTagsStr = suiteFilterStr ++ onlyTagsStr
+    pathTagsFilter = Filter { filterSuites = Set.empty,
+                                filterSelector = pathTags }
+    suitePathTagsFilter =
+      Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+               filterSelector = pathTags }
+    suitePathTagsStr = suiteFilterStr ++ pathTagsStr
 
-testlist =
-  emptyFileParserTests ++
-  filterParseTests
+    suiteSequenceStrs = [ simplePathStr,
+                          onlyTagsStr,
+                          pathTagsStr,
+                          suiteFilterStr,
+                          suitePathStr,
+                          suiteTagsStr,
+                          suitePathTagsStr ]
+    suiteSequence = [ simplePathFilter,
+                      onlyTagsFilter,
+                      pathTagsFilter,
+                      suiteAllFilter,
+                      suitePathFilter,
+                      suiteTagsFilter,
+                      suitePathTagsFilter ]
+  in
+  [("empty", "", []),
+   ("space", "  ", []),
+   ("tab", "\t", []),
+   ("newline", "\n", []),
+   ("comment", "# Outer@tag", []),
+   ("comment_comment", "# Outer@tag # hello", []),
+   ("comment_newline_comment", "# Outer@tag\n# hello", []),
+   ("space_comment", " # Outer@tag", []),
+   ("tab_comment", "\t# Outer@tag", []),
+   ("newline_comment", "\n# [Suite]", []),
+   ("newline_space_comment", "\n # [Suite]", []),
+   ("newline_tab_comment", "\n\t# [Suite]", []),
+   ("comment_newline", "# Outer@tag\n", []),
+   ("comment_newline_space", "# Outer@tag\n ", []),
+   ("comment_newline_tab", "# Outer@tag\n\t", []),
+   ("space_comment_newline", " # Outer@tag\n", []),
+   ("space_comment_newline_space", " # Outer@tag\n ", []),
+   ("space_comment_newline_tab", " # Outer@tag\n\t", []),
+   ("tab_comment_newline", "\t# Outer@tag\n", []),
+   ("tab_comment_newline_space", "\t# Outer@tag\n ", []),
+   ("tab_comment_newline_tab", "\t# Outer@tag\n\t", []),
+   ("suiteAll", suiteFilterStr, [suiteAllFilter]),
+   ("space_suiteAll", " " ++ suiteFilterStr, [suiteAllFilter]),
+   ("tab_suiteAll", "\t" ++ suiteFilterStr, [suiteAllFilter]),
+   ("newline_suiteAll", "\n" ++ suiteFilterStr, [suiteAllFilter]),
+   ("comment_suiteAll", "# comment\n" ++ suiteFilterStr, [suiteAllFilter]),
+   ("suiteAll_space", suiteFilterStr ++ " ", [suiteAllFilter]),
+   ("suiteAll_tab", suiteFilterStr ++ "\t", [suiteAllFilter]),
+   ("suiteAll_newline", suiteFilterStr ++ "\n", [suiteAllFilter]),
+   ("suiteAll_comment", suiteFilterStr ++ "# comment\n", [suiteAllFilter]),
+   ("suiteAll_newline_suiteAll",
+    suiteFilterStr ++ "\n" ++ suiteFilterStr,
+    [suiteAllFilter, suiteAllFilter]),
+   ("suiteAll_comment_suiteAll",
+    suiteFilterStr ++ "# comment\n" ++ suiteFilterStr,
+    [suiteAllFilter, suiteAllFilter]),
+   ("simplePath", simplePathStr, [simplePathFilter]),
+   ("space_simplePath", " " ++ simplePathStr, [simplePathFilter]),
+   ("tab_simplePath", "\t" ++ simplePathStr, [simplePathFilter]),
+   ("newline_simplePath", "\n" ++ simplePathStr, [simplePathFilter]),
+   ("comment_simplePath", "# comment\n" ++ simplePathStr, [simplePathFilter]),
+   ("simplePath_space", simplePathStr ++ " ", [simplePathFilter]),
+   ("simplePath_tab", simplePathStr ++ "\t", [simplePathFilter]),
+   ("simplePath_newline", simplePathStr ++ "\n", [simplePathFilter]),
+   ("simplePath_comment", simplePathStr ++ "# comment\n", [simplePathFilter]),
+   ("simplePath_newline_simplePath",
+    simplePathStr ++ "\n" ++ simplePathStr,
+    [simplePathFilter, simplePathFilter]),
+   ("simplePath_comment_simplePath",
+    simplePathStr ++ "# comment\n" ++ simplePathStr,
+    [simplePathFilter, simplePathFilter]),
+   ("suitePath", suitePathStr, [suitePathFilter]),
+   ("space_suitePath", " " ++ suitePathStr, [suitePathFilter]),
+   ("tab_suitePath", "\t" ++ suitePathStr, [suitePathFilter]),
+   ("newline_suitePath", "\n" ++ suitePathStr, [suitePathFilter]),
+   ("comment_suitePath", "# comment\n" ++ suitePathStr, [suitePathFilter]),
+   ("suitePath_space", suitePathStr ++ " ", [suitePathFilter]),
+   ("suitePath_tab", suitePathStr ++ "\t", [suitePathFilter]),
+   ("suitePath_newline", suitePathStr ++ "\n", [suitePathFilter]),
+   ("suitePath_comment", suitePathStr ++ "# comment\n", [suitePathFilter]),
+   ("suitePath_newline_suitePath",
+    suitePathStr ++ "\n" ++ suitePathStr,
+    [suitePathFilter, suitePathFilter]),
+   ("suitePath_comment_suitePath",
+    suitePathStr ++ "# comment\n" ++ suitePathStr,
+    [suitePathFilter, suitePathFilter]),
+   ("onlyTags", onlyTagsStr, [onlyTagsFilter]),
+   ("space_onlyTags", " " ++ onlyTagsStr, [onlyTagsFilter]),
+   ("tab_onlyTags", "\t" ++ onlyTagsStr, [onlyTagsFilter]),
+   ("newline_onlyTags", "\n" ++ onlyTagsStr, [onlyTagsFilter]),
+   ("comment_onlyTags", "# comment\n" ++ onlyTagsStr, [onlyTagsFilter]),
+   ("onlyTags_space", onlyTagsStr ++ " ", [onlyTagsFilter]),
+   ("onlyTags_tab", onlyTagsStr ++ "\t", [onlyTagsFilter]),
+   ("onlyTags_newline", onlyTagsStr ++ "\n", [onlyTagsFilter]),
+   ("onlyTags_comment", onlyTagsStr ++ "# comment\n", [onlyTagsFilter]),
+   ("onlyTags_newline_onlyTags",
+    onlyTagsStr ++ "\n" ++ onlyTagsStr,
+    [onlyTagsFilter, onlyTagsFilter]),
+   ("onlyTags_comment_onlyTags",
+    onlyTagsStr ++ "# comment\n" ++ onlyTagsStr,
+    [onlyTagsFilter, onlyTagsFilter]),
+   ("suiteTags", suiteTagsStr, [suiteTagsFilter]),
+   ("space_suiteTags", " " ++ suiteTagsStr, [suiteTagsFilter]),
+   ("tab_suiteTags", "\t" ++ suiteTagsStr, [suiteTagsFilter]),
+   ("newline_suiteTags", "\n" ++ suiteTagsStr, [suiteTagsFilter]),
+   ("comment_suiteTags", "# comment\n" ++ suiteTagsStr, [suiteTagsFilter]),
+   ("suiteTags_space", suiteTagsStr ++ " ", [suiteTagsFilter]),
+   ("suiteTags_tab", suiteTagsStr ++ "\t", [suiteTagsFilter]),
+   ("suiteTags_newline", suiteTagsStr ++ "\n", [suiteTagsFilter]),
+   ("suiteTags_comment", suiteTagsStr ++ "# comment\n", [suiteTagsFilter]),
+   ("suiteTags_newline_suiteTags",
+    suiteTagsStr ++ "\n" ++ suiteTagsStr,
+    [suiteTagsFilter, suiteTagsFilter]),
+   ("suiteTags_comment_suiteTags",
+    suiteTagsStr ++ "# comment\n" ++ suiteTagsStr,
+    [suiteTagsFilter, suiteTagsFilter]),
+   ("pathTags", pathTagsStr, [pathTagsFilter]),
+   ("space_pathTags", " " ++ pathTagsStr, [pathTagsFilter]),
+   ("tab_pathTags", "\t" ++ pathTagsStr, [pathTagsFilter]),
+   ("newline_pathTags", "\n" ++ pathTagsStr, [pathTagsFilter]),
+   ("comment_pathTags", "# comment\n" ++ pathTagsStr, [pathTagsFilter]),
+   ("pathTags_space", pathTagsStr ++ " ", [pathTagsFilter]),
+   ("pathTags_tab", pathTagsStr ++ "\t", [pathTagsFilter]),
+   ("pathTags_newline", pathTagsStr ++ "\n", [pathTagsFilter]),
+   ("pathTags_comment", pathTagsStr ++ "# comment\n", [pathTagsFilter]),
+   ("pathTags_newline_pathTags",
+    pathTagsStr ++ "\n" ++ pathTagsStr,
+    [pathTagsFilter, pathTagsFilter]),
+   ("pathTags_comment_pathTags",
+    pathTagsStr ++ "# comment\n" ++ pathTagsStr,
+    [pathTagsFilter, pathTagsFilter]),
+   ("suitePathTags", suitePathTagsStr, [suitePathTagsFilter]),
+   ("space_suitePathTags", " " ++ suitePathTagsStr, [suitePathTagsFilter]),
+   ("tab_suitePathTags", "\t" ++ suitePathTagsStr, [suitePathTagsFilter]),
+   ("newline_suitePathTags", "\n" ++ suitePathTagsStr, [suitePathTagsFilter]),
+   ("comment_suitePathTags", "# comment\n" ++ suitePathTagsStr,
+    [suitePathTagsFilter]),
+   ("suitePathTags_space", suitePathTagsStr ++ " ", [suitePathTagsFilter]),
+   ("suitePathTags_tab", suitePathTagsStr ++ "\t", [suitePathTagsFilter]),
+   ("suitePathTags_newline", suitePathTagsStr ++ "\n", [suitePathTagsFilter]),
+   ("suitePathTags_comment", suitePathTagsStr ++ "# comment\n",
+    [suitePathTagsFilter]),
+   ("suitePathTags_newline_suitePathTags",
+    suitePathTagsStr ++ "\n" ++ suitePathTagsStr,
+    [suitePathTagsFilter, suitePathTagsFilter]),
+   ("suitePathTags_comment_suitePathTags",
+    suitePathTagsStr ++ "# comment\n" ++ suitePathTagsStr,
+    [suitePathTagsFilter, suitePathTagsFilter]),
+   ("sequence", intercalate "\n" suiteSequenceStrs, suiteSequence),
+   ("commented_sequence", intercalate "# comment \n" suiteSequenceStrs,
+    suiteSequence),
+   ("indented_sequence", concat (map (++ "\n  ") suiteSequenceStrs),
+    suiteSequence)
+  ]
+
+fileParserTests =
+  map (\(name, content, expected) -> makeFileParserTest name content expected)
+      fileTests
+
+innerPath :: Selector -> Selector
+innerPath inner = Path { pathElem = "Inner", pathInner = inner }
+
+outerPath :: Selector -> Selector
+outerPath inner = Path { pathElem = "Outer", pathInner = inner }
+
+outerInnerPath :: Selector -> Selector
+outerInnerPath = outerPath . innerPath
+
+tag1 :: Selector -> Selector
+tag1 inner = Tags { tagsNames = Set.singleton "tag1", tagsInner = inner }
+
+tag2 :: Selector -> Selector
+tag2 inner = Tags { tagsNames = Set.singleton "tag2", tagsInner = inner }
+
+tag12 :: Selector -> Selector
+tag12 inner = Tags { tagsNames = Set.fromList [ "tag1", "tag2" ],
+                     tagsInner = inner }
+
+union2 :: Selector -> Selector -> Selector
+union2 inner1 inner2 = Union { unionInners = Set.fromList [ inner1, inner2 ] }
+
+normalizeSelectorTestCases :: [(String, Selector, Selector)]
+normalizeSelectorTestCases =
+  [("All", allSelector, allSelector),
+   ("Outer", outerPath allSelector, outerPath allSelector),
+   ("Outer_Inner", outerInnerPath allSelector, outerInnerPath allSelector),
+   ("tag1", tag1 allSelector, tag1 allSelector),
+   ("tag12", tag12 allSelector, tag12 allSelector),
+   ("union__all__all", union2 allSelector allSelector, allSelector),
+   ("union__Outer__all", union2 (outerPath allSelector) allSelector,
+    allSelector),
+   ("union__Outer_Inner__all", union2 (outerInnerPath allSelector) allSelector,
+    allSelector),
+   ("union__Outer__tag1", union2 (outerPath allSelector) (tag1 allSelector),
+    union2 (outerPath allSelector) (tag1 allSelector)),
+   ("union__Outer_Inner__tag1",
+    union2 (outerInnerPath allSelector) (tag1 allSelector),
+    union2 (outerInnerPath allSelector) (tag1 allSelector)),
+   ("union__Outer__tag12", union2 (outerPath allSelector) (tag12 allSelector),
+    union2 (outerPath allSelector) (tag12 allSelector)),
+   ("union__Inner__tag12", union2 (innerPath allSelector) (tag12 allSelector),
+    union2 (innerPath allSelector) (tag12 allSelector)),
+   ("union__Outer_Inner__tag12",
+    union2 (outerInnerPath allSelector) (tag12 allSelector),
+    union2 (outerInnerPath allSelector) (tag12 allSelector)),
+   ("union__Outer__Outer", union2 (outerPath allSelector) (tag1 allSelector),
+    outerPath allSelector),
+   ("union__Outer__Inner",
+    union2 (outerPath allSelector) (innerPath allSelector),
+    union2 (outerPath allSelector) (innerPath allSelector)),
+   ("union__Outer__Outer_Inner",
+    union2 (outerPath allSelector) (outerInnerPath allSelector),
+    outerPath allSelector),
+   ("union__Inner__Outer_Inner",
+    union2 (innerPath allSelector) (outerInnerPath allSelector),
+    union2 (innerPath allSelector) (outerInnerPath allSelector)),
+   ("union__Outer_Inner__Outer_Inner",
+    union2 (outerInnerPath allSelector) (outerInnerPath allSelector),
+    outerInnerPath allSelector),
+   ("union__tag1__all", union2 allSelector (tag1 allSelector), allSelector),
+   ("union__tag12__all", union2 allSelector (tag12 allSelector), allSelector),
+   ("union__tag1__tag1", union2 (tag1 allSelector) (tag1 allSelector),
+    tag1 allSelector),
+   ("union__tag2__tag1", union2 (tag1 allSelector) (tag2 allSelector),
+    tag12 allSelector),
+   ("union__tag12__tag1", union2 (tag1 allSelector) (tag12 allSelector),
+    tag12 allSelector),
+   ("union__tag12__tag2", union2 (tag2 allSelector) (tag12 allSelector),
+    tag12 allSelector),
+   ("union__tag12__tag12", union2 (tag12 allSelector) (tag12 allSelector),
+    tag12 allSelector),
+   ("tag1_tag2", tag1 (tag2 allSelector), tag12 allSelector),
+   ("tag2_tag1", tag2 (tag1 allSelector), tag12 allSelector),
+   ("tag12_tag2", tag12 (tag2 allSelector), tag12 allSelector),
+   ("tag2_tag12", tag2 (tag12 allSelector), tag12 allSelector),
+   ("tag1_tag12", tag1 (tag12 allSelector), tag12 allSelector),
+   ("tag12_tag1", tag12 (tag1 allSelector), tag12 allSelector),
+   ("tag1_Outer", tag1 (outerPath allSelector), tag1 (outerPath allSelector)),
+   ("tag1_Outer_Inner", tag1 (outerInnerPath allSelector),
+    tag1 (outerInnerPath allSelector)),
+   ("tag12_Outer", tag12 (outerPath allSelector), tag12 (outerPath allSelector)),
+   ("tag12_Outer_Inner", tag12 (outerInnerPath allSelector),
+    tag12 (outerInnerPath allSelector)),
+   ("Outer_tag1", outerPath (tag1 allSelector), tag1 (outerPath allSelector)),
+   ("Outer_tag2", outerPath (tag2 allSelector), tag2 (outerPath allSelector)),
+   ("Outer_tag12", outerPath (tag12 allSelector), tag12 (outerPath allSelector)),
+   ("Inner_tag1", innerPath (tag1 allSelector), tag1 (innerPath allSelector)),
+   ("Inner_tag2", innerPath (tag2 allSelector), tag2 (innerPath allSelector)),
+   ("Inner_tag12", innerPath (tag12 allSelector), tag12 (innerPath allSelector)),
+   ("Outer_Inner_tag1", outerInnerPath (tag1 allSelector),
+    tag1 (outerInnerPath allSelector)),
+   ("Outer_Inner_tag2", outerInnerPath (tag2 allSelector),
+    tag2 (outerInnerPath allSelector)),
+   ("Outer_Inner_tag12", outerInnerPath (tag12 allSelector),
+    tag12 (outerInnerPath allSelector)),
+   ("union__tag1_Outer__tag1_Outer",
+    union2 (tag1 (outerPath allSelector)) (tag1 (outerPath allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union__tag1_Outer__tag2_Outer",
+    union2 (tag1 (outerPath allSelector)) (tag2 (outerPath allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__tag1_Outer__tag12_Outer",
+    union2 (tag1 (outerPath allSelector)) (tag12 (outerPath allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__tag2_Outer__tag12_Outer",
+    union2 (tag2 (outerPath allSelector)) (tag12 (outerPath allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__tag1_Outer__tag1_Inner",
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector)),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
+   ("union__tag1_Outer__tag2_Inner",
+    union2 (tag1 (outerPath allSelector)) (tag2 (innerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag2 (innerPath allSelector))),
+   ("union__tag1_Outer__tag12_Inner",
+    union2 (tag1 (outerPath allSelector)) (tag12 (innerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag12 (innerPath allSelector))),
+   ("union__tag2_Outer__tag12_Inner",
+    union2 (tag2 (outerPath allSelector)) (tag12 (innerPath allSelector)),
+    union2 (tag2 (outerPath allSelector)) (tag12 (innerPath allSelector))),
+   ("union__tag1_Outer__tag1_Outer_Inner",
+    union2 (tag1 (outerPath allSelector)) (tag1 (outerInnerPath allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union__tag1_Outer__tag2_Outer_Inner",
+    union2 (tag1 (outerPath allSelector)) (tag2 (outerInnerPath allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__tag1_Outer__tag12_Outer_Inner",
+    union2 (tag1 (outerPath allSelector)) (tag12 (outerInnerPath allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__tag2_Outer__tag12_Outer_Inner",
+    union2 (tag2 (outerPath allSelector)) (tag12 (outerInnerPath allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__Outer_tag1__Outer_tag1",
+    union2 (outerPath (tag1 allSelector)) (outerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union__Outer_tag1__Outer_tag2",
+    union2 (outerPath (tag1 allSelector)) (outerPath (tag2 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__Outer_tag1__Outer_tag12",
+    union2 (outerPath (tag1 allSelector)) (outerPath (tag12 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__Outer_tag2__Outer_tag12",
+    union2 (outerPath (tag2 allSelector)) (outerPath (tag12 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__Outer_tag1__Inner_tag1",
+    union2 (outerPath (tag1 allSelector)) (innerPath (tag1 allSelector)),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
+   ("union__Outer_tag1__Inner_tag2",
+    union2 (outerPath (tag1 allSelector)) (innerPath (tag2 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag2 (innerPath allSelector))),
+   ("union__Outer_tag1__Inner_tag12",
+    union2 (outerPath (tag1 allSelector)) (innerPath (tag12 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag12 (innerPath allSelector))),
+   ("union__Outer_tag2__Inner_tag12",
+    union2 (outerPath (tag2 allSelector)) (innerPath (tag12 allSelector)),
+    union2 (tag2 (outerPath allSelector)) (tag12 (innerPath allSelector))),
+   ("union__Outer_tag1__Outer_Inner_tag1",
+    union2 (outerPath (tag1 allSelector)) (outerInnerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union__Outer_tag1__Outer_Inner_tag2",
+    union2 (outerPath (tag1 allSelector)) (outerInnerPath (tag2 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__Outer_tag1__Outer_Inner_tag12",
+    union2 (outerPath (tag1 allSelector)) (outerInnerPath (tag12 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union__Outer_tag2__Outer_Inner_tag12",
+    union2 (outerPath (tag2 allSelector)) (outerInnerPath (tag12 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("union___union__Outer__All___Outer",
+    union2 (union2 (outerPath allSelector) allSelector) (outerPath allSelector),
+    allSelector),
+   ("union___union__Outer__All___Inner",
+    union2 (union2 (outerPath allSelector) allSelector) (innerPath allSelector),
+    allSelector),
+   ("union___union__Outer__All___Outer_Inner",
+    union2 (union2 (outerPath allSelector) allSelector)
+           (outerInnerPath allSelector),
+    allSelector),
+   ("union___union__Outer_Inner__All___Outer",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (outerPath allSelector),
+    allSelector),
+   ("union___union__Outer__Outer___All",
+    union2 (union2 (outerPath allSelector) (outerPath allSelector)) allSelector,
+    allSelector),
+   ("union___union__Outer__Inner___All",
+    union2 (union2 (outerPath allSelector) (innerPath allSelector)) allSelector,
+    allSelector),
+   ("union___union__Outer_Inner__Outer___All",
+    union2 (union2 (outerInnerPath allSelector) (outerPath allSelector))
+           allSelector,
+    allSelector),
+   ("union___union__Outer__All___tag1",
+    union2 (union2 (outerPath allSelector) allSelector) (tag1 allSelector),
+    allSelector),
+   ("union___union__tag1__All___Outer",
+    union2 (union2 (tag1 allSelector) allSelector) (outerPath allSelector),
+    allSelector),
+   ("union___union__tag1__Outer___All",
+    union2 (union2 (tag1 allSelector) (outerPath allSelector)) allSelector,
+    allSelector),
+   ("union___union__tag1__All___tag1",
+    union2 (union2 (tag1 allSelector) allSelector) (tag1 allSelector),
+    allSelector),
+   ("union___union__tag1__All___tag1",
+    union2 (union2 (tag1 allSelector) allSelector) (tag1 allSelector),
+    allSelector),
+   ("union___union__tag1__tag1___All",
+    union2 (union2 (tag1 allSelector) (tag1 allSelector)) allSelector,
+    allSelector),
+   ("union___union__tag1__All___tag2",
+    union2 (union2 (tag1 allSelector) allSelector) (tag2 allSelector),
+    allSelector),
+   ("union___union__tag1__All___tag2",
+    union2 (union2 (tag1 allSelector) allSelector) (tag2 allSelector),
+    allSelector),
+   ("union___union__tag1__tag2___All",
+    union2 (union2 (tag1 allSelector) (tag2 allSelector)) allSelector,
+    allSelector),
+   ("union___union__tag1__All___tag12",
+    union2 (union2 (tag1 allSelector) allSelector) (tag12 allSelector),
+    allSelector),
+   ("union___union__tag1__All___tag12",
+    union2 (union2 (tag1 allSelector) allSelector) (tag12 allSelector),
+    allSelector),
+   ("union___union__tag1__tag12___All",
+    union2 (union2 (tag1 allSelector) (tag12 allSelector)) allSelector,
+    allSelector)
+  ]
+
+normalizeSelectorTests :: [Test]
+normalizeSelectorTests =
+  let
+    makeTest :: (String, Selector, Selector) -> Test
+    makeTest (name, input, expected) =
+      let
+        runTest =
+          let
+            actual = normalizeSelector input
+          in do
+            if actual == expected
+              then return (Finished Pass)
+              else return (Finished (Fail ("Normalizing " ++ show input ++
+                                           "\nexpected " ++ show expected ++
+                                           "\ngot " ++ show actual)))
+
+        testInstance = TestInstance { name = name, tags = [], options = [],
+                                      setOption = (\_ _ -> return testInstance),
+                                      run = runTest }
+      in
+        Test testInstance
+  in
+    map makeTest normalizeSelectorTestCases
+
+testlist = [ testGroup "fileParser" fileParserTests,
+             testGroup "filterParse" filterParseTests,
+             testGroup "normalizeSelector" normalizeSelectorTests ]
 
 tests :: Test
 tests = testGroup "Filter" testlist
