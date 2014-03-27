@@ -44,11 +44,6 @@ module Test.HUnit.Base(
        AssertionPredicate,
        AssertionPredicable(..),
        Testable(..),
-
-       -- ** Test execution
-       -- $testExecutionNote
-       testCasePaths,
-       testCaseCount,
        ) where
 
 import Control.Exception hiding (assert)
@@ -533,30 +528,3 @@ actual ~?= expected = test (actual @?= expected)
 -- attaching a 'TestLabel' to one or more tests.
 (~:) :: (Testable t) => String -> t -> Test
 label ~: t = testName label t
-
-
--- Test Execution
--- ==============
-
--- $testExecutionNote
--- Note: the rest of the functionality in this module is intended for 
--- implementors of test controllers. If you just want to run your tests cases,
--- simply use a test controller, such as the text-based controller in 
--- "Test.HUnit.Text".
-
--- | Determines the paths for all 'TestCase's in a tree of @Test@s.
-testCasePaths :: Test -> [Path]
-testCasePaths =
-  let
-    tcp p Group { groupName = gname, groupTests = testlist } =
-      concat (map (tcp (Label gname : p)) testlist)
-    tcp p (ExtraOptions _ t) = tcp p t
-    tcp p (Test _) = [p]
-  in
-    tcp []
-
--- | Counts the number of 'TestCase's in a tree of @Test@s.
-testCaseCount :: Test -> Int
-testCaseCount Group { groupTests = ts }   = sum (map testCaseCount ts)
-testCaseCount (ExtraOptions _ t) = testCaseCount t
-testCaseCount (Test _)    = 1

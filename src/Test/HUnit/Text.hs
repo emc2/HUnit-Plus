@@ -140,10 +140,7 @@ runTestText :: PutText us
             -> IO (Counts, us)
 runTestText puttext @ (PutText put us0) verbose t =
   let
-    initCounts = Counts { cCases = fromIntegral (testCaseCount t),
-                          cTried = 0, cErrors = 0, cFailures = 0,
-                          cAsserts = 0, cSkipped = 0 }
-    initState = State { stCounts = initCounts, stName = "",
+    initState = State { stCounts = zeroCounts, stName = "",
                         stPath = [], stOptions = Map.empty,
                         stOptionDescs = [] }
 
@@ -239,10 +236,7 @@ terminalReporter =
 runTestTT :: Test -> IO Counts
 runTestTT t =
   let
-    initCounts = Counts { cCases = fromIntegral (testCaseCount t),
-                          cTried = 0, cErrors = 0, cFailures = 0,
-                          cAsserts = 0, cSkipped = 0 }
-    initState = State { stCounts = initCounts, stName = "",
+    initState = State { stCounts = zeroCounts, stName = "",
                         stPath = [], stOptions = Map.empty,
                         stOptionDescs = [] }
   in do
