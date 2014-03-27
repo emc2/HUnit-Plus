@@ -531,7 +531,7 @@ normalizeSelectorTestCases =
    ("union___union__Outer__Outer_Inner___Outer",
     union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
            (outerPath allSelector),
-    union2 (outerPath allSelector) (innerPath allSelector)),
+    outerPath allSelector),
    ("union___union__Outer__Outer_Inner___Inner",
     union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
            (outerPath allSelector),
