@@ -64,6 +64,12 @@ countFailed count (s @ State { stCounts = c @ Counts { cFailures = failed } },
                    repstate) =
   return (s { stCounts = c { cFailures = failed + count } }, repstate)
 
+reportProgress :: Reporter us -> String -> ReporterOp us
+reportProgress reporter msg (state, repstate) =
+  do
+    repstate' <- (reporterCaseProgress reporter) msg state repstate
+    return (state, repstate')
+
 reportSystemErr :: Reporter us -> String -> ReporterOp us
 reportSystemErr reporter msg (state, repstate) =
   do
