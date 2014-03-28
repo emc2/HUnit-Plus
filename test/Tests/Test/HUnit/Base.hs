@@ -1,6 +1,7 @@
 module Tests.Test.HUnit.Base where
 
 import Data.List
+import Debug.Trace
 import Distribution.TestSuite(Test(..),
                               TestInstance(..),
                               Result(Pass, Fail),
@@ -76,8 +77,7 @@ emptyTest = return ()
 
 testCases :: [(Test, String, [String], Counts, Result, [ReportEvent])]
 testCases = [
-    ("emptyHUnitTest" ~: emptyTest, "emptyHUnitTest", [],
-     zeroCounts { cCases = 1 }, Pass, [])
+    ("emptyHUnitTest" ~: emptyTest, "emptyHUnitTest", [], zeroCounts, Pass, [])
   ]
 
 tests :: Test
