@@ -2,12 +2,42 @@ module Tests.Test.HUnit.ReporterUtils where
 
 import Control.Monad
 import Data.Word
-import Distribution.TestSuite
+import Distribution.TestSuite(Result(Pass, Fail))
 import Test.HUnit.Reporting
 
 import qualified Data.Map as Map
 
+data ReportEvent =
+    End Double
+  | StartSuite
+  | EndSuite Double
+  | StartCase
+  | EndCase Double
+  | Skip
+  | Progress String
+  | Failure String
+  | Error String
+  | SystemErr String
+  | SystemOut String
+    deriving (Eq, Show)
+
 type ReporterOp us = (State, us) -> IO (State, us)
+
+loggingReporter :: Reporter [ReportEvent]
+loggingReporter = defaultReporter {
+    reporterStart = return [],
+    reporterEnd = (\time _ events -> return (events ++ [End time])),
+    reporterStartSuite = (\_ events -> return (events ++ [StartSuite])),
+    reporterEndSuite = (\time _ events -> return (events ++ [EndSuite time])),
+    reporterStartCase = (\_ events -> return (events ++ [StartCase])),
+    reporterEndCase = (\time _ events -> return (events ++ [EndCase time])),
+    reporterSkipCase = (\_ events -> return (events ++ [Skip])),
+    reporterCaseProgress = (\msg _ events -> return (events ++ [Progress msg])),
+    reporterFailure = (\msg _ events -> return (events ++ [Failure msg])),
+    reporterError = (\msg _ events -> return (events ++ [Error msg])),
+    reporterSystemErr = (\msg _ events -> return (events ++ [SystemErr msg])),
+    reporterSystemOut = (\msg _ events -> return (events ++ [SystemOut msg]))
+  }
 
 initState :: State
 initState = State { stName = "", stPath = [], stCounts = zeroCounts,

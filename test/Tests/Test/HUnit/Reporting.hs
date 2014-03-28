@@ -6,43 +6,16 @@ import Distribution.TestSuite(Test(..),
                               Progress(Finished),
                               testGroup)
 import Test.HUnit.Reporting
+import Tests.Test.HUnit.ReporterUtils(ReportEvent(..))
 
 import qualified Tests.Test.HUnit.ReporterUtils as Utils
-
-data ReportEvent =
-    End Double
-  | StartSuite
-  | EndSuite Double
-  | StartCase
-  | EndCase Double
-  | Skip
-  | Progress String
-  | Failure String
-  | Error String
-  | SystemErr String
-  | SystemOut String
-    deriving (Eq, Show)
 
 type ReporterState = [ReportEvent]
 type CombinedReporterState = (ReporterState, ReporterState)
 type ReporterOp = Utils.ReporterOp ReporterState
 type CombinedReporterOp = Utils.ReporterOp CombinedReporterState
 
-loggingReporter :: Reporter ReporterState
-loggingReporter = defaultReporter {
-    reporterStart = return [],
-    reporterEnd = (\time _ events -> return (events ++ [End time])),
-    reporterStartSuite = (\_ events -> return (events ++ [StartSuite])),
-    reporterEndSuite = (\time _ events -> return (events ++ [EndSuite time])),
-    reporterStartCase = (\_ events -> return (events ++ [StartCase])),
-    reporterEndCase = (\time _ events -> return (events ++ [EndCase time])),
-    reporterSkipCase = (\_ events -> return (events ++ [Skip])),
-    reporterCaseProgress = (\msg _ events -> return (events ++ [Progress msg])),
-    reporterFailure = (\msg _ events -> return (events ++ [Failure msg])),
-    reporterError = (\msg _ events -> return (events ++ [Error msg])),
-    reporterSystemErr = (\msg _ events -> return (events ++ [SystemErr msg])),
-    reporterSystemOut = (\msg _ events -> return (events ++ [SystemOut msg]))
-  }
+loggingReporter = Utils.loggingReporter
 
 combinedLoggingReporter :: Reporter CombinedReporterState
 combinedLoggingReporter = combinedReporter loggingReporter loggingReporter
@@ -100,7 +73,6 @@ genCombinedReporterTest testactions =
                                return . Finished }
   in
     Test out
-
 
 tests :: Test
 tests = testGroup "Reporting" (map genCombinedReporterTest reporterCases)
