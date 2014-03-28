@@ -46,7 +46,7 @@ module Test.HUnit.Base(
        Testable(..),
        ) where
 
-import Control.Exception hiding (assert)
+--import Control.Exception hiding (assert)
 import Data.Foldable
 import Data.IORef
 import Data.Word
@@ -236,8 +236,8 @@ assertEqual preface expected actual =
 class Assertable t
  where assert :: t -> Assertion
 
-instance Assertable ()
- where assert = return
+instance Assertable () where
+  assert = return
 
 instance Assertable Bool
  where assert = assertBool ""
@@ -251,8 +251,8 @@ instance Assertable Progress where
 instance (ListAssertable t) => Assertable [t]
  where assert = listAssert
 
-instance (Assertable t) => Assertable (IO t)
- where assert t = assert t
+instance (Assertable t) => Assertable (IO t) where
+  assert t = t >> return ()
 
 -- | A specialized form of 'Assertable' to handle lists.
 class ListAssertable t
@@ -367,19 +367,17 @@ data TestSuite =
 {-# NOINLINE syntheticName #-}
 syntheticName :: String
 syntheticName = "__synthetic__"
-
-handleException :: SomeException -> IO Progress
-handleException e =
-  do
-    logError ("Exception occurred during test:\n" ++ show e)
-    checkTestInfo
-
+{-
+handleException :: SomeException -> IO ()
+handleException e = logError ("Exception occurred during test:\n" ++ show e)
+-}
 wrapTest :: IO a -> IO Progress
 wrapTest t =
   do
     resetTestInfo
     ignoreResult
-    catch (t >> checkTestInfo) handleException
+    _ <- t
+    checkTestInfo
 
 checkTestInfo :: IO Progress
 checkTestInfo =
