@@ -74,10 +74,7 @@ data TestInfo =
 
 {-# NOINLINE testinfo #-}
 testinfo :: IORef TestInfo
-testinfo = unsafePerformIO $ newIORef TestInfo { tiAsserts = 0,
-                                                 tiFailures = [],
-                                                 tiErrors = [],
-                                                 tiIgnoreResult = False }
+testinfo = unsafePerformIO $ newIORef undefined
 
 -- | Interface between invisible @TestInfo@ and the rest of the test
 -- execution framework.
@@ -128,39 +125,26 @@ reportTestInfo result Reporter { reporterError = reportError,
 
 -- | Indicate that the result of a test is already reflected in the testinfo
 ignoreResult :: IO ()
-ignoreResult =
-  do
-    t <- readIORef testinfo
-    writeIORef testinfo t { tiIgnoreResult = True }
+ignoreResult = modifyIORef testinfo (\t -> t { tiIgnoreResult = True })
 
 resetTestInfo :: IO ()
-resetTestInfo =
-  do
-    writeIORef testinfo TestInfo { tiAsserts = 0,
-                                   tiFailures = [],
-                                   tiErrors = [],
-                                   tiIgnoreResult = False }
+resetTestInfo = writeIORef testinfo TestInfo { tiAsserts = 0,
+                                               tiFailures = [],
+                                               tiErrors = [],
+                                               tiIgnoreResult = False }
 
 -- | Record that one assertion has been checked.
 logAssert :: IO ()
-logAssert =
-  do
-    t @ TestInfo { tiAsserts = asserts } <- readIORef testinfo
-    writeIORef testinfo t { tiAsserts = asserts + 1 }
+logAssert = modifyIORef testinfo (\t -> t { tiAsserts = tiAsserts t + 1 })
 
 -- | Record an error, along with a message.
 logError :: String -> IO ()
-logError msg =
-  do
-    t @ TestInfo { tiErrors = errs } <- readIORef testinfo
-    writeIORef testinfo t { tiErrors = msg : errs }
+logError msg = modifyIORef testinfo (\t -> t { tiErrors = msg : tiErrors t })
 
 -- | Record a failure, along with a message.
 logFailure :: String -> IO ()
 logFailure msg =
-  do
-    t @ TestInfo { tiFailures = fails } <- readIORef testinfo
-    writeIORef testinfo t { tiFailures = msg : fails }
+  modifyIORef testinfo (\t -> t { tiFailures = msg : tiFailures t })
 
 -- | Get a combined failure message, if there is one
 getFailures :: IO (Maybe String)
@@ -262,7 +246,7 @@ instance Assertable Progress where
   assert (Progress _ cont) = assert cont
   assert (Finished Pass) = return ()
   assert (Finished (Error errstr)) = logError errstr
-  assert (Finished (Fail failstr)) = logError failstr
+  assert (Finished (Fail failstr)) = logFailure failstr
 
 instance (ListAssertable t) => Assertable [t]
  where assert = listAssert
