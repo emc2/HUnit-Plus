@@ -258,6 +258,12 @@ instance Assertable ()
 instance Assertable Bool
  where assert = assertBool ""
 
+instance Assertable Progress where
+  assert (Progress _ cont) = assert cont
+  assert (Finished Pass) = return ()
+  assert (Finished (Error errstr)) = logError errstr
+  assert (Finished (Fail failstr)) = logError failstr
+
 instance (ListAssertable t) => Assertable [t]
  where assert = listAssert
 
@@ -384,29 +390,6 @@ handleException e =
     logError ("Exception occurred during test:\n" ++ show e)
     checkTestInfo
 
-wrapProgressTest :: IO Progress -> IO Progress
-wrapProgressTest t =
-  let
-    normalFinish :: IO Progress
-    normalFinish =
-      do
-        progress <- t
-        case progress of
-          Progress _ _ -> return progress
-          Finished Pass -> checkTestInfo
-          Finished (Error errstr) ->
-            do
-              logError errstr
-              checkTestInfo
-          Finished (Fail failstr) ->
-            do
-              logFailure failstr
-              checkTestInfo
-  in do
-    resetTestInfo
-    ignoreResult
-    catch normalFinish handleException
-
 wrapTest :: IO a -> IO Progress
 wrapTest t =
   do
@@ -471,13 +454,13 @@ instance (Assertable t) => Testable (IO t) where
     Test TestInstance { name = testname, tags = testtags,
                         run = wrapTest (assert t),
                         options = [], setOption = undefined }
-
+{-
 instance Testable (IO Progress) where
   testNameTags testname testtags t =
     Test TestInstance { name = testname, tags = testtags,
                         run = wrapProgressTest t,
                         options = [], setOption = undefined }
-
+-}
 instance (Testable t) => Testable [t] where
   testNameTags testname testtags ts =
     Group { groupName = testname, groupTests = map (testTags testtags) ts,
