@@ -71,8 +71,8 @@ makeTestCase (Test TestInstance { name = actualName,
   in
     Test testInstance
 
-emptyTest :: IO Progress
-emptyTest = return (Finished Pass)
+emptyTest :: IO ()
+emptyTest = return ()
 
 testCases :: [(Test, String, [String], Counts, Result, [ReportEvent])]
 testCases = [
