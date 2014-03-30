@@ -1,4 +1,4 @@
-module Tests.Test.HUnit.Filter where
+module Tests.Test.HUnit.Filter(tests) where
 
 import Data.List
 import Distribution.TestSuite

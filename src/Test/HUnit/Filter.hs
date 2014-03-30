@@ -301,7 +301,7 @@ commentParser =
   do
     _ <- char '#'
     _ <- many (noneOf "\n")
-    return ()
+    return $ ()
 
 lineParser :: GenParser Char st (Maybe Filter)
 lineParser =
@@ -311,8 +311,8 @@ lineParser =
     _ <- many space
     optional commentParser
     case content of
-      ([], [], []) -> return Nothing
-      _ -> return (Just (makeFilter content))
+      ([], [], []) -> return $ Nothing
+      _ -> return $ (Just (makeFilter content))
 
 -- | Parse content from a filter file
 parseFilterFileContent :: String

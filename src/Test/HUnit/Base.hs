@@ -26,23 +26,23 @@ module Test.HUnit.Base(
        logAssert,
        logFailure,
        logError,
+       withPrefix,
        getErrors,
        getFailures,
 
        -- ** Making assertions
        Assertion,
+       assertSuccess,
        assertFailure,
        assertBool,
        assertString,
+       assertStringWithPrefix,
        assertEqual,
        (@=?),
        (@?=),
        (@?),
        -- ** Extending the assertion functionality
        Assertable(..),
-       ListAssertable(..),
-       AssertionPredicate,
-       AssertionPredicable(..),
        Testable(..),
        ) where
 
@@ -51,7 +51,7 @@ import Data.Foldable
 import Data.IORef
 import Data.Word
 import Distribution.TestSuite
-import Prelude hiding (concat, sum)
+import Prelude hiding (concat, sum, sequence_)
 import System.IO.Unsafe
 import Test.HUnit.Reporting
 
@@ -69,7 +69,9 @@ data TestInfo =
     -- | Whether or not the result of the test computation is already
     -- reflected here.  This is used to differentiate between black
     -- box test and tests we've built with these tools.
-    tiIgnoreResult :: !Bool
+    tiIgnoreResult :: !Bool,
+    -- | String to attach to every failure message as a prefix.
+    tiPrefix :: !String
   }
 
 {-# NOINLINE testinfo #-}
@@ -91,37 +93,37 @@ reportTestInfo result Reporter { reporterError = reportError,
                tiErrors = currErrors,
                tiIgnoreResult = ignoreRes } <- readIORef testinfo
     errorsUs <- foldlM (\us msg -> reportError msg ss us )
-                       initialUs currErrors
+                       initialUs (reverse currErrors)
     failuresUs <- foldlM (\us msg -> reportFailure msg ss us )
-                         errorsUs currErrors
+                         errorsUs (reverse currFailures)
     case result of
       Error msg | not ignoreRes ->
         do
           finalUs <- reportError msg ss failuresUs
-          return (ss { stCounts =
-                          c { cAsserts = asserts + fromIntegral currAsserts,
-                              cFailures = failures +
-                                          fromIntegral (length currFailures),
-                              cErrors = errors + 1 +
-                                        fromIntegral (length currErrors) } },
-                  finalUs)
+          return $ (ss { stCounts =
+                            c { cAsserts = asserts + fromIntegral currAsserts,
+                                cFailures = failures +
+                                            fromIntegral (length currFailures),
+                                cErrors = errors + 1 +
+                                          fromIntegral (length currErrors) } },
+                    finalUs)
       Fail msg | not ignoreRes ->
         do
           finalUs <- reportFailure msg ss failuresUs
-          return (ss { stCounts =
-                          c { cAsserts = asserts + fromIntegral currAsserts,
-                              cFailures = failures + 1 +
-                                          fromIntegral (length currFailures),
-                              cErrors = errors +
-                                        fromIntegral (length currErrors) } },
-                  finalUs)
-      _ -> return (ss { stCounts =
-                           c { cAsserts = asserts + fromIntegral currAsserts,
-                               cFailures = failures +
-                                           fromIntegral (length currFailures),
-                               cErrors = errors +
-                                         fromIntegral (length currErrors) } },
-                   failuresUs)
+          return $ (ss { stCounts =
+                            c { cAsserts = asserts + fromIntegral currAsserts,
+                                cFailures = failures + 1 +
+                                            fromIntegral (length currFailures),
+                                cErrors = errors +
+                                          fromIntegral (length currErrors) } },
+                    finalUs)
+      _ -> return $ (ss { stCounts =
+                             c { cAsserts = asserts + fromIntegral currAsserts,
+                                 cFailures = failures +
+                                             fromIntegral (length currFailures),
+                                 cErrors = errors +
+                                           fromIntegral (length currErrors) } },
+                     failuresUs)
 
 -- | Indicate that the result of a test is already reflected in the testinfo
 ignoreResult :: IO ()
@@ -131,7 +133,17 @@ resetTestInfo :: IO ()
 resetTestInfo = writeIORef testinfo TestInfo { tiAsserts = 0,
                                                tiFailures = [],
                                                tiErrors = [],
-                                               tiIgnoreResult = False }
+                                               tiIgnoreResult = False,
+                                               tiPrefix = "" }
+
+-- | Execute the given computation with a message prefix
+withPrefix :: String -> IO () -> IO ()
+withPrefix prefix c =
+  do
+    t @ TestInfo { tiPrefix = oldprefix } <- readIORef testinfo
+    writeIORef testinfo t { tiPrefix = prefix ++ oldprefix }
+    c
+    modifyIORef testinfo (\t' -> t' { tiPrefix = oldprefix })
 
 -- | Record that one assertion has been checked.
 logAssert :: IO ()
@@ -139,12 +151,14 @@ logAssert = modifyIORef testinfo (\t -> t { tiAsserts = tiAsserts t + 1 })
 
 -- | Record an error, along with a message.
 logError :: String -> IO ()
-logError msg = modifyIORef testinfo (\t -> t { tiErrors = msg : tiErrors t })
+logError msg = modifyIORef testinfo (\t -> t { tiErrors = (tiPrefix t ++ msg) :
+                                                          tiErrors t })
 
 -- | Record a failure, along with a message.
 logFailure :: String -> IO ()
-logFailure msg =
-  modifyIORef testinfo (\t -> t { tiFailures = msg : tiFailures t })
+logFailure msg = modifyIORef testinfo
+                             (\t -> t { tiFailures = (tiPrefix t ++ msg) :
+                                                     tiFailures t })
 
 -- | Get a combined failure message, if there is one
 getFailures :: IO (Maybe String)
@@ -152,8 +166,8 @@ getFailures =
   do
     TestInfo { tiFailures = fails } <- readIORef testinfo
     case fails of
-      [] -> return Nothing
-      _ -> return (Just (concat (reverse fails)))
+      [] -> return $ Nothing
+      _ -> return $ (Just (concat (reverse fails)))
 
 -- | Get a combined failure message, if there is one
 getErrors :: IO (Maybe String)
@@ -161,8 +175,8 @@ getErrors =
   do
     TestInfo { tiErrors = errors } <- readIORef testinfo
     case errors of
-      [] -> return Nothing
-      _ -> return (Just (concat (reverse errors)))
+      [] -> return $ Nothing
+      _ -> return $ (Just (concat (reverse errors)))
 
 -- Assertion Definition
 -- ====================
@@ -173,14 +187,15 @@ type Assertion = IO ()
 -- -------------------------------
 
 -- | Unconditionally signal that a failure has occurred.  This will
--- not stop execution, but will record the error, resulting in a
+-- not stop execution, but will record the failure, resulting in a
 -- failed test.
 assertFailure :: String
               -- ^ The failure message
               -> Assertion
 assertFailure msg = logAssert >> logFailure msg
 
--- | Signal that an assertion succeeded.
+-- | Signal that an assertion succeeded.  This will log that an
+-- assertion has been made.
 assertSuccess :: Assertion
 assertSuccess = logAssert
 
@@ -197,7 +212,17 @@ assertBool msg b = if b then assertSuccess else assertFailure msg
 assertString :: String
              -- ^ The message that is displayed with the assertion failure 
              -> Assertion
-assertString s = assertBool s (null s)
+assertString = assertStringWithPrefix ""
+
+-- | Signals an assertion failure if a non-empty message (i.e., a
+-- message other than @\"\"@) is passed.  Allows a prefix to be
+-- supplied for the assertion failure message.
+assertStringWithPrefix :: String
+                       -- ^ Prefix to attach to the string if not null
+                       -> String
+                       -- ^ String to assert is null
+                       -> Assertion
+assertStringWithPrefix prefix s = assertBool (prefix ++ s) (null s)
 
 -- | Asserts that the specified actual value is equal to the expected value.
 -- The output message will contain the prefix, the expected value, and the 
@@ -216,7 +241,7 @@ assertEqual :: (Eq a, Show a)
 assertEqual preface expected actual =
   let
     msg = (if null preface then "" else preface ++ "\n") ++
-             "expected: " ++ show expected ++ "\n but got: " ++ show actual
+             "expected: " ++ show expected ++ "\nbut got: " ++ show actual
   in
     assertBool msg (actual == expected)
 
@@ -233,88 +258,60 @@ assertEqual preface expected actual =
 -- 
 -- If more complex arrangements of assertions are needed, 'Test's and
 -- 'Testable' should be used.
-class Assertable t
- where assert :: t -> Assertion
+class Assertable t where
+  -- | Assertion with a failure message
+  assertWithMsg :: String -> t -> Assertion
+
+  -- | Assertion with no failure message
+  assert :: t -> Assertion
+  assert = assertWithMsg ""
 
 instance Assertable () where
-  assert = return
+  assertWithMsg _ = return
 
-instance Assertable Bool
- where assert = assertBool ""
+instance Assertable Bool where
+  assertWithMsg msg = assertBool msg
+
+instance Assertable Result where
+  assertWithMsg _ Pass = assertSuccess
+  assertWithMsg "" (Error errstr) = logError errstr
+  assertWithMsg prefix (Error errstr) = logError (prefix ++ errstr)
+  assertWithMsg "" (Fail failstr) = assertFailure failstr
+  assertWithMsg prefix (Fail failstr) = assertFailure (prefix ++ failstr)
 
 instance Assertable Progress where
-  assert (Progress _ cont) = assert cont
-  assert (Finished Pass) = return ()
-  assert (Finished (Error errstr)) = logError errstr
-  assert (Finished (Fail failstr)) = logFailure failstr
+  assertWithMsg msg (Progress _ cont) = assertWithMsg msg cont
+  assertWithMsg msg (Finished res) = assertWithMsg msg res
 
-instance (ListAssertable t) => Assertable [t]
- where assert = listAssert
+instance (ListAssertable t) => Assertable [t] where
+  assertWithMsg msg = listAssert msg
 
 instance (Assertable t) => Assertable (IO t) where
-  assert t = t >> return ()
+  assertWithMsg msg t = t >>= assertWithMsg msg
 
 -- | A specialized form of 'Assertable' to handle lists.
-class ListAssertable t
- where listAssert :: [t] -> Assertion
+class ListAssertable t where
+  listAssert :: String -> [t] -> Assertion
 
-instance ListAssertable Char
- where listAssert = assertString
+instance ListAssertable Char where
+  listAssert msg = assertStringWithPrefix msg
 
-
--- Overloaded `assertionPredicate` Function
--- ----------------------------------------
-
--- | The result of an assertion that hasn't been evaluated yet.
--- 
--- Most test cases follow the following steps:
--- 
--- 1. Do some processing or an action.
--- 
--- 2. Assert certain conditions.
--- 
--- However, this flow is not always suitable.  @AssertionPredicate@ allows for
--- additional steps to be inserted without the initial action to be affected
--- by side effects.  Additionally, clean-up can be done before the test case
--- has a chance to end.  A potential work flow is:
--- 
--- 1. Write data to a file.
--- 
--- 2. Read data from a file, evaluate conditions.
--- 
--- 3. Clean up the file.
--- 
--- 4. Assert that the side effects of the read operation meet certain conditions.
--- 
--- 5. Assert that the conditions evaluated in step 2 are met.
-type AssertionPredicate = IO Bool
-
--- | Used to signify that a data type can be converted to an assertion 
--- predicate.
-class AssertionPredicable t
- where assertionPredicate :: t -> AssertionPredicate
-
-instance AssertionPredicable Bool
- where assertionPredicate = return
-
-instance (AssertionPredicable t) => AssertionPredicable (IO t)
- where assertionPredicate = (>>= assertionPredicate)
-
+instance ListAssertable Assertion where
+  listAssert msg asserts = withPrefix msg (sequence_ asserts)
 
 -- Assertion Construction Operators
 -- --------------------------------
 
 infix  1 @?, @=?, @?=
 
--- | Asserts that the condition obtained from the specified
---   'AssertionPredicable' holds.
-(@?) :: (AssertionPredicable t) =>
+-- | Shorthand for @assertBool@.
+(@?) :: (Assertable t) =>
         t
      -- ^ A value of which the asserted condition is predicated
      -> String
      -- ^ A message that is displayed if the assertion fails
      -> Assertion
-predi @? msg = assertionPredicate predi >>= assertBool msg
+predi @? msg = assertWithMsg msg predi
 
 -- | Asserts that the specified actual value is equal to the expected value
 --   (with the expected value on the left-hand side).
@@ -388,9 +385,9 @@ checkTestInfo =
         do
           failures <- getFailures
           case failures of
-            Nothing -> return (Finished Pass)
-            Just failstr -> return (Finished (Fail failstr))
-      Just errstr -> return (Finished (Error errstr))
+            Nothing -> return $ (Finished Pass)
+            Just failstr -> return $ (Finished (Fail failstr))
+      Just errstr -> return $ (Finished (Error errstr))
 
 -- | Provides a way to convert data into a @Test@ or set of @Test@.
 class Testable t where
@@ -434,15 +431,9 @@ instance Testable Test where
 instance (Assertable t) => Testable (IO t) where
   testNameTags testname testtags t =
     Test TestInstance { name = testname, tags = testtags,
-                        run = wrapTest (assert t),
+                        run = wrapTest (t >>= assert),
                         options = [], setOption = undefined }
-{-
-instance Testable (IO Progress) where
-  testNameTags testname testtags t =
-    Test TestInstance { name = testname, tags = testtags,
-                        run = wrapProgressTest t,
-                        options = [], setOption = undefined }
--}
+
 instance (Testable t) => Testable [t] where
   testNameTags testname testtags ts =
     Group { groupName = testname, groupTests = map (testTags testtags) ts,
@@ -456,7 +447,7 @@ infixr 0 ~:
 
 -- | Creates a test case resulting from asserting the condition obtained 
 --   from the specified 'AssertionPredicable'.
-(~?) :: (AssertionPredicable t)
+(~?) :: (Assertable t)
      => t
      -- ^ A value of which the asserted condition is predicated
      -> String

@@ -1,4 +1,4 @@
-module Tests.Test.HUnit.Reporting where
+module Tests.Test.HUnit.Reporting(tests) where
 
 import Data.List
 import Distribution.TestSuite(Test(..),
@@ -66,7 +66,7 @@ genCombinedReporterTest testactions =
     log = concat (map (\(_, _, a) -> a) testactions)
     expected = (log, log)
 
-    out = TestInstance { name = "combinedReporter_ " ++ name,
+    out = TestInstance { name = "combinedReporter_" ++ name,
                          tags = [], options = [],
                          setOption = (\_ _ -> Right out),
                          run = runReporterTest ops expected show >>=

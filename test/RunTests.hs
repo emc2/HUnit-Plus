@@ -94,7 +94,7 @@ main =
   do
     tests' <- tests
     (counts, trees) <- foldM (runTest []) (zeroCounts, []) tests'
-    writeFile "report.xml" (format (wrapTrees counts trees))
+    writeFile "report.xml" (format (indent 2 (wrapTrees counts trees)))
     putStr (show counts ++ "\n")
     case counts of
       Counts { cErrors = 0, cFailures = 0 } -> exitSuccess

@@ -1,4 +1,4 @@
-module Tests.Test.HUnit.XML where
+module Tests.Test.HUnit.XML(tests) where
 
 import Control.Monad
 import Data.Word
