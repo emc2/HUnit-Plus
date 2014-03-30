@@ -33,7 +33,6 @@ performTestCase :: Reporter us
                 -> IO (State, us)
 performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
                                  reporterError = reportError,
-                                 reporterCaseProgress = reportCaseProgress,
                                  reporterEndCase = reportEndCase }
                 ss @ State { stCounts = c @ Counts { cTried = tried },
                              stName = oldname, stOptions = optmap,
@@ -66,17 +65,6 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
             newUs <- reportError errmsg ssWithName us
             return (newUs, ti)
         Right newTi -> return (us, newTi)
-
-    -- Run the test until a finished result is produced
-    finishTestCase us' action =
-      do
-        progress <- action
-        case progress of
-          Progress msg nextAction ->
-            do
-              usNext <- reportCaseProgress msg ss us'
-              finishTestCase usNext nextAction
-          Finished res -> return (res, us')
   in do
     -- Get all the rest of the information from the resulting test instance
     (usOpts, TestInstance { run = runTest }) <-
@@ -84,11 +72,10 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
     -- Call the reporter's start case function
     usStarted <- reportStartCase ssWithName usOpts
     -- Actually run the test
-    (time, (res, usFinished)) <- timeItT (finishTestCase usStarted runTest)
-    -- Report the results
-    (ssFinal, usFinal) <- reportTestInfo res rep ssWithName usFinished 
-    -- Eventually, will need to report stdout and stderr activity
+    (time, ssFinal, usFinal) <- executeTest rep ssWithName usStarted runTest
+    -- Call the reporters end case function
     usEnded <- reportEndCase time ssFinal usFinal
+    -- Restore the old name before returning
     return (ssFinal { stName = oldname }, usEnded)
 
 skipTestCase :: Reporter us

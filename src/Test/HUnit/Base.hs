@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, DeriveDataTypeable #-}
 
 -- | Basic definitions for the HUnit library.
 -- 
@@ -22,7 +22,7 @@ module Test.HUnit.Base(
        (~?),
 
        -- ** Low-level Test Functions
-       reportTestInfo,
+       executeTest,
        logAssert,
        logFailure,
        logError,
@@ -34,6 +34,8 @@ module Test.HUnit.Base(
        Assertion,
        assertSuccess,
        assertFailure,
+       abortFailure,
+       abortError,
        assertBool,
        assertString,
        assertStringWithPrefix,
@@ -46,15 +48,27 @@ module Test.HUnit.Base(
        Testable(..),
        ) where
 
---import Control.Exception hiding (assert)
+import Control.Exception hiding (assert)
 import Data.Foldable
 import Data.IORef
+import Data.Typeable
 import Data.Word
 import Distribution.TestSuite
 import Prelude hiding (concat, sum, sequence_)
 import System.IO.Unsafe
+import System.TimeIt
 import Test.HUnit.Reporting
 
+-- | An exception used to abort test execution immediately
+data TestException =
+  TestException {
+    -- | Whether this is a failure or an error
+    teError :: !Bool,
+    -- | The failure (or error) message
+    teMsg :: !String
+  } deriving (Show, Typeable)
+
+instance Exception TestException
 
 -- Test Wrapper Definition
 -- =====================
@@ -77,6 +91,55 @@ data TestInfo =
 {-# NOINLINE testinfo #-}
 testinfo :: IORef TestInfo
 testinfo = unsafePerformIO $ newIORef undefined
+
+-- | Do the actual work of executing a test.  This maintains the
+-- necessary bookkeeping recording assertions and failures, It also
+-- sets up exception handlers and times the test.
+executeTest :: Reporter us
+            -- ^ The reporter to use for reporting results
+            -> State
+            -- ^ The HUnit internal state
+            -> us
+            -- ^ The reporter state
+            -> IO Progress
+            -- ^ The test to run
+            -> IO (Double, State, us)
+executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
+            ss usInitial runTest =
+  let
+    -- Run the test until a finished result is produced
+    finishTestCase time us action =
+      let
+        handleExceptions :: SomeException -> IO Progress
+        handleExceptions ex =
+          case fromException ex of
+            Just TestException { teError = True, teMsg = msg } ->
+              do
+                logError msg
+                return (Finished (Error msg))
+            Just TestException { teError = False, teMsg = msg } ->
+              do
+                logFailure msg
+                return (Finished (Fail msg))
+            Nothing ->
+              do
+                return (Finished (Error ("Uncaught exception in test: " ++
+                                         show ex)))
+
+        caughtAction = catch action handleExceptions
+      in do
+        (inctime, progress) <- timeItT caughtAction
+        case progress of
+          Progress msg nextAction ->
+            do
+              usNext <- reportCaseProgress msg ss us
+              finishTestCase (time + inctime) usNext nextAction
+          Finished res -> return (res, us, time + inctime)
+  in do
+    resetTestInfo
+    (res, usFinished, time) <- finishTestCase 0 usInitial runTest
+    (ssReported, usReported) <- reportTestInfo res rep ss usFinished
+    return (time, ssReported, usReported)
 
 -- | Interface between invisible @TestInfo@ and the rest of the test
 -- execution framework.
@@ -198,6 +261,16 @@ assertFailure msg = logAssert >> logFailure msg
 -- assertion has been made.
 assertSuccess :: Assertion
 assertSuccess = logAssert
+
+-- | Signal than an error has occurred and stop the test immediately.
+abortError :: String -> Assertion
+abortError msg = throw TestException { teError = True, teMsg = msg }
+
+-- | Signal that a failure has occurred and stop the test immediately.
+-- Note that if an error has been logged already, the test will be
+-- reported as an error.
+abortFailure :: String -> Assertion
+abortFailure msg = throw TestException { teError = False, teMsg = msg }
 
 -- | Asserts that the specified condition holds.
 assertBool :: String
@@ -371,7 +444,6 @@ handleException e = logError ("Exception occurred during test:\n" ++ show e)
 wrapTest :: IO a -> IO Progress
 wrapTest t =
   do
-    resetTestInfo
     ignoreResult
     _ <- t
     checkTestInfo
