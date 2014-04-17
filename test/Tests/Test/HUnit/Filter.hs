@@ -84,9 +84,9 @@ makeFilterParseTest suites path tags =
 
 filterComponents :: [([String], [String], [String])]
 filterComponents =
-  foldr (\suiteName tests ->
-          foldr (\path tests ->
-                  foldr (\tag tests -> (suiteName, path, tag) : tests)
+  foldl (\tests suiteName ->
+          foldl (\tests path ->
+                  foldl (\tests tag -> (suiteName, path, tag) : tests)
                         tests tagNames)
                 tests paths)
         [] suiteNames
