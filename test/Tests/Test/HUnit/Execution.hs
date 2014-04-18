@@ -260,10 +260,10 @@ makeOuterGroup mfilter initialTests =
 
         mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
                   ([Test], [ReportEvent], State, [Selector])
-        mapfun (tests, events, ss @ State { stPath = path }, selectors) =
+        mapfun (innergroup : tests, events, ss, selectors) =
           let
             (grouptests, events', ss') = foldl (makeTestData "Outer_")
-                                               ([], events, ssWithPath)
+                                               ([innergroup], events, ss)
                                                (getTests mfilter)
 
             tests' = Group { groupName = "Outer",
