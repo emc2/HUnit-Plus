@@ -4,6 +4,7 @@ import Data.List
 import Distribution.TestSuite(Test(..),
                               TestInstance(..),
                               Progress(Finished),
+                              Result(Pass, Fail),
                               testGroup)
 import Test.HUnit.Reporting
 import Tests.Test.HUnit.ReporterUtils(ReportEvent(..))
@@ -14,6 +15,7 @@ type ReporterState = [ReportEvent]
 type CombinedReporterState = (ReporterState, ReporterState)
 type ReporterOp = Utils.ReporterOp ReporterState
 type CombinedReporterOp = Utils.ReporterOp CombinedReporterState
+type DefaultReporterOp = Utils.ReporterOp Int
 
 loggingReporter = Utils.loggingReporter
 
@@ -50,6 +52,21 @@ reporterActions = [
     ("end", reportEnd 3.0, [End 3.0])
   ]
 
+defaultReporterCases :: [(String, State -> Int -> IO Int, Int)]
+defaultReporterCases = [
+    ("systemErr", (reporterSystemErr defaultReporter) "Error Message", 1),
+    ("systemOut", (reporterSystemOut defaultReporter) "Output Message", 2),
+    ("failure", (reporterFailure defaultReporter) "Failure Message", 3),
+    ("error", (reporterError defaultReporter) "Error Message", 4),
+    ("progress", (reporterCaseProgress defaultReporter) "Progress Message", 5),
+    ("skip", reporterSkipCase defaultReporter, 6),
+    ("startCase", reporterStartCase defaultReporter, 7),
+    ("endCase", (reporterEndCase defaultReporter) 1.0, 8),
+    ("startSuite", reporterStartSuite defaultReporter, 9),
+    ("endSuite", (reporterEndSuite defaultReporter) 2.0, 10),
+    ("end", (reporterEnd defaultReporter) 3.0 . stCounts, 11)
+  ]
+
 reporterCases :: [[(String, CombinedReporterOp, ReporterState)]]
 reporterCases =
   map (: []) reporterActions ++
@@ -74,5 +91,23 @@ genCombinedReporterTest testactions =
   in
     Test out
 
+genDefaultReporterTest :: (String, State -> Int -> IO Int, Int) -> Test
+genDefaultReporterTest (name, reporterAction, reporterState) =
+  let
+    runTest =
+      do
+        result <- reporterAction Utils.initState reporterState
+        if result == reporterState
+          then return (Finished Pass)
+          else return (Finished (Fail "defaultReporter altered state!"))
+
+    out = TestInstance { name = "defaultReporter_" ++ name,
+                         tags = [], options = [], run = runTest,
+                         setOption = (\_ _ -> Right out) }
+  in
+    Test out
+
+
 tests :: Test
-tests = testGroup "Reporting" (map genCombinedReporterTest reporterCases)
+tests = testGroup "Reporting" (map genCombinedReporterTest reporterCases ++
+                               map genDefaultReporterTest defaultReporterCases)
