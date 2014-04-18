@@ -34,7 +34,8 @@ performTestCase :: Reporter us
 performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
                                  reporterError = reportError,
                                  reporterEndCase = reportEndCase }
-                ss @ State { stCounts = c @ Counts { cTried = tried },
+                ss @ State { stCounts = c @ Counts { cTried = tried,
+                                                     cCases = cases },
                              stName = oldname, stOptions = optmap,
                              stOptionDescs = descs } initialUs
                 initTi @ TestInstance { name = testname,
@@ -46,7 +47,8 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
     -- Add the name to the state we use to run the tests
 
     -- Update the state before running
-    ssWithName = ss { stName = testname, stCounts = c { cTried = tried + 1 } }
+    ssWithName = ss { stName = testname, stCounts = c { cTried = tried + 1,
+                                                        cCases = cases + 1 } }
 
     -- Fold function for applying options
     applyOptions (us, ti) OptionDescr { optionName = optname,
@@ -63,8 +65,8 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
         Left errmsg ->
           do
             newUs <- reportError errmsg ssWithName us
-            return (newUs, ti)
-        Right newTi -> return (us, newTi)
+            return $ (newUs, ti)
+        Right newTi -> return $ (us, newTi)
   in do
     -- Get all the rest of the information from the resulting test instance
     (usOpts, TestInstance { run = runTest }) <-
@@ -76,7 +78,7 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
     -- Call the reporters end case function
     usEnded <- reportEndCase time ssFinal usFinal
     -- Restore the old name before returning
-    return (ssFinal { stName = oldname }, usEnded)
+    return $ (ssFinal { stName = oldname }, usEnded)
 
 skipTestCase :: Reporter us
              -- ^ Report generator for the test run
@@ -97,7 +99,7 @@ skipTestCase Reporter { reporterSkipCase = reportSkipCase }
                stName = testname }
   in do
     us' <- reportSkipCase ss' us
-    return (ss' { stName = oldname }, us')
+    return $ (ss' { stName = oldname }, us')
 
 -- | Performs a test run with the specified report generators.
 --
@@ -147,7 +149,7 @@ performTest rep initSelector initState initialUs initialTest =
         -- Run the tests with the updated path
         (ssAfter, usAfter) <- foldM foldfun (ssWithPath, us) testlist
         -- Return the state, reset to the old path
-        return (ssAfter { stPath = oldpath }, usAfter)
+        return $ (ssAfter { stPath = oldpath }, usAfter)
     performTest' selector ss us (Test t @ TestInstance { name = testname,
                                                          tags = testtags }) =
       -- Update the selector and take an action based on its value
@@ -170,7 +172,7 @@ performTest rep initSelector initState initialUs initialTest =
       performTest' (Just (Set.empty, initSelector))
                    initState initialUs initialTest
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
-    return (ss', us')
+    return $ (ss', us')
 
 -- | Given a name representing the current group or test name and a
 -- selection state, return a new selection state to use in recursive
@@ -184,7 +186,7 @@ updateSelector elem (Just (tagset, Union { unionInners = inners })) =
   let
     mapfun inner = updateSelector elem (Just (tagset, inner))
   in
-    foldr (<|>) Nothing (map mapfun (Set.elems inners))
+    foldl (<|>) Nothing (map mapfun (Set.elems inners))
 -- For Unions, pick the first one that matches
 updateSelector elem (Just (tagset, Path { pathElem = elem',
                                           pathInner = inner }))
@@ -227,10 +229,10 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
         (time, (finishedState, finishedUs)) <-
           timeItT (foldM foldfun (initState, startedUs) testlist)
         endedUs <- reportEndSuite time finishedState finishedUs
-        return (stCounts finishedState, endedUs)
+        return $ (stCounts finishedState, endedUs)
     _ ->
-      return (Counts { cCases = 0, cTried = 0, cErrors = 0, cFailures = 0,
-                       cAsserts = 0, cSkipped = 0 }, initialUs)
+      return $ (Counts { cCases = 0, cTried = 0, cErrors = 0, cFailures = 0,
+                         cAsserts = 0, cSkipped = 0 }, initialUs)
 
 performTestSuites :: Reporter us
                   -- ^ Report generator to use for running the test suite
@@ -259,10 +261,10 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
     foldfun (accumCounts, accumUs) suite =
       do
         (suiteCounts, suiteUs) <- performTestSuite rep filters accumUs suite
-        return (combineCounts accumCounts suiteCounts, suiteUs)
+        return $ (combineCounts accumCounts suiteCounts, suiteUs)
   in do
     initialUs <- reportStart
     (time, (finishedCounts, finishedUs)) <-
       timeItT (foldM foldfun (initialCounts, initialUs) suites)
     endedUs <- reportEnd time finishedCounts finishedUs
-    return (finishedCounts, endedUs)
+    return $ (finishedCounts, endedUs)
