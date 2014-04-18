@@ -17,7 +17,7 @@ Executable RunTests
   hs-source-dirs:       src test
   build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit,
                         cmdargs, hashable, containers, time, old-locale, hostname,
-                        parsec, bytestring
+                        parsec, bytestring, directory
   ghc-options:          -fhpc
 
 Test-Suite unit-tests
