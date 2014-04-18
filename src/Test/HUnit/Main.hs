@@ -9,7 +9,11 @@
 -- The [@main@] herein obtains and parses the command-line options,
 -- then executes tests accordingly.
 module Test.HUnit.Main(
-       createMain
+       Opts(..),
+       ConsoleMode(..),
+       opts,
+       createMain,
+       topLevel
        ) where
 
 import Control.Exception
@@ -200,6 +204,7 @@ createMain suites =
       Right False -> exitFailure
       Right True -> exitSuccess
 
+-- | Top-level function for executing test suites.
 topLevel :: [TestSuite] -> Opts -> IO (Either [String] Bool)
 topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
   let
