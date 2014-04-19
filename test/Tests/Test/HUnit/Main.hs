@@ -65,6 +65,11 @@ suiteCombos =
                  accum (makeSuiteData "Suite2")))
         [] (makeSuiteData "Suite1")
 
+suitePairCombos = foldl (\accum a ->
+                          foldl (\accum b -> (a, b) : accum)
+                                accum suiteCombos)
+                        [] suiteCombos
+
 makeFilter suitename (False, False) = []
 makeFilter suitename (True, False) = ["[" ++ suitename ++ "]Pass"]
 makeFilter suitename (False, True) = ["[" ++ suitename ++ "]Fail"]
@@ -102,6 +107,41 @@ makeTestlistTest suitedata =
     ("testlist___" ++ makeName suitedata, createFilterFile, delFilterFile,
      shouldPass suitedata, map fst suitedata,
      quietOpts { testlist = ["TestDir/testlist"] })
+
+makeCmdOptTestlistTest (cmdoptdata, testlistdata) =
+  let
+    createFilterFile =
+      do
+        createDirectory "TestDir"
+        writeFile "TestDir/testlist"
+                  (intercalate "\n" (makeFilters testlistdata))
+
+    delFilterFile = removeFile "TestDir/testlist" >> delTestDir
+  in   
+    ("cmdopt_testlist____" ++ makeName cmdoptdata ++ "___" ++
+     makeName testlistdata, createFilterFile, delFilterFile,
+     shouldPass cmdoptdata && shouldPass testlistdata, map fst cmdoptdata,
+     quietOpts { testlist = ["TestDir/testlist"],
+                 filters = makeFilters cmdoptdata })
+
+makeDualTestlistTest (suitedata1, suitedata2) =
+  let
+    createFilterFile =
+      do
+        createDirectory "TestDir"
+        writeFile "TestDir/testlist1" (intercalate "\n" (makeFilters suitedata1))
+        writeFile "TestDir/testlist2" (intercalate "\n" (makeFilters suitedata2))
+
+    delFilterFile =
+      do
+        removeFile "TestDir/testlist1"
+        removeFile "TestDir/testlist2"
+        delTestDir
+  in   
+    ("dual_testlist____" ++ makeName suitedata1 ++ "___" ++ makeName suitedata2,
+     createFilterFile, delFilterFile,
+     shouldPass suitedata1 && shouldPass suitedata2, [],
+     quietOpts { testlist = ["TestDir/testlist1", "TestDir/testlist2"] })
 
 mainTests = [
     ("multiple_console_mode", return (), return (), False, [],
@@ -157,7 +197,9 @@ mainTests = [
             txtreport = ["TestDir/report.txt"] })
   ] ++
   map makeCmdOptTest suiteCombos ++
-  map makeTestlistTest suiteCombos
+  map makeTestlistTest suiteCombos ++
+  map makeCmdOptTestlistTest suitePairCombos ++
+  map makeDualTestlistTest suitePairCombos
 
 tests :: Test
 tests = testGroup "Main" (map makeMainTest mainTests)
