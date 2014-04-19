@@ -251,109 +251,111 @@ executeTests suites testlists cmode xmlhandle txthandle =
     -- doing things this way...
     runTests :: ConsoleMode -> Maybe Handle -> Maybe Handle -> IO Counts
     runTests Quiet Nothing Nothing =
-      do
-       (out, _) <- performTestSuites defaultReporter testlists suites
-       return out
+      let
+        quietReporter = defaultReporter { reporterStart = return () }
+      in do
+        (out, ()) <- performTestSuites quietReporter testlists suites
+        return out
     runTests Terminal Nothing Nothing =
       do
-       (out, _) <- performTestSuites terminalReporter testlists suites
-       return out
+        (out, _) <- performTestSuites terminalReporter testlists suites
+        return out
     runTests Text Nothing Nothing =
       do
-       (out, _) <- performTestSuites textTerminalReporter testlists suites
-       return out
+        (out, _) <- performTestSuites textTerminalReporter testlists suites
+        return out
     runTests Verbose Nothing Nothing =
       do
-       (out, _) <- performTestSuites verboseTerminalReporter testlists suites
-       return out
+        (out, _) <- performTestSuites verboseTerminalReporter testlists suites
+        return out
     runTests Quiet (Just xmlhandle') Nothing =
       do
-       (out, tree) <- performTestSuites xmlReporter testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, tree) <- performTestSuites xmlReporter testlists suites
+        writeXML xmlhandle' tree
+        return out
     runTests Terminal (Just xmlhandle') Nothing =
       let
         rep = combinedReporter xmlReporter terminalReporter
       in do
-       (out, (tree, _)) <- performTestSuites rep testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, (tree, _)) <- performTestSuites rep testlists suites
+        writeXML xmlhandle' tree
+        return out
     runTests Text (Just xmlhandle') Nothing =
       let
         rep = combinedReporter xmlReporter textTerminalReporter
       in do
-       (out, (tree, _)) <- performTestSuites rep testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, (tree, _)) <- performTestSuites rep testlists suites
+        writeXML xmlhandle' tree
+        return out
     runTests Verbose (Just xmlhandle') Nothing =
       let
         rep = combinedReporter xmlReporter verboseTerminalReporter
       in do
-       (out, (tree, _)) <- performTestSuites rep testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, (tree, _)) <- performTestSuites rep testlists suites
+        writeXML xmlhandle' tree
+        return out
     runTests Quiet Nothing (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
       in do
-       (out, _) <- performTestSuites txtrep testlists suites
-       return out
+        (out, _) <- performTestSuites txtrep testlists suites
+        return out
     runTests Terminal Nothing (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
         rep = combinedReporter terminalReporter txtrep
       in do
-       (out, _) <- performTestSuites rep testlists suites
-       return out
+        (out, _) <- performTestSuites rep testlists suites
+        return out
     runTests Text Nothing (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
         rep = combinedReporter textTerminalReporter txtrep
       in do
-       (out, _) <- performTestSuites rep testlists suites
-       return out
+        (out, _) <- performTestSuites rep testlists suites
+        return out
     runTests Verbose Nothing (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
         rep = combinedReporter verboseTerminalReporter txtrep
       in do
-       (out, _) <- performTestSuites rep testlists suites
-       return out
+        (out, _) <- performTestSuites rep testlists suites
+        return out
     runTests Quiet (Just xmlhandle') (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
         rep = combinedReporter xmlReporter txtrep
       in do
-       (out, (tree, _)) <- performTestSuites rep testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, (tree, _)) <- performTestSuites rep testlists suites
+        writeXML xmlhandle' tree
+        return out
     runTests Terminal (Just xmlhandle') (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
         termrep = combinedReporter terminalReporter txtrep
         rep = combinedReporter xmlReporter termrep
       in do
-       (out, (tree, _)) <- performTestSuites rep testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, (tree, _)) <- performTestSuites rep testlists suites
+        writeXML xmlhandle' tree
+        return out
     runTests Text (Just xmlhandle') (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
         termrep = combinedReporter textTerminalReporter txtrep
         rep = combinedReporter xmlReporter termrep
       in do
-       (out, (tree, _)) <- performTestSuites rep testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, (tree, _)) <- performTestSuites rep testlists suites
+        writeXML xmlhandle' tree
+        return out
     runTests Verbose (Just xmlhandle') (Just texthandle') =
       let
         txtrep = textReporter (putTextToHandle texthandle') True
         termrep = combinedReporter verboseTerminalReporter txtrep
         rep = combinedReporter xmlReporter termrep
       in do
-       (out, (tree, _)) <- performTestSuites rep testlists suites
-       writeXML xmlhandle' tree
-       return out
+        (out, (tree, _)) <- performTestSuites rep testlists suites
+        writeXML xmlhandle' tree
+        return out
   in do
     res <- runTests cmode xmlhandle txthandle
     case res of

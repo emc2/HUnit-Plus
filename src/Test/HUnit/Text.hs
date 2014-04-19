@@ -146,7 +146,7 @@ runTestText puttext @ (PutText put us0) verbose t =
 
     reporter = textReporter puttext verbose
   in do
-    (ss1, us1) <- performTest reporter allSelector initState us0 t
+    (ss1, us1) <- ((performTest $! reporter) allSelector $! initState) us0 t
     us2 <- put (showCounts (stCounts ss1) ++ "\n") us1
     return (stCounts ss1, us2)
 
@@ -163,7 +163,7 @@ runSuiteText puttext @ (PutText put us0) verbose
     selectorMap = Map.singleton sname allSelector
     reporter = textReporter puttext verbose
   in do
-    (counts, us1) <- performTestSuite reporter selectorMap us0 suite
+    (counts, us1) <- ((performTestSuite $! reporter) $!selectorMap) us0 suite
     us2 <- put (showCounts counts ++ "\n") us1
     return (counts, us2)
 
@@ -177,12 +177,12 @@ runSuitesText :: PutText us
 runSuitesText puttext @ (PutText put _) verbose suites =
   let
     suiteNames = map suiteName suites
-    selectorMap = foldr (\sname suitemap ->
+    selectorMap = foldl (\suitemap sname ->
                           Map.insert sname allSelector suitemap)
                         Map.empty suiteNames
     reporter = textReporter puttext verbose
   in do
-    (counts, us1) <- performTestSuites reporter selectorMap suites
+    (counts, us1) <- ((performTestSuites $! reporter) $! selectorMap) suites
     us2 <- put (showCounts counts ++ "\n") us1
     return (counts, us2)
 
@@ -240,7 +240,7 @@ runTestTT t =
                         stPath = [], stOptions = Map.empty,
                         stOptionDescs = [] }
   in do
-    (ss1, us1) <- performTest terminalReporter allSelector initState 0 t
+    (ss1, us1) <- (performTest terminalReporter allSelector $! initState) 0 t
     0 <- termPut (showCounts (stCounts ss1)) True us1
     return (stCounts ss1)
 
@@ -249,7 +249,7 @@ runSuiteTT suite @ TestSuite { suiteName = sname } =
   let
     selectorMap = Map.singleton sname allSelector
   in do
-    (counts, us) <- performTestSuite terminalReporter selectorMap 0 suite
+    (counts, us) <- (performTestSuite terminalReporter $! selectorMap) 0 suite
     0 <- termPut (showCounts counts ++ "\n") True us
     return counts
 
@@ -257,10 +257,10 @@ runSuitesTT :: [TestSuite] -> IO Counts
 runSuitesTT suites =
   let
     suiteNames = map suiteName suites
-    selectorMap = foldr (\sname suitemap ->
+    selectorMap = foldl (\suitemap sname ->
                           Map.insert sname allSelector suitemap)
                         Map.empty suiteNames
   in do
-    (counts, us) <- performTestSuites terminalReporter selectorMap suites
+    (counts, us) <- (performTestSuites terminalReporter $! selectorMap) suites
     0 <- termPut (showCounts counts ++ "\n") True us
     return counts
