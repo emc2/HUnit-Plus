@@ -19,7 +19,7 @@ makeMainTest (name, setup, cleanup, shouldPass, suites, opts) =
             if not shouldPass
               then return (Finished Pass)
               else return (Finished (Fail ("Expected test to pass, " ++
-                                           "but failed with" ++
+                                           "but failed with\n" ++
                                            intercalate "\n" msgs)))
           Right _ ->
             if shouldPass
@@ -52,14 +52,18 @@ quietOpts = opts { consmode = [Quiet] }
 
 filterOpts = [ (False, False), (True, False), (False, True), (True, True) ]
 
-suites = [ TestSuite { suiteName = "Suite1", suiteConcurrently = False,
-                       suiteOptions = [], suiteTests = suiteTestList },
-           TestSuite { suiteName = "Suite2", suiteConcurrently = False,
-                       suiteOptions = [], suiteTests = suiteTestList } ]
+makeSuiteData suitename =
+  map (\filters -> (TestSuite { suiteName = "suitename",
+                                suiteConcurrently = False,
+                                suiteOptions = [],
+                                suiteTests = suiteTestList },
+                    filters))filterOpts
 
 suiteCombos =
-  foldl (\accum filters -> (map (\suite -> (suite, filters)) suites) : accum)
-        [] filterOpts
+  foldl (\accum suite1case ->
+          (foldl (\accum suite2case -> [suite1case, suite2case] : accum)
+                 accum (makeSuiteData "Suite2")))
+        [] (makeSuiteData "Suite1")
 
 makeFilter suitename (False, False) = []
 makeFilter suitename (True, False) = ["[" ++ suitename ++ "]Pass"]
@@ -71,7 +75,7 @@ makeFilters suitedata =
   foldl (\accum (TestSuite { suiteName = suitename }, filters) ->
           makeFilter suitename filters ++ accum) [] suitedata
 
-shouldPass suitedata = not (all (\(_, (a, b)) -> not a && not b) suitedata) &&
+shouldPass suitedata = not (all (\(_, (a, b)) -> not a && not b) suitedata) ||
                        not (any (\(_, (_, fail)) -> fail) suitedata)
 
 suiteTestList = [ "Pass" ~: assertSuccess, "Fail" ~: assertFailure "Fail" ]
@@ -97,7 +101,7 @@ makeTestlistTest suitedata =
   in   
     ("testlist___" ++ makeName suitedata, createFilterFile, delFilterFile,
      shouldPass suitedata, map fst suitedata,
-     quietOpts { testlist = ["testlist"] })
+     quietOpts { testlist = ["TestDir/testlist"] })
 
 mainTests = [
     ("multiple_console_mode", return (), return (), False, [],
