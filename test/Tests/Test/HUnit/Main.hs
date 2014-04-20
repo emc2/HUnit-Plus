@@ -160,6 +160,8 @@ mainTests = [
     ("nonexistent_txt_xml_report", makeTestDir, delTestDir, False, [],
      opts { txtreport = ["TestDir/nonexistent/report.txt"],
             xmlreport = ["TestDir/nonexistent/report.xml"] }),
+    ("nonexistent_testlist", makeTestDir, delTestDir, False, [],
+     opts { xmlreport = ["TestDir/nonexistent/testlist"] }),
     ("run_quiet_no_xml_no_txt", return (), return (), True, [], quietOpts),
     ("run_terminal_no_xml_no_txt", return (), return (), True, [],
      opts { consmode = [Terminal] }),
