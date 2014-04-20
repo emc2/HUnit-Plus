@@ -337,6 +337,10 @@ tag12 inner = Tags { tagsNames = Set.fromList [ "tag1", "tag2" ],
 union2 :: Selector -> Selector -> Selector
 union2 inner1 inner2 = Union { unionInners = Set.fromList [ inner1, inner2 ] }
 
+union3 :: Selector -> Selector -> Selector -> Selector
+union3 inner1 inner2 inner3 =
+  Union { unionInners = Set.fromList [ inner1, inner2, inner3 ] }
+
 normalizeSelectorTestCases :: [(String, Selector, Selector)]
 normalizeSelectorTestCases =
   [("All", allSelector, allSelector),
@@ -361,7 +365,8 @@ normalizeSelectorTestCases =
    ("union__Outer_Inner__tag12",
     union2 (outerInnerPath allSelector) (tag12 allSelector),
     union2 (outerInnerPath allSelector) (tag12 allSelector)),
-   ("union__Outer__Outer", union2 (outerPath allSelector) (tag1 allSelector),
+   ("union__Outer__Outer",
+    union2 (outerPath allSelector) (outerPath allSelector),
     outerPath allSelector),
    ("union__Outer__Inner",
     union2 (outerPath allSelector) (innerPath allSelector),
@@ -500,13 +505,15 @@ normalizeSelectorTestCases =
     union2 (union2 (outerPath allSelector) (outerPath allSelector)) allSelector,
     allSelector),
    ("union___union__Outer__Outer___Outer",
-    union2 (union2 (outerPath allSelector) allSelector) (outerPath allSelector),
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (outerPath allSelector),
     (outerPath allSelector)),
    ("union___union__Outer__Outer___Inner",
-    union2 (union2 (outerPath allSelector) allSelector) (innerPath allSelector),
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (innerPath allSelector),
     union2 (outerPath allSelector) (innerPath allSelector)),
    ("union___union__Outer__Outer___Outer_Inner",
-    union2 (union2 (outerPath allSelector) allSelector)
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
            (outerInnerPath allSelector),
     (outerPath allSelector)),
    ("union___union__Outer__Inner___All",
@@ -535,11 +542,14 @@ normalizeSelectorTestCases =
    ("union___union__Outer__Outer_Inner___Inner",
     union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
            (outerPath allSelector),
-    outerPath allSelector),
+    union2 (outerPath allSelector) (innerPath allSelector)),
    ("union___union__Outer__Outer_Inner___Outer_Inner",
     union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
            (outerInnerPath allSelector),
     outerPath allSelector),
+   ("union___union__Inner__All___All",
+    union2 (union2 (innerPath allSelector) allSelector) allSelector,
+    allSelector),
    ("union___union__Inner__All___Outer",
     union2 (union2 (innerPath allSelector) allSelector) (outerPath allSelector),
     allSelector),
@@ -565,6 +575,10 @@ normalizeSelectorTestCases =
     union2 (union2 (innerPath allSelector) (innerPath allSelector))
            (outerInnerPath allSelector),
     union2 (outerInnerPath allSelector) (innerPath allSelector)),
+   ("union___union__Inner__Outer_Inner___All",
+    union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
+           (outerPath allSelector),
+    allSelector),
    ("union___union__Inner__Outer_Inner___Outer",
     union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
            (outerPath allSelector),
@@ -577,9 +591,20 @@ normalizeSelectorTestCases =
     union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
            (outerInnerPath allSelector),
     union2 (outerInnerPath allSelector) (innerPath allSelector)),
+   ("union___union__Outer_Inner__All___All",
+    union2 (union2 (outerInnerPath allSelector) allSelector) allSelector,
+    allSelector),
    ("union___union__Outer_Inner__All___Outer",
     union2 (union2 (outerInnerPath allSelector) allSelector)
            (outerPath allSelector),
+    allSelector),
+   ("union___union__Outer_Inner__All___Inner",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (innerPath allSelector),
+    allSelector),
+   ("union___union__Outer_Inner__All___Outer_Inner",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (outerInnerPath allSelector),
     allSelector),
    ("union___union__Outer_Inner__Outer_Inner___All",
     union2 (union2 (outerInnerPath allSelector) (outerInnerPath allSelector))
@@ -609,14 +634,8 @@ normalizeSelectorTestCases =
    ("union___union__tag1__All___tag1",
     union2 (union2 (tag1 allSelector) allSelector) (tag1 allSelector),
     allSelector),
-   ("union___union__tag1__All___tag1",
-    union2 (union2 (tag1 allSelector) allSelector) (tag1 allSelector),
-    allSelector),
    ("union___union__tag1__tag1___All",
     union2 (union2 (tag1 allSelector) (tag1 allSelector)) allSelector,
-    allSelector),
-   ("union___union__tag1__All___tag2",
-    union2 (union2 (tag1 allSelector) allSelector) (tag2 allSelector),
     allSelector),
    ("union___union__tag1__All___tag2",
     union2 (union2 (tag1 allSelector) allSelector) (tag2 allSelector),
@@ -627,11 +646,689 @@ normalizeSelectorTestCases =
    ("union___union__tag1__All___tag12",
     union2 (union2 (tag1 allSelector) allSelector) (tag12 allSelector),
     allSelector),
-   ("union___union__tag1__All___tag12",
-    union2 (union2 (tag1 allSelector) allSelector) (tag12 allSelector),
-    allSelector),
    ("union___union__tag1__tag12___All",
     union2 (union2 (tag1 allSelector) (tag12 allSelector)) allSelector,
+    allSelector),
+   ("tag1_Outer_tag1", tag1 (outerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("tag1_Outer_Inner_tag1", tag1 (outerInnerPath (tag1 allSelector)),
+    tag1 (outerInnerPath allSelector)),
+   ("tag1_Outer_tag2", tag1 (outerPath (tag2 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("tag1_Outer_Inner_tag2", tag1 (outerInnerPath (tag2 allSelector)),
+    tag12 (outerInnerPath allSelector)),
+   ("tag1_Outer_tag12", tag1 (outerPath (tag12 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("tag1_Outer_Inner_tag12", tag1 (outerInnerPath (tag12 allSelector)),
+    tag12 (outerInnerPath allSelector)),
+   ("tag2_Outer_tag1", tag2 (outerPath (tag1 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("tag2_Outer_Inner_tag1", tag2 (outerInnerPath (tag1 allSelector)),
+    tag12 (outerInnerPath allSelector)),
+   ("tag2_Outer_tag2", tag2 (outerPath (tag2 allSelector)),
+    tag2 (outerPath allSelector)),
+   ("tag2_Outer_Inner_tag2", tag2 (outerInnerPath (tag2 allSelector)),
+    tag2 (outerInnerPath allSelector)),
+   ("tag2_Outer_tag12", tag2 (outerPath (tag12 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("tag2_Outer_Inner_tag12", tag2 (outerInnerPath (tag12 allSelector)),
+    tag12 (outerInnerPath allSelector)),
+   ("tag12_Outer_tag1", tag12 (outerPath (tag1 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("tag12_Outer_Inner_tag1", tag12 (outerInnerPath (tag1 allSelector)),
+    tag12 (outerInnerPath allSelector)),
+   ("tag12_Outer_tag2", tag12 (outerPath (tag2 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("tag12_Outer_Inner_tag2", tag12 (outerInnerPath (tag2 allSelector)),
+    tag12 (outerInnerPath allSelector)),
+   ("tag12_Outer_tag12", tag12 (outerPath (tag12 allSelector)),
+    tag12 (outerPath allSelector)),
+   ("tag12_Outer_Inner_tag12", tag12 (outerInnerPath (tag12 allSelector)),
+    tag12 (outerInnerPath allSelector)),
+   ("union__tag1_Outer__Outer_tag1",
+    union2 (tag1 (outerPath allSelector)) (outerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__All____Outer",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (outerPath allSelector),
+    union2 (tag1 allSelector) (outerPath allSelector)),
+   ("union____tag1___union__Outer__All____Inner",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (innerPath allSelector),
+    union2 (tag1 allSelector) (innerPath allSelector)),
+   ("union____tag1___union__Outer__All____Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (outerInnerPath allSelector),
+    union2 (tag1 allSelector) (outerInnerPath allSelector)),
+   ("union____union__Outer__All____tag1___Outer",
+    union2 (union2 (outerPath allSelector) allSelector)
+           (tag1 (outerPath allSelector)),
+    allSelector),
+   ("union____union__Outer__All____tag1___Inner",
+    union2 (union2 (outerPath allSelector) allSelector)
+           (tag1 (innerPath allSelector)),
+    allSelector),
+   ("union____union__Outer__All____tag1___Outer_Inner",
+    union2 (union2 (outerPath allSelector) allSelector)
+           (tag1 (outerInnerPath allSelector)),
+    allSelector),
+   ("union____union__Outer__All____Outer___tag1",
+    union2 (union2 (outerPath allSelector) allSelector)
+           (outerPath (tag1 allSelector)),
+    allSelector),
+   ("union____union__Outer__All____Inner___tag1",
+    union2 (union2 (outerPath allSelector) allSelector)
+           (innerPath (tag1 allSelector)),
+    allSelector),
+   ("union____union__Outer__All____Outer_Inner___tag1",
+    union2 (union2 (outerPath allSelector) allSelector)
+           (outerInnerPath (tag1 allSelector)),
+    allSelector),
+   ("union____tag1___union__Outer__All____tag1___Outer",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (tag1 (outerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer__All____tag1___Inner",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (tag1 (innerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer__All____tag1___Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer__All____Outer___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (outerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer__All____Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (innerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer__All____Outer_Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer__Outer____All",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           allSelector,
+    allSelector),
+   ("union____tag1___union__Outer__Outer____Outer",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (outerPath allSelector),
+    outerPath allSelector),
+   ("union____tag1___union__Outer__Outer____Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (innerPath allSelector),
+    union2 (tag1 (outerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Outer__Outer____Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (outerInnerPath allSelector),
+    union2 (tag1 (outerPath allSelector)) (outerInnerPath allSelector)),
+   ("union____union__Outer__Outer____tag1___Outer",
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (tag1 (outerPath allSelector)),
+    outerPath allSelector),
+   ("union____union__Outer__Outer____tag1___Inner",
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (tag1 (innerPath allSelector)),
+    union2 (outerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____union__Outer__Outer____tag1___Outer_Inner",
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    union2 (outerPath allSelector) (tag1 (outerInnerPath allSelector))),
+   ("union____union__Outer__Outer____Outer___tag1",
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (outerPath (tag1 allSelector)),
+    outerPath allSelector),
+   ("union____union__Outer__Outer____Inner___tag1",
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (innerPath (tag1 allSelector)),
+    union2 (outerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____union__Outer__Outer____Outer_Inner___tag1",
+    union2 (union2 (outerPath allSelector) (outerPath allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    union2 (outerPath allSelector) (tag1 (outerInnerPath allSelector))),
+   ("union____tag1___union__Outer__Outer____tag1___Outer",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (tag1 (outerPath allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__Outer____tag1___Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (tag1 (innerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Outer____tag1___Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (tag1 (outerInnerPath allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__Outer____Outer___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (outerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__Outer____Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (innerPath (tag1 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Outer____Outer_Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (outerPath allSelector)))
+           (outerInnerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__Inner____All",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           allSelector,
+    allSelector),
+   ("union____tag1___union__Outer__Inner____Outer",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (outerPath allSelector),
+    union2 (outerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Inner____Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (innerPath allSelector),
+    union2 (tag1 (outerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Outer__Inner____Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (outerInnerPath allSelector),
+    union3 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))
+           (outerInnerPath allSelector)),
+   ("union____union__Outer__Inner____tag1___Outer",
+    union2 (union2 (outerPath allSelector) (innerPath allSelector))
+           (tag1 (outerPath allSelector)),
+    union2 (outerPath allSelector) (innerPath allSelector)),
+   ("union____union__Outer__Inner____tag1___Inner",
+    union2 (union2 (outerPath allSelector) (innerPath allSelector))
+           (tag1 (innerPath allSelector)),
+    union2 (outerPath allSelector) (innerPath allSelector)),
+   ("union____union__Outer__Inner____tag1___Outer_Inner",
+    union2 (union2 (outerPath allSelector) (innerPath allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    union3 (outerPath allSelector) (innerPath allSelector)
+           (tag1 (outerInnerPath allSelector))),
+   ("union____union__Outer__Inner____Outer___tag1",
+    union2 (union2 (outerPath allSelector) (innerPath allSelector))
+           (outerPath (tag1 allSelector)),
+    union2 (outerPath allSelector) (innerPath allSelector)),
+   ("union____union__Outer__Inner____Inner___tag1",
+    union2 (union2 (outerPath allSelector) (innerPath allSelector))
+           (innerPath (tag1 allSelector)),
+    union2 (outerPath allSelector) (innerPath allSelector)),
+   ("union____union__Outer__Inner____Outer_Inner___tag1",
+    union2 (union2 (outerPath allSelector) (innerPath allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    union3 (outerPath allSelector) (innerPath allSelector)
+           (tag1 (outerInnerPath allSelector))),
+   ("union____tag1___union__Outer__Inner____tag1___Outer",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (tag1 (outerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Inner____tag1___Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (tag1 (innerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Inner____tag1___Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (tag1 (outerInnerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Inner____Outer___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (outerPath (tag1 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Inner____Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (innerPath (tag1 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Inner____Outer_Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
+           (outerInnerPath (tag1 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Outer_Inner____All",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           allSelector,
+    allSelector),
+   ("union____tag1___union__Outer__Outer_Inner____Outer",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (outerPath allSelector),
+    outerPath allSelector),
+   ("union____tag1___union__Outer__Outer_Inner____Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (outerPath allSelector),
+    union2 (tag1 (outerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Outer__Outer_Inner____Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (outerInnerPath allSelector),
+    union2 (tag1 (outerPath allSelector)) (outerInnerPath allSelector)),
+   ("union____union__Outer__Outer_Inner____tag1___Outer",
+    union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (outerPath allSelector)),
+    outerPath allSelector),
+   ("union____union__Outer__Outer_Inner____tag1___Inner",
+    union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (outerPath allSelector)),
+    union2 (outerPath allSelector) (innerPath allSelector)),
+   ("union____union__Outer__Outer_Inner____tag1___Outer_Inner",
+    union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    outerPath allSelector),
+   ("union____union__Outer__Outer_Inner____Outer___tag1",
+    union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
+           (outerPath (tag1 allSelector)),
+    outerPath allSelector),
+   ("union____union__Outer__Outer_Inner____Inner___tag1",
+    union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
+           (outerPath (tag1 allSelector)),
+    outerPath allSelector),
+   ("union____union__Outer__Outer_Inner____Outer_Inner___tag1",
+    union2 (union2 (outerPath allSelector) (outerInnerPath allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    outerPath allSelector),
+   ("union____tag1___union__Outer__Outer_Inner____tag1___Outer",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (tag1 (outerPath allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__Outer_Inner____tag1___Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (tag1 (outerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Outer_Inner____tag1___Outer_Inner",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (tag1 (outerInnerPath allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__Outer_Inner____Outer___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (outerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Outer__Outer_Inner____Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (outerPath (tag1 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer__Outer_Inner____Outer_Inner___tag1",
+    union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
+           (outerInnerPath (tag1 allSelector)),
+    tag1 (outerPath allSelector)),
+   ("union____tag1___union__Inner__All____All",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           allSelector,
+    allSelector),
+   ("union____tag1___union__Inner__All____Outer",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (outerPath allSelector),
+    union2 (tag1 allSelector) (outerPath allSelector)),
+   ("union____tag1___union__Inner__All____Inner",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (innerPath allSelector),
+    innerPath allSelector),
+   ("union____tag1___union__Inner__All____Outer_Inner",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (outerInnerPath allSelector),
+    union2 (tag1 allSelector) (outerInnerPath allSelector)),
+   ("union____union__Inner__All____tag1___Outer",
+    union2 (union2 (innerPath allSelector) allSelector)
+           (tag1 (outerPath allSelector)),
+    allSelector),
+   ("union____union__Inner__All____tag1___Inner",
+    union2 (union2 (innerPath allSelector) allSelector)
+           (tag1 (innerPath allSelector)),
+    allSelector),
+   ("union____union__Inner__All____tag1___Outer_Inner",
+    union2 (union2 (innerPath allSelector) allSelector)
+           (tag1 (outerInnerPath allSelector)),
+    allSelector),
+   ("union____union__Inner__All____Outer___tag1",
+    union2 (union2 (innerPath allSelector) allSelector)
+           (outerPath (tag1 allSelector)),
+    allSelector),
+   ("union____union__Inner__All____Inner___tag1",
+    union2 (union2 (innerPath allSelector) allSelector)
+           (innerPath (tag1 allSelector)),
+    allSelector),
+   ("union____union__Inner__All____Outer_Inner___tag1",
+    union2 (union2 (innerPath allSelector) allSelector)
+           (outerInnerPath (tag1 allSelector)),
+    allSelector),
+   ("union____tag1___union__Inner__All____tag1___Outer",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (tag1 (outerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Inner__All____tag1___Inner",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (tag1 (innerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Inner__All____tag1___Outer_Inner",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Inner__All____Outer___tag1",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (outerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Inner__All____Inner___tag1",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (innerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Inner__All____Outer_Inner___tag1",
+    union2 (tag1 (union2 (innerPath allSelector) allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Inner__Inner____All",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           allSelector,
+    allSelector),
+   ("union____tag1___union__Inner__Inner____Outer",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (outerPath allSelector),
+    union2 (outerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Inner____Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (innerPath allSelector),
+    innerPath allSelector),
+   ("union____tag1___union__Inner__Inner____Outer_Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (outerInnerPath allSelector),
+    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____union__Inner__Inner____tag1___Outer",
+    union2 (union2 (innerPath allSelector) (innerPath allSelector))
+           (tag1 (outerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (innerPath allSelector)),
+   ("union____union__Inner__Inner____tag1___Inner",
+    union2 (union2 (innerPath allSelector) (innerPath allSelector))
+           (tag1 (innerPath allSelector)),
+    innerPath allSelector),
+   ("union____union__Inner__Inner____tag1___Outer_Inner",
+    union2 (union2 (innerPath allSelector) (innerPath allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (innerPath allSelector)),
+   ("union____union__Inner__Inner____Outer___tag1",
+    union2 (union2 (innerPath allSelector) (innerPath allSelector))
+           (outerPath (tag1 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (innerPath allSelector)),
+   ("union____union__Inner__Inner____Inner___tag1",
+    union2 (union2 (innerPath allSelector) (innerPath allSelector))
+           (innerPath (tag1 allSelector)),
+    innerPath allSelector),
+   ("union____union__Inner__Inner____Outer_Inner___tag1",
+    union2 (union2 (innerPath allSelector) (innerPath allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Inner__Inner____tag1___Outer",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (tag1 (outerPath allSelector)),
+    union2 (tag1 (outerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Inner__Inner____tag1___Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (tag1 (innerPath allSelector)),
+    tag1 (innerPath allSelector)),
+   ("union____tag1___union__Inner__Inner____tag1___Outer_Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (tag1 (outerInnerPath allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Inner____Outer___tag1",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (outerPath (tag1 allSelector)),
+    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Inner____Inner___tag1",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (innerPath (tag1 allSelector)),
+    tag1 (innerPath allSelector)),
+   ("union____tag1___union__Inner__Inner____Outer_Inner___tag1",
+    union2 (tag1 (union2 (innerPath allSelector) (innerPath allSelector)))
+           (outerInnerPath (tag1 allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Outer_Inner____All",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (outerPath allSelector),
+    allSelector),
+   ("union____tag1___union__Inner__Outer_Inner____Outer",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (outerPath allSelector),
+    union3 (outerPath allSelector) (tag1 (outerInnerPath allSelector))
+           (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Outer_Inner____Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (innerPath allSelector),
+    union2 (tag1 (outerInnerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Inner__Outer_Inner____Outer_Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (outerInnerPath allSelector),
+    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____union__Inner__Outer_Inner____tag1___Outer",
+    union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (outerPath allSelector)),
+    union3 (outerInnerPath allSelector) (innerPath allSelector)
+           (tag1 (outerPath allSelector))),
+   ("union____union__Inner__Outer_Inner____tag1___Inner",
+    union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (innerPath allSelector)),
+    union2 (outerInnerPath allSelector) (innerPath allSelector)),
+   ("union____union__Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____union__Inner__Outer_Inner____tag1___Outer",
+    union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
+           (outerPath (tag1 allSelector)),
+    union3 (outerInnerPath allSelector) (innerPath allSelector)
+           (tag1 (outerPath allSelector))),
+   ("union____union__Inner__Outer_Inner____tag1___Inner",
+    union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
+           (innerPath (tag1 allSelector)),
+    union2 (outerInnerPath allSelector) (innerPath allSelector)),
+   ("union____union__Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Outer_Inner____tag1___Outer",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (tag1 (outerPath allSelector)),
+    union2 (tag1 (innerPath allSelector)) (tag1 (outerPath allSelector))),
+   ("union____tag1___union__Inner__Outer_Inner____tag1___Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (tag1 (innerPath allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (tag1 (outerInnerPath allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Inner__Outer_Inner____tag1___Outer",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (outerPath (tag1 allSelector)),
+    union2 (tag1 (innerPath allSelector)) (tag1 (outerPath allSelector))),
+   ("union____tag1___union__Inner__Outer_Inner____tag1___Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (innerPath (tag1 allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
+           (outerInnerPath (tag1 allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer_Inner__All____All",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           allSelector,
+    allSelector),
+   ("union____tag1___union__Outer_Inner__All____Outer",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (outerPath allSelector),
+    union2 (tag1 allSelector) (outerPath allSelector)),
+   ("union____tag1___union__Outer_Inner__All____Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (innerPath allSelector),
+    union2 (tag1 allSelector) (innerPath allSelector)),
+   ("union____tag1___union__Outer_Inner__All____Outer_Inner",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (outerInnerPath allSelector),
+    union2 (tag1 allSelector) (outerInnerPath allSelector)),
+   ("union____union__Outer_Inner__All____tag1___Outer",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (tag1 (outerPath allSelector)),
+    allSelector),
+   ("union____union__Outer_Inner__All____tag1___Inner",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (tag1 (innerPath allSelector)),
+    allSelector),
+   ("union____union__Outer_Inner__All____tag1___Outer_Inner",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (tag1 (outerInnerPath allSelector)),
+    allSelector),
+   ("union____union__Outer_Inner__All____Outer___tag1",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (outerPath (tag1 allSelector)),
+    allSelector),
+   ("union____union__Outer_Inner__All____Inner___tag1",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (innerPath (tag1 allSelector)),
+    allSelector),
+   ("union____union__Outer_Inner__All____Outer_Inner___tag1",
+    union2 (union2 (outerInnerPath allSelector) allSelector)
+           (outerInnerPath (tag1 allSelector)),
+    allSelector),
+   ("union____tag1___union__Outer_Inner__All____tag1___Outer",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (tag1 (outerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer_Inner__All____tag1___Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (tag1 (innerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer_Inner__All____tag1___Outer_Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer_Inner__All____Outer___tag1",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (outerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer_Inner__All____Inner___tag1",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (innerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer_Inner__All____Outer_Inner___tag1",
+    union2 (tag1 (union2 (outerInnerPath allSelector) allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    tag1 allSelector),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____All",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           allSelector,
+    allSelector),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____Outer",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (outerPath allSelector),
+    outerPath allSelector),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (innerPath allSelector),
+    union2 (tag1 (outerInnerPath allSelector)) (innerPath allSelector)),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____Outer_Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (outerInnerPath allSelector),
+    outerInnerPath allSelector),
+   ("union____union__Outer_Inner__Outer_Inner____tag1___Outer",
+    union2 (union2 (outerInnerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (outerPath allSelector)),
+    union2 (outerInnerPath allSelector) (tag1 (outerPath allSelector))),
+   ("union____union__Outer_Inner__Outer_Inner____tag1___Inner",
+    union2 (union2 (outerInnerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (innerPath allSelector)),
+    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____union__Outer_Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (union2 (outerInnerPath allSelector) (outerInnerPath allSelector))
+           (tag1 (outerInnerPath allSelector)),
+    outerInnerPath allSelector),
+   ("union____union__Outer_Inner__Outer_Inner____tag1___Outer",
+    union2 (union2 (outerInnerPath allSelector) (outerInnerPath allSelector))
+           (outerPath (tag1 allSelector)),
+    union2 (outerInnerPath allSelector) (tag1 (outerPath allSelector))),
+   ("union____union__Outer_Inner__Outer_Inner____tag1___Inner",
+    union2 (union2 (outerInnerPath allSelector) (outerInnerPath allSelector))
+           (innerPath (tag1 allSelector)),
+    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+   ("union____union__Outer_Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (union2 (outerInnerPath allSelector) (outerInnerPath allSelector))
+           (outerInnerPath (tag1 allSelector)),
+    outerInnerPath allSelector),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____tag1___Outer",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (tag1 (outerPath allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (outerPath allSelector))),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____tag1___Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (tag1 (innerPath allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (tag1 (outerInnerPath allSelector)),
+    tag1 (outerInnerPath allSelector)),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____tag1___Outer",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (outerPath (tag1 allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (outerPath allSelector))),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____tag1___Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (innerPath (tag1 allSelector)),
+    union2 (tag1 (outerInnerPath allSelector)) (tag1 (innerPath allSelector))),
+   ("union____tag1___union__Outer_Inner__Outer_Inner____tag1___Outer_Inner",
+    union2 (tag1 (union2 (outerInnerPath allSelector)
+                         (outerInnerPath allSelector)))
+           (outerInnerPath (tag1 allSelector)),
+    tag1 (outerInnerPath allSelector)),
+   ("union____tag1___union__tag1__All____tag1",
+    union2 (tag1 (union2 (tag1 allSelector) allSelector)) (tag1 allSelector),
+    tag1 allSelector),
+   ("union____tag1___union__tag1__tag1____All",
+    union2 (tag1 (union2 (tag1 allSelector) (tag1 allSelector))) allSelector,
+    allSelector),
+   ("union____tag2___union__tag1__All____tag1",
+    union2 (tag2 (union2 (tag1 allSelector) allSelector)) (tag1 allSelector),
+    tag1 allSelector),
+   ("union____tag2___union__tag1__tag1____All",
+    union2 (tag2 (union2 (tag1 allSelector) (tag1 allSelector))) allSelector,
+    allSelector),
+   ("union____tag12___union__tag1__All____tag1",
+    union2 (tag12 (union2 (tag1 allSelector) allSelector)) (tag1 allSelector),
+    tag1 allSelector),
+   ("union____tag12___union__tag1__tag1____All",
+    union2 (tag12 (union2 (tag1 allSelector) (tag1 allSelector))) allSelector,
+    allSelector),
+   ("union____tag1___union__tag2__All____tag2",
+    union2 (tag1 (union2 (tag2 allSelector) allSelector)) (tag2 allSelector),
+    tag12 allSelector),
+   ("union____tag1___union__tag2__tag2____All",
+    union2 (tag1 (union2 (tag2 allSelector) (tag2 allSelector))) allSelector,
+    allSelector),
+   ("union____tag2___union__tag2__All____tag2",
+    union2 (tag2 (union2 (tag2 allSelector) allSelector)) (tag2 allSelector),
+    tag2 allSelector),
+   ("union____tag2___union__tag2__tag2____All",
+    union2 (tag2 (union2 (tag2 allSelector) (tag2 allSelector))) allSelector,
+    allSelector),
+   ("union____tag12___union__tag2__All____tag2",
+    union2 (tag12 (union2 (tag2 allSelector) allSelector)) (tag2 allSelector),
+    tag12 allSelector),
+   ("union____tag12___union__tag2__tag2____All",
+    union2 (tag12 (union2 (tag2 allSelector) (tag2 allSelector))) allSelector,
+    allSelector),
+   ("union____tag1___union__tag12__All____tag12",
+    union2 (tag1 (union2 (tag12 allSelector) allSelector)) (tag12 allSelector),
+    tag12 allSelector),
+   ("union____tag1___union__tag12__tag12____All",
+    union2 (tag1 (union2 (tag12 allSelector) (tag12 allSelector))) allSelector,
+    allSelector),
+   ("union____tag2___union__tag12__All____tag12",
+    union2 (tag2 (union2 (tag12 allSelector) allSelector)) (tag12 allSelector),
+    tag12 allSelector),
+   ("union____tag2___union__tag12__tag12____All",
+    union2 (tag2 (union2 (tag12 allSelector) (tag12 allSelector))) allSelector,
+    allSelector),
+   ("union____tag12___union__tag12__All____tag12",
+    union2 (tag12 (union2 (tag12 allSelector) allSelector)) (tag12 allSelector),
+    tag12 allSelector),
+   ("union____tag12___union__tag12__tag12____All",
+    union2 (tag12 (union2 (tag12 allSelector) (tag12 allSelector))) allSelector,
     allSelector)
   ]
 
