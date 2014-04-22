@@ -171,65 +171,51 @@ getTests None = map Left testData
 
 -- Generate a list of all mod filters we can use for a sub-module, and
 -- the selectors we need for them
-getSuperSet :: String -> ModFilter ->
-               [(ModFilter, [Selector] -> Selector -> [Selector])]
+getSuperSet :: Selector -> ModFilter ->
+               [(ModFilter, [Selector] -> [Selector])]
 -- If we're already running all tests, there's nothing else we can do
-getSuperSet _ All = [(All, \selectors _ -> selectors)]
+getSuperSet _ All = [(All, \selectors -> selectors)]
 -- If we're running tests with both tags, we can do that, or we can
 -- run all tests in the submodule.
-getSuperSet elem (WithTags (True, True)) =
-  [(WithTags (True, True), \selectors _ -> selectors),
-   (All, \selectors inner -> Path { pathElem = elem, pathInner = inner } :
-                             selectors)]
+getSuperSet inner (WithTags (True, True)) =
+  [(WithTags (True, True), \selectors -> selectors),
+   (All, \selectors -> inner : selectors)]
 -- If we're running tests with one of the tags, we can do that, or we
 -- can run with both tags, or we can run all tests.
-getSuperSet elem (WithTags (False, True)) =
-  [(WithTags (False, True), \selectors _ -> selectors),
+getSuperSet inner (WithTags (False, True)) =
+  [(WithTags (False, True), \selectors -> selectors),
    (WithTags (True, True),
-    \selectors inner -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
-                               tagsInner = Path { pathElem = elem,
-                                                  pathInner = allSelector } } :
-                        selectors),
-   (All, \selectors inner -> Path { pathElem = elem, pathInner = allSelector } :
-                             selectors) ]
-getSuperSet elem (WithTags (True, False)) =
-  [(WithTags (True, False), \selectors _ -> selectors),
+    \selectors -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
+                         tagsInner = inner } : selectors),
+   (All, \selectors -> inner : selectors) ]
+getSuperSet inner (WithTags (True, False)) =
+  [(WithTags (True, False), \selectors -> selectors),
    (WithTags (True, True),
-    \selectors inner -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
-                               tagsInner = Path { pathElem = elem,
-                                                  pathInner = allSelector } } :
-                        selectors),
-   (All, \selectors inner -> Path { pathElem = elem, pathInner = allSelector } :
-                             selectors) ]
+    \selectors -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
+                         tagsInner = inner } : selectors),
+   (All, \selectors -> inner : selectors) ]
 -- If we're not running any tests, we can do anything
-getSuperSet elem None =
-  [(None, \selectors _ -> selectors),
+getSuperSet inner None =
+  [(None, \selectors -> selectors),
    (WithTags (True, False),
-    \selectors inner -> Tags { tagsNames = Set.singleton "tag1",
-                               tagsInner = Path { pathElem = elem,
-                                                  pathInner = allSelector } } :
-                        selectors),
+    \selectors -> Tags { tagsNames = Set.singleton "tag1",
+                         tagsInner = inner } : selectors),
    (WithTags (False, True),
-    \selectors inner -> Tags { tagsNames = Set.singleton "tag2",
-                               tagsInner = Path { pathElem = elem,
-                                                  pathInner = allSelector } } :
-                        selectors),
+    \selectors -> Tags { tagsNames = Set.singleton "tag2",
+                         tagsInner = inner } : selectors),
    (WithTags (True, True),
-    \selectors inner -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
-                               tagsInner = Path { pathElem = elem,
-                                                  pathInner = allSelector } } :
-                        selectors),
-   (All, \selectors inner -> Path { pathElem = elem, pathInner = allSelector } :
-                             selectors) ]
+    \selectors -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
+                         tagsInner = inner } : selectors),
+   (All, \selectors -> inner : selectors) ]
 
 -- Make the tests for a group, with a starting modfilter
-makeLeafGroup :: String -> ModFilter ->
+makeLeafGroup :: String -> Selector -> ModFilter ->
                  ([Test], [ReportEvent], State, [Selector]) ->
                  [([Test], [ReportEvent], State, [Selector])]
-makeLeafGroup gname mfilter initialTests =
+makeLeafGroup gname inner mfilter initialTests =
   let
     mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
-              (ModFilter, [Selector] -> Selector -> [Selector]) ->
+              (ModFilter, [Selector] -> [Selector]) ->
               ([Test], [ReportEvent], State, [Selector])
     mapfun (tests, events, ss @ State { stPath = oldpath }, selectors)
            (mfilter, selectorfunc) =
@@ -241,17 +227,16 @@ makeLeafGroup gname mfilter initialTests =
         tests' = Group { groupName = gname, groupTests = reverse grouptests,
                          concurrently = True } : tests
       in
-        (tests', events', ss' { stPath = oldpath },
-         selectorfunc selectors allSelector)
+        (tests', events', ss' { stPath = oldpath }, selectorfunc selectors)
   in
-    map (mapfun initialTests) (getSuperSet gname mfilter)
+    map (mapfun initialTests) (getSuperSet inner mfilter)
 
 makeOuterGroup :: ModFilter -> ([Test], [ReportEvent], State, [Selector]) ->
                   [([Test], [ReportEvent], State, [Selector])]
 makeOuterGroup mfilter initialTests =
   let
     mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
-              (ModFilter, [Selector] -> Selector -> [Selector]) ->
+              (ModFilter, [Selector] -> [Selector]) ->
               [([Test], [ReportEvent], State, [Selector])]
     mapfun (tests, events, ss @ State { stPath = oldpath }, selectors)
            (mfilter, selectorfunc) =
@@ -270,16 +255,21 @@ makeOuterGroup mfilter initialTests =
                              groupTests = reverse grouptests,
                              concurrently = True } : tests
           in
-           (tests', events', ss' { stPath = oldpath },
-            selectorfunc selectors allSelector)
+           (tests', events', ss' { stPath = oldpath }, selectorfunc selectors)
+
+        innerPath = Path { pathInner = Path { pathInner = allSelector,
+                                              pathElem = "Inner" },
+                           pathElem = "Outer" }
 
         withInner :: [([Test], [ReportEvent], State, [Selector])]
-        withInner = makeLeafGroup "Inner" mfilter (tests, events, ssWithPath,
-                                                   selectors)
+        withInner = makeLeafGroup "Inner" innerPath mfilter
+                                  (tests, events, ssWithPath, selectors)
       in
         map mapfun withInner
+
+    outerPath = Path { pathElem = "Outer", pathInner = allSelector }
   in
-    concatMap (mapfun initialTests) (getSuperSet "Outer" mfilter)
+    concatMap (mapfun initialTests) (getSuperSet outerPath mfilter)
 
 modfilters = [ All, WithTags (True, False), WithTags (False, True),
                WithTags (True, True), None ]
@@ -314,10 +304,13 @@ genFilter sname =
           foldl (makeTestData "") ([], [StartSuiteEvent initState], initState)
                 (getTests mfilter)
 
+        otherPath = Path { pathElem = "Other", pathInner = allSelector }
+
         -- Results after executing tests in the Other module
         withOther :: [([Test], [ReportEvent], State, [Selector])]
-        withOther = makeLeafGroup "Other" mfilter (rootTests, rootEvents,
-                                                   rootState, rootSelectors)
+        withOther = makeLeafGroup "Other" otherPath mfilter
+                                  (rootTests, rootEvents,
+                                   rootState, rootSelectors)
 
         finalData = concatMap (makeOuterGroup mfilter) withOther
 

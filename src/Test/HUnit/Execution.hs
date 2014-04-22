@@ -8,7 +8,6 @@ module Test.HUnit.Execution(
        ) where
 
 import Control.Monad (unless, foldM)
-import Control.Applicative
 import Distribution.TestSuite
 import Data.Map(Map)
 import Data.Set(Set)
@@ -65,8 +64,8 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
         Left errmsg ->
           do
             newUs <- reportError errmsg ssWithName us
-            return $ (newUs, ti)
-        Right newTi -> return $ (us, newTi)
+            return $! (newUs, ti)
+        Right newTi -> return $! (us, newTi)
   in do
     -- Get all the rest of the information from the resulting test instance
     (usOpts, TestInstance { run = runTest }) <-
@@ -99,7 +98,7 @@ skipTestCase Reporter { reporterSkipCase = reportSkipCase }
                stName = testname }
   in do
     us' <- reportSkipCase ss' us
-    return $ (ss' { stName = oldname }, us')
+    return $! (ss' { stName = oldname }, us')
 
 -- | Performs a test run with the specified report generators.
 --
@@ -139,7 +138,48 @@ performTest rep initSelector initState initialUs initialTest =
     performTest' selector ss us Group { groupTests = testlist,
                                         groupName = gname } =
       let
-        selector' = updateSelector gname selector
+        updateSelector :: Maybe (Set String, Selector) ->
+                          Maybe (Set String, Selector)
+        -- For All, we are going to run all tests that match the tag set
+        updateSelector res @ (Just (tagset, sel))
+          | sel == allSelector =
+            if tagset == Set.empty
+              then res
+              else Just (tagset, Tags { tagsNames = tagset,
+                                        tagsInner = allSelector })
+        -- For Union, pick the first inner that produces a result
+        -- other than Nothing.
+        updateSelector (Just (tagset, Union { unionInners = inners })) =
+          let
+            mapfun inner = updateSelector (Just (tagset, inner))
+
+            foldfun' accum (Just (_, inner)) = Set.insert inner accum
+            foldfun' accum Nothing = accum
+
+            newinners = foldl foldfun' Set.empty (map mapfun (Set.elems inners))
+          in
+            if newinners /= Set.empty
+              then Just (tagset, Union { unionInners = newinners })
+              else Nothing
+        -- For Unions, pick the first one that matches
+        updateSelector (Just (tagset, Path { pathElem = elem,
+                                             pathInner = inner }))
+        -- For Paths, if the path element matches the name we have, then
+        -- import all tags in the inner selector and return it.
+          | gname == elem =
+            if tagset == Set.empty
+              then Just (tagset, inner)
+              else Just (tagset, Tags { tagsNames = tagset, tagsInner = inner })
+        -- Otherwise, we don't match the path, so return Nothing
+          | otherwise = Nothing
+        -- For tags, just union them with the tag set
+        updateSelector (Just (tagset, Tags { tagsNames = newtags,
+                                             tagsInner = inner })) =
+          updateSelector (Just (Set.union tagset newtags, inner))
+        -- For Nothing, we're already skipping all the tests
+        updateSelector Nothing = Nothing
+
+        selector' = id $! (updateSelector selector)
         -- Update the path for running the group's tests
         oldpath = stPath ss
         ssWithPath = ss { stPath = Label gname : oldpath }
@@ -149,21 +189,29 @@ performTest rep initSelector initState initialUs initialTest =
         -- Run the tests with the updated path
         (ssAfter, usAfter) <- foldM foldfun (ssWithPath, us) testlist
         -- Return the state, reset to the old path
-        return $ (ssAfter { stPath = oldpath }, usAfter)
+        return $! (ssAfter { stPath = oldpath }, usAfter)
     performTest' selector ss us (Test t @ TestInstance { name = testname,
                                                          tags = testtags }) =
-      -- Update the selector and take an action based on its value
-      case updateSelector testname selector of
-        -- If we see an All selector, check to see if the test has any
-        -- of the tags we're running (or if the tag set is empty), and
-        -- run it, or else skip it.
-        Just (tagset, selector') | selector' == allSelector ->
-            if tagset == Set.empty ||
-               any (\tag -> Set.member tag tagset) testtags
-              then performTestCase rep ss us t
-              else skipTestCase rep ss us t
-        -- Otherwise, we skip the case
-        _ -> skipTestCase rep ss us t
+      let
+        -- Decide whether or not we can execute the test
+        canExecute :: Maybe (Set String, Selector) -> Bool
+        canExecute Nothing = False
+        canExecute (Just (tagset, selector')) | selector' == allSelector =
+          tagset == Set.empty || any (\tag -> Set.member tag tagset) testtags
+        canExecute (Just (tagset, Path { pathElem = elem,
+                                         pathInner = inner }))
+          | elem == testname && inner == allSelector =
+            tagset == Set.empty || any (\tag -> Set.member tag tagset) testtags
+          | otherwise = False
+        canExecute (Just (tagset, Tags { tagsNames = newtags,
+                                         tagsInner = inner })) =
+          canExecute (Just (Set.union tagset newtags, inner))
+        canExecute (Just (tagset, Union { unionInners = inners })) =
+          any (\inner -> canExecute (Just (tagset, inner))) (Set.elems inners)
+      in
+        if canExecute selector
+          then performTestCase rep ss us t
+          else skipTestCase rep ss us t
     performTest' selector ss @ State { stOptionDescs = descs }
                  us (ExtraOptions newopts inner) =
       performTest' selector ss { stOptionDescs = descs ++ newopts } us inner
@@ -172,35 +220,11 @@ performTest rep initSelector initState initialUs initialTest =
       performTest' (Just (Set.empty, initSelector))
                    initState initialUs initialTest
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
-    return $ (ss', us')
+    return $! (ss', us')
 
 -- | Given a name representing the current group or test name and a
 -- selection state, return a new selection state to use in recursive
 -- calls.
-updateSelector :: String -> Maybe (Set String, Selector) ->
-                  Maybe (Set String, Selector)
--- For All, we are going to run all tests that match the tag set
-updateSelector _ res @ (Just (_, selector)) | selector == allSelector = res
--- For Union, pick the first inner that produces a result other than Nothing.
-updateSelector elem (Just (tagset, Union { unionInners = inners })) =
-  let
-    mapfun inner = updateSelector elem (Just (tagset, inner))
-  in
-    foldl (<|>) Nothing (map mapfun (Set.elems inners))
--- For Unions, pick the first one that matches
-updateSelector elem (Just (tagset, Path { pathElem = elem',
-                                          pathInner = inner }))
-  -- For Paths, if the path element matches the name we have, then
-  -- import all tags in the inner selector and return it.
-  | elem == elem' = Just (tagset, inner)
-  -- Otherwise, we don't match the path, so return Nothing
-  | otherwise = Nothing
--- For tags, just union them with the tag set
-updateSelector elem (Just (tagset, Tags { tagsNames = newtags,
-                                          tagsInner = inner })) =
-  updateSelector elem (Just (Set.union tagset newtags, inner))
--- For Nothing, we're already skipping all the tests
-updateSelector _ Nothing = Nothing
 
 performTestSuite :: Reporter us
                  -- ^ Report generator to use for running the test suite
@@ -229,9 +253,9 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
         (time, (finishedState, finishedUs)) <-
           timeItT (foldM foldfun (initState, startedUs) testlist)
         endedUs <- reportEndSuite time finishedState finishedUs
-        return $ (stCounts finishedState, endedUs)
+        return $! (stCounts finishedState, endedUs)
     _ ->
-      return $ (Counts { cCases = 0, cTried = 0, cErrors = 0, cFailures = 0,
+      return $! (Counts { cCases = 0, cTried = 0, cErrors = 0, cFailures = 0,
                          cAsserts = 0, cSkipped = 0 }, initialUs)
 
 performTestSuites :: Reporter us
@@ -261,10 +285,10 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
     foldfun (accumCounts, accumUs) suite =
       do
         (suiteCounts, suiteUs) <- performTestSuite rep filters accumUs suite
-        return $ (combineCounts accumCounts suiteCounts, suiteUs)
+        return $! (combineCounts accumCounts suiteCounts, suiteUs)
   in do
     initialUs <- reportStart
     (time, (finishedCounts, finishedUs)) <-
       timeItT (foldM foldfun (initialCounts, initialUs) suites)
     endedUs <- reportEnd time finishedCounts finishedUs
-    return $ (finishedCounts, endedUs)
+    return $! (finishedCounts, endedUs)
