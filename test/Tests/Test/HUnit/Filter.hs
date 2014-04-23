@@ -858,27 +858,27 @@ normalizeSelectorTestCases =
    ("union____tag1___union__Outer__Inner____tag1___Outer",
     union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
            (tag1 (outerPath allSelector)),
-    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
    ("union____tag1___union__Outer__Inner____tag1___Inner",
     union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
            (tag1 (innerPath allSelector)),
-    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
    ("union____tag1___union__Outer__Inner____tag1___Outer_Inner",
     union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
            (tag1 (outerInnerPath allSelector)),
-    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
    ("union____tag1___union__Outer__Inner____Outer___tag1",
     union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
            (outerPath (tag1 allSelector)),
-    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
    ("union____tag1___union__Outer__Inner____Inner___tag1",
     union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
            (innerPath (tag1 allSelector)),
-    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
    ("union____tag1___union__Outer__Inner____Outer_Inner___tag1",
     union2 (tag1 (union2 (outerPath allSelector) (innerPath allSelector)))
            (outerInnerPath (tag1 allSelector)),
-    union2 (tag1 (outerPath allSelector)) (tag1 (innerPath allSelector))),
+    tag1 (union2 (outerPath allSelector) (innerPath allSelector))),
    ("union____tag1___union__Outer__Outer_Inner____All",
     union2 (tag1 (union2 (outerPath allSelector) (outerInnerPath allSelector)))
            allSelector,
@@ -1100,7 +1100,7 @@ normalizeSelectorTestCases =
    ("union____union__Inner__Outer_Inner____tag1___Outer_Inner",
     union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
            (tag1 (outerInnerPath allSelector)),
-    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+    union2 (outerInnerPath allSelector) (innerPath allSelector)),
    ("union____union__Inner__Outer_Inner____Outer___tag1",
     union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
            (outerPath (tag1 allSelector)),
@@ -1113,7 +1113,7 @@ normalizeSelectorTestCases =
    ("union____union__Inner__Outer_Inner____Outer_Inner___tag1",
     union2 (union2 (innerPath allSelector) (outerInnerPath allSelector))
            (outerInnerPath (tag1 allSelector)),
-    union2 (outerInnerPath allSelector) (tag1 (innerPath allSelector))),
+    union2 (outerInnerPath allSelector) (innerPath allSelector)),
    ("union____tag1___union__Inner__Outer_Inner____tag1___Outer",
     union2 (tag1 (union2 (innerPath allSelector) (outerInnerPath allSelector)))
            (tag1 (outerPath allSelector)),
