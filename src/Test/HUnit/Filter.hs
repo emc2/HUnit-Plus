@@ -17,12 +17,13 @@ module Test.HUnit.Filter(
        ) where
 
 import Control.Exception
-import Data.Foldable(foldr)
+import Data.Foldable(foldl)
 import Data.Either
 import Data.Map(Map)
 import Data.Maybe
 import Data.Set(Set)
-import Prelude hiding (foldr, elem)
+--import Debug.Trace
+import Prelude hiding (foldl, elem)
 import System.IO.Error
 import Text.ParserCombinators.Parsec hiding (try)
 
@@ -77,14 +78,14 @@ allSelector = Union { unionInners = Set.empty }
 
 -- | Gather up path elements into sets of inners grouped by the
 -- leading path element.
-collectPathSets :: Selector
+collectPathSets :: Map String (Set Selector)
+                -- ^ A map from beginning path elements to the inner selectors
+                -> Selector
                 -- ^ The selector being collected
                 -> Map String (Set Selector)
-                -- ^ A map from beginning path elements to the inner selectors
-                -> Map String (Set Selector)
-collectPathSets Path { pathElem = elem, pathInner = inner } pathmap =
+collectPathSets pathmap Path { pathElem = elem, pathInner = inner } =
   Map.insertWith Set.union elem (Set.singleton inner) pathmap
-collectPathSets selector _ = error ("Should not see " ++ show selector)
+collectPathSets _ selector = error ("Should not see " ++ show selector)
 
 -- | Generate a selector from an entry in a path map
 genPathSelector :: String -> Set Selector -> Selector
@@ -99,6 +100,33 @@ genPathSelector elem pathset
       -- Otherwise, build a union
       _ -> Path { pathElem = elem, pathInner = Union { unionInners = pathset } }
 
+-- | Turn all cases of { tag1 } -> selector, { tag2 } -> selector into
+-- { tag1, tag2 } -> selector
+combineTagSets :: Map (Set String) (Set Selector) ->
+                  Map (Set String) (Set Selector)
+combineTagSets pathmap =
+  let
+    combinefunc :: Set String -> Set String -> Set String
+    combinefunc a b
+      | a == Set.empty || b == Set.empty = Set.empty
+      | otherwise = Set.union a b
+    -- Build up a reverse map, from selectors to tag sets.  This will
+    -- combine all tag sets for each selector.
+    revmap :: Map Selector (Set String)
+    revmap =
+      Map.foldWithKey (\tagset selectors accum ->
+                        foldl (\accum' selector ->
+                                Map.insertWith combinefunc selector
+                                               tagset accum')
+                              accum selectors)
+                      Map.empty pathmap
+  in
+    -- Now rebuild the original map by reversing it again.
+    Map.foldWithKey (\selector tagset accum ->
+                      Map.insertWith Set.union tagset
+                                     (Set.singleton selector) accum)
+                    Map.empty revmap
+
 -- | Transform a tag set into a single normal-form Selector
 normalizeTagMapEntry :: Set Selector -> Selector
 normalizeTagMapEntry tagset
@@ -112,12 +140,13 @@ normalizeTagMapEntry tagset
     _ ->
       let
         -- Build the path map
-        pathmap = foldr collectPathSets Map.empty tagset
+        pathmap :: Map String (Set Selector)
+        pathmap = foldl collectPathSets Map.empty tagset
         -- Then convert it into a set of union elements
         inners = Map.foldWithKey (\elem pathset accum ->
                                    Set.insert (genPathSelector elem pathset)
                                               accum)
-                       Set.empty pathmap
+                       Set.empty $! pathmap
       in case Set.elems inners of
         -- If the set of union elements is a singleton, just return
         -- the one element
@@ -128,20 +157,23 @@ normalizeTagMapEntry tagset
 -- | Walk all nested Union and Tags elements, and group all elements
 -- into categories by which tags they filter for.
 collectTagSets :: Set String
-               -- ^ The current set of tags
-               -> Selector
                -- ^ The selector being collected
                -> Map (Set String) (Set Selector)
+               -- ^ The current set of tags
+               -> Selector
                -- ^ A map from tag sets to selectors that filter by them
                -> Map (Set String) (Set Selector)
 -- For unions, fold over the inners
-collectTagSets tagset Union { unionInners = inners } tagmap =
-  foldr (collectTagSets tagset) tagmap (Set.map normalizeSelector inners)
+collectTagSets tagset tagmap elem @ Union { unionInners = inners }
+  | Set.empty == inners =
+    Map.insertWith Set.union tagset (Set.singleton elem) tagmap
+  | otherwise =
+    foldl (collectTagSets tagset) tagmap (Set.map normalizeSelector inners)
 -- For tags, add tags to the current tag set, and descend
-collectTagSets tagset Tags { tagsNames = tags, tagsInner = inner } tagmap =
-  collectTagSets (Set.union tagset tags) inner tagmap
+collectTagSets tagset tagmap Tags { tagsNames = tags, tagsInner = inner } =
+  collectTagSets (Set.union tagset tags) tagmap inner
 -- For everything else, add the element to the mapping for the current tag set
-collectTagSets tagset elem tagmap =
+collectTagSets tagset tagmap elem =
   Map.insertWith Set.union tagset
                  (Set.singleton (normalizeSelector elem)) tagmap
 
@@ -159,7 +191,7 @@ normalizeSelector :: Selector -> Selector
 normalizeSelector u @ Union { unionInners = inners } =
   let
     norminners = Set.map normalizeSelector inners
-  in case Set.elems norminners of
+  in case Set.elems inners of
     -- Turn an empty union into an All
     [] -> u
     -- For singleton sets, just normalize the single element
@@ -169,12 +201,14 @@ normalizeSelector u @ Union { unionInners = inners } =
       else
         let
           -- Build the tag map
-          tagmap  = foldr (collectTagSets Set.empty) Map.empty norminners
+          tagmap :: Map (Set String) (Set Selector)
+          tagmap = combineTagSets
+                     (foldl (collectTagSets Set.empty) Map.empty norminners)
           -- Then convert it into a set of union elements
           newinners =
             Map.foldWithKey (\tags tagset accum ->
                               Set.insert (genTagSetSelector tags tagset) accum)
-                            Set.empty tagmap
+                            Set.empty $! tagmap
         in case Map.lookup Set.empty tagmap of
           -- If we have a zero-tag set that contains All, it subsumes everything
           Just notagmap | Set.member allSelector notagmap -> allSelector
@@ -216,8 +250,8 @@ collectSelectors :: Filter
                  -> Map String (Set Selector)
 collectSelectors Filter { filterSuites = suites, filterSelector = selector }
                  suitemap =
-    foldr (\suite suitemap' -> Map.insertWith Set.union suite
-                              (Set.singleton selector) suitemap')
+    foldl (\suitemap' suite -> Map.insertWith Set.union suite
+                               (Set.singleton selector) suitemap')
           suitemap suites
 
 -- | Take a list of test suite names and a list of filters, and build
@@ -231,26 +265,26 @@ suiteSelectors :: [String]
 suiteSelectors allsuites filters
   -- Short-circuit case if we have no filters, we run everything
   | filters == [] =
-    foldr (\suite suitemap -> Map.insert suite allSelector suitemap)
+    foldl (\suitemap suite -> Map.insert suite allSelector suitemap)
           Map.empty allsuites
   | otherwise =
-  let
-    -- First, pull out all the universals
-    universals = foldr collectUniversals Set.empty filters
-    -- If we have any universals, then seed the initial map with them,
-    -- otherwise, use the empty map.
-    initMap =
-      if universals /= Set.empty
-        then foldr (\suite suitemap -> Map.insert suite universals suitemap)
-                   Map.empty allsuites
-        else Map.empty
-    -- Now collect all the suite-specific selectors
-    suiteMap = foldr collectSelectors initMap filters
+    let
+      -- First, pull out all the universals
+      universals = foldr collectUniversals Set.empty filters
+      -- If we have any universals, then seed the initial map with them,
+      -- otherwise, use the empty map.
+      initMap =
+        if universals /= Set.empty
+          then foldl (\suitemap suite -> Map.insert suite universals suitemap)
+                     Map.empty allsuites
+          else Map.empty
+      -- Now collect all the suite-specific selectors
+      suiteMap = foldr collectSelectors initMap filters
 
-    -- Last thing we want to do is normalize all the map entries
-    mapfun selectors = normalizeSelector Union { unionInners = selectors }
-  in
-    Map.map mapfun suiteMap
+      -- Last thing we want to do is normalize all the map entries
+      mapfun selectors = normalizeSelector Union { unionInners = selectors }
+    in
+      Map.map mapfun suiteMap
 
 namesParser :: GenParser Char st [String]
 namesParser = sepBy1 (many1 alphaNum) (string ",")
