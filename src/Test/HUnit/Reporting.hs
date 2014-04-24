@@ -17,6 +17,7 @@ module Test.HUnit.Reporting(
        combinedReporter
        ) where
 
+import Data.List
 import Data.Word
 import Data.Map(Map)
 import Distribution.TestSuite
@@ -173,18 +174,17 @@ defaultReporter = Reporter {
   }
 
 -- | Converts a test case path to a string, separating adjacent elements by 
---   the colon (\':\'). An element of the path is quoted (as with 'show') when
+--   a dot (\'.\'). An element of the path is quoted (as with 'show') when
 --   there is potential ambiguity.
 
 showPath :: Path -> String
 showPath [] = ""
 showPath nodes =
   let
-    f b a = a ++ "." ++ b
     showNode (Label label) = safe label (show label)
     safe s ss = if '.' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
   in
-    foldl1 f (map showNode nodes)
+    intercalate "." (reverse (map showNode nodes))
 
 -- | Combines two reporters into a single reporter that calls both.
 combinedReporter :: Reporter us1 -> Reporter us2 -> Reporter (us1, us2)
@@ -219,73 +219,73 @@ combinedReporter Reporter { reporterStart = reportStart1,
       do
         us1 <- reportStart1
         us2 <- reportStart2
-        return (us1, us2)
+        return $! (us1, us2)
 
     reportEnd time counts (us1, us2) =
       do
         us1' <- reportEnd1 time counts us1
         us2' <- reportEnd2 time counts us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportStartSuite ss (us1, us2) =
       do
         us1' <- reportStartSuite1 ss us1
         us2' <- reportStartSuite2 ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportEndSuite time ss (us1, us2) =
       do
         us1' <- reportEndSuite1 time ss us1
         us2' <- reportEndSuite2 time ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportStartCase ss (us1, us2) =
       do
         us1' <- reportStartCase1 ss us1
         us2' <- reportStartCase2 ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportCaseProgress msg ss (us1, us2) =
       do
         us1' <- reportCaseProgress1 msg ss us1
         us2' <- reportCaseProgress2 msg ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportEndCase time ss (us1, us2) =
       do
         us1' <- reportEndCase1 time ss us1
         us2' <- reportEndCase2 time ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportSkipCase ss (us1, us2) =
       do
         us1' <- reportSkipCase1 ss us1
         us2' <- reportSkipCase2 ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportSystemOut msg ss (us1, us2) =
       do
         us1' <- reportSystemOut1 msg ss us1
         us2' <- reportSystemOut2 msg ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportSystemErr msg ss (us1, us2) =
       do
         us1' <- reportSystemErr1 msg ss us1
         us2' <- reportSystemErr2 msg ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportFailure msg ss (us1, us2) =
       do
         us1' <- reportFailure1 msg ss us1
         us2' <- reportFailure2 msg ss us2
-        return (us1', us2')
+        return $! (us1', us2')
 
     reportError msg ss (us1, us2) =
       do
         us1' <- reportError1 msg ss us1
         us2' <- reportError2 msg ss us2
-        return (us1', us2')
+        return $! (us1', us2')
   in
     Reporter {
       reporterStart = reportStart,
