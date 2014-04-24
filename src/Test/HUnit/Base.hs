@@ -76,10 +76,8 @@ data TestInfo =
   TestInfo {
     -- | Current counts of assertions, tried, failed, and errors
     tiAsserts :: !Word,
-    -- | Failure messages that have been logged
-    tiFailures :: ![String],
-    -- | Failure messages that have been logged
-    tiErrors :: ![String],
+    -- | Events that have been logged
+    tiEvents :: ![(Word, String)],
     -- | Whether or not the result of the test computation is already
     -- reflected here.  This is used to differentiate between black
     -- box test and tests we've built with these tools.
@@ -87,6 +85,18 @@ data TestInfo =
     -- | String to attach to every failure message as a prefix.
     tiPrefix :: !String
   }
+
+errorCode :: Word
+errorCode = 0
+
+failureCode :: Word
+failureCode = 1
+
+sysOutCode :: Word
+sysOutCode = 2
+
+sysErrCode :: Word
+sysErrCode = 3
 
 {-# NOINLINE testinfo #-}
 testinfo :: IORef TestInfo
@@ -145,48 +155,64 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
 -- execution framework.
 reportTestInfo :: Result -> Reporter us -> State -> us -> IO (State, us)
 reportTestInfo result Reporter { reporterError = reportError,
-                                 reporterFailure = reportFailure }
+                                 reporterFailure = reportFailure,
+                                 reporterSystemOut = reportSystemOut,
+                                 reporterSystemErr = reportSystemErr }
                ss @ State { stCounts = c @ Counts { cAsserts = asserts,
                                                     cFailures = failures,
                                                     cErrors = errors } }
                initialUs =
-  do
+  let
+    handleEvent (us, hasFailure, hasError) (code, msg)
+      | code == errorCode =
+        do
+          us' <- reportError msg ss us
+          return (us', hasFailure, True)
+      | code == failureCode =
+        do
+          us' <- reportFailure msg ss us
+          return (us', True, hasError)
+      | code == sysOutCode =
+        do
+          us' <- reportSystemOut msg ss us
+          return (us', hasFailure, hasError)
+      | code == sysErrCode =
+        do
+          us' <- reportSystemErr msg ss us
+          return (us', hasFailure, hasError)
+      | otherwise = fail ("Internal error: bad code " ++ show code)
+  in do
     TestInfo { tiAsserts = currAsserts,
-               tiFailures = currFailures,
-               tiErrors = currErrors,
+               tiEvents = currEvents,
                tiIgnoreResult = ignoreRes } <- readIORef testinfo
-    errorsUs <- foldlM (\us msg -> reportError msg ss us )
-                       initialUs (reverse currErrors)
-    failuresUs <- foldlM (\us msg -> reportFailure msg ss us )
-                         errorsUs (reverse currFailures)
+    (eventsUs, hasFailure, hasError) <-
+      foldlM handleEvent (initialUs, False, False) (reverse currEvents)
     case result of
       Error msg | not ignoreRes ->
         do
-          finalUs <- reportError msg ss failuresUs
-          return $ (ss { stCounts =
-                            c { cAsserts = asserts + fromIntegral currAsserts,
-                                cFailures = failures +
-                                            fromIntegral (length currFailures),
-                                cErrors = errors + 1 +
-                                          fromIntegral (length currErrors) } },
+          finalUs <- reportError msg ss eventsUs
+          return $! (ss { stCounts =
+                             c { cAsserts = asserts + fromIntegral currAsserts,
+                                 cErrors = errors + 1 } },
                     finalUs)
       Fail msg | not ignoreRes ->
         do
-          finalUs <- reportFailure msg ss failuresUs
-          return $ (ss { stCounts =
+          finalUs <- reportFailure msg ss eventsUs
+          return $! (ss { stCounts =
                             c { cAsserts = asserts + fromIntegral currAsserts,
-                                cFailures = failures + 1 +
-                                            fromIntegral (length currFailures),
-                                cErrors = errors +
-                                          fromIntegral (length currErrors) } },
-                    finalUs)
-      _ -> return $ (ss { stCounts =
+                                cFailures = failures + 1 } },
+                     finalUs)
+      _ -> return $! (ss { stCounts =
                              c { cAsserts = asserts + fromIntegral currAsserts,
-                                 cFailures = failures +
-                                             fromIntegral (length currFailures),
-                                 cErrors = errors +
-                                           fromIntegral (length currErrors) } },
-                     failuresUs)
+                                 cFailures =
+                                   if hasFailure
+                                     then failures + 1
+                                     else failures,
+                                 cErrors =
+                                   if hasError
+                                     then errors + 1
+                                     else errors } },
+                     eventsUs)
 
 -- | Indicate that the result of a test is already reflected in the testinfo
 ignoreResult :: IO ()
@@ -194,8 +220,7 @@ ignoreResult = modifyIORef testinfo (\t -> t { tiIgnoreResult = True })
 
 resetTestInfo :: IO ()
 resetTestInfo = writeIORef testinfo TestInfo { tiAsserts = 0,
-                                               tiFailures = [],
-                                               tiErrors = [],
+                                               tiEvents = [],
                                                tiIgnoreResult = False,
                                                tiPrefix = "" }
 
@@ -214,32 +239,33 @@ logAssert = modifyIORef testinfo (\t -> t { tiAsserts = tiAsserts t + 1 })
 
 -- | Record an error, along with a message.
 logError :: String -> IO ()
-logError msg = modifyIORef testinfo (\t -> t { tiErrors = (tiPrefix t ++ msg) :
-                                                          tiErrors t })
+logError msg =
+  modifyIORef testinfo (\t -> t { tiEvents = (errorCode, tiPrefix t ++ msg) :
+                                             tiEvents t })
 
 -- | Record a failure, along with a message.
 logFailure :: String -> IO ()
-logFailure msg = modifyIORef testinfo
-                             (\t -> t { tiFailures = (tiPrefix t ++ msg) :
-                                                     tiFailures t })
+logFailure msg =
+  modifyIORef testinfo (\t -> t { tiEvents = (failureCode, tiPrefix t ++ msg) :
+                                             tiEvents t })
 
 -- | Get a combined failure message, if there is one
 getFailures :: IO (Maybe String)
 getFailures =
   do
-    TestInfo { tiFailures = fails } <- readIORef testinfo
-    case fails of
+    TestInfo { tiEvents = events } <- readIORef testinfo
+    case map snd (filter ((== failureCode) . fst) events) of
       [] -> return $ Nothing
-      _ -> return $ (Just (concat (reverse fails)))
+      fails -> return $ (Just (concat (reverse fails)))
 
 -- | Get a combined failure message, if there is one
 getErrors :: IO (Maybe String)
 getErrors =
   do
-    TestInfo { tiErrors = errors } <- readIORef testinfo
-    case errors of
+    TestInfo { tiEvents = events } <- readIORef testinfo
+    case map snd (filter ((== errorCode) . fst) events) of
       [] -> return $ Nothing
-      _ -> return $ (Just (concat (reverse errors)))
+      errors -> return $ (Just (concat (reverse errors)))
 
 -- Assertion Definition
 -- ====================

@@ -201,11 +201,11 @@ testCases = [
      "logAssert_twice", [], twoAsserts, []),
     ("logFailure_twice" ~: do logFailure "Fail Message\n"
                               logFailure "Fail Message 2\n",
-     "logFailure_twice", [], twoFails,
+     "logFailure_twice", [], oneFail,
      [Utils.Failure "Fail Message\n", Utils.Failure "Fail Message 2\n"]),
     ("logError_twice" ~: do logError "Error Message\n"
                             logError "Error Message 2\n",
-     "logError_twice", [], twoErrors,
+     "logError_twice", [], oneError,
      [Utils.Error "Error Message\n", Utils.Error "Error Message 2\n"]),
     -- Test assertion functions
     ("assertSuccess" ~: assertSuccess, "assertSuccess", [], oneAssert, []),
@@ -215,7 +215,7 @@ testCases = [
      [], oneFailOneAssert, [Utils.Failure "Fail Message"]),
     ("assertFailure_twice" ~: do assertFailure "Fail Message\n"
                                  assertFailure "Fail Message 2\n",
-     "assertFailure_twice", [], twoFailsTwoAsserts,
+     "assertFailure_twice", [], oneFailTwoAsserts,
      [Utils.Failure "Fail Message\n", Utils.Failure "Fail Message 2\n"]),
     ("assertSuccess_assertFailure" ~: do assertSuccess
                                          assertFailure "Fail Message",
@@ -235,7 +235,7 @@ testCases = [
      [Utils.Failure "Failure Message", Utils.Error "Error Message"]),
     ("assertFailure_abortFailure" ~: do assertFailure "Failure Message"
                                         abortFailure "Failure Message 2",
-     "assertFailure_abortFailure", [], twoFailsOneAssert,
+     "assertFailure_abortFailure", [], oneFailOneAssert,
      [Utils.Failure "Failure Message", Utils.Failure "Failure Message 2"]),
     ("abortError_assertFailure" ~: do abortError "Error Message"
                                       assertFailure "Failure Message",
@@ -279,7 +279,7 @@ testCases = [
      "assert_list_assertSuccess_twice", [], twoAsserts, []),
     ("assert_list_assertFailure_twice" ~:
        assert [assertFailure "Fail Message\n", assertFailure "Fail Message 2\n"],
-     "assert_list_assertFailure_twice", [], twoFailsTwoAsserts,
+     "assert_list_assertFailure_twice", [], oneFailTwoAsserts,
      [Utils.Failure "Fail Message\n", Utils.Failure "Fail Message 2\n"]),
     ("assert_list_assertSuccess_assertFailure" ~:
        assert [assertSuccess, assertFailure "Fail Message"],
@@ -295,7 +295,7 @@ testCases = [
     ("assertWithMsg_list_assertFailure_twice" ~:
        assertWithMsg "Prefix: " [assertFailure "Fail Message\n",
                                  assertFailure "Fail Message 2\n"],
-     "assertWithMsg_list_assertFailure_twice", [], twoFailsTwoAsserts,
+     "assertWithMsg_list_assertFailure_twice", [], oneFailTwoAsserts,
      [Utils.Failure "Prefix: Fail Message\n",
       Utils.Failure "Prefix: Fail Message 2\n"]),
     ("assertWithMsg_list_assertSuccess_assertFailure" ~:
@@ -368,7 +368,7 @@ testCases = [
     ("assert_return_list_assertFailure_twice" ~:
        assert (return [assertFailure "Fail Message\n",
                        assertFailure "Fail Message 2\n"] :: IO [Assertion]),
-     "assert_return_list_assertFailure_twice", [], twoFailsTwoAsserts,
+     "assert_return_list_assertFailure_twice", [], oneFailTwoAsserts,
      [Utils.Failure "Fail Message\n", Utils.Failure "Fail Message 2\n"]),
     ("assert_return_list_assertSuccess_assertFailure" ~:
        assert (return [assertSuccess,
@@ -388,7 +388,7 @@ testCases = [
        assertWithMsg "Prefix: " (return [assertFailure "Fail Message\n",
                                          assertFailure "Fail Message 2\n"]
                                  :: IO [Assertion]),
-     "assertWithMsg_return_list_assertFailure_twice", [], twoFailsTwoAsserts,
+     "assertWithMsg_return_list_assertFailure_twice", [], oneFailTwoAsserts,
      [Utils.Failure "Prefix: Fail Message\n",
       Utils.Failure "Prefix: Fail Message 2\n"]),
     ("assertWithMsg_return_list_assertSuccess_assertFailure" ~:
