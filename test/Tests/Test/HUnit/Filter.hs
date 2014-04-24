@@ -484,7 +484,7 @@ normalizeSelectorTestCases =
     union2 (tag1 (outerPath allSelector)) (tag12 (outerInnerPath allSelector))),
    ("union__Outer_tag1__Outer_Inner_tag12",
     union2 (outerPath (tag1 allSelector)) (outerInnerPath (tag12 allSelector)),
-    union2 (tag2 (outerPath allSelector)) (tag12 (outerInnerPath allSelector))),
+    union2 (tag1 (outerPath allSelector)) (tag12 (outerInnerPath allSelector))),
    ("union__Outer_tag2__Outer_Inner_tag12",
     union2 (outerPath (tag2 allSelector)) (outerInnerPath (tag12 allSelector)),
     union2 (tag2 (outerPath allSelector)) (tag12 (outerInnerPath allSelector))),
