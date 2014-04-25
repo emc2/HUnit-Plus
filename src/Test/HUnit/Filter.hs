@@ -22,7 +22,6 @@ import Data.Either
 import Data.Map(Map)
 import Data.Maybe
 import Data.Set(Set)
---import Debug.Trace
 import Prelude hiding (foldl, elem)
 import System.IO.Error
 import Text.ParserCombinators.Parsec hiding (try)
@@ -36,7 +35,7 @@ data Selector =
   -- | A test set created from a union of multiple test sets.
     Union {
       -- | The elements of the union.
-      unionInners :: Set Selector
+      unionInners :: (Set Selector)
     }
   -- | Append a path element to the context path, then apply the inner
   -- selector to all tests that begin with the context path.
@@ -95,8 +94,11 @@ genPathSelector elem pathset
                                             pathInner = allSelector }
   | otherwise =
     case Set.elems pathset of
+      -- Pull tags outside
+      [ t @ Tags { tagsInner = inner } ] ->
+        t { tagsInner = Path { pathElem = elem, pathInner = inner } }
       -- For singleton sets, build a single path element
-      [ inner ] ->  Path { pathElem = elem, pathInner = inner }
+      [ inner ] -> Path { pathElem = elem, pathInner = inner }
       -- Otherwise, build a union
       _ -> Path { pathElem = elem, pathInner = Union { unionInners = pathset } }
 
@@ -127,21 +129,28 @@ combineTagSets pathmap =
                                      (Set.singleton selector) accum)
                     Map.empty revmap
 
+-- | Generate a selector from an entry in a tagset map
+insertTagSetSelector :: Set String -> Set Selector -> Selector -> Set Selector
+insertTagSetSelector tags set inner
+  | tags == Set.empty = Set.insert inner set
+  | otherwise = Set.insert Tags { tagsInner = inner, tagsNames = tags } set
+
 -- | Transform a tag set into a single normal-form Selector
-normalizeTagMapEntry :: Set Selector -> Selector
-normalizeTagMapEntry tagset
+normalizeTagMapEntry :: Set String -> Set Selector ->
+                        Set Selector -> Set Selector
+normalizeTagMapEntry tags oldset newset
   -- Short-circuit case: if the set contains an All, then it subsumes
   -- everything else
-  | Set.member allSelector tagset = allSelector
-  | otherwise = case Set.elems tagset of
+  | Set.member allSelector oldset = insertTagSetSelector tags newset allSelector
+  | otherwise = case Set.elems oldset of
     -- Second short-circuit case: singleton set doesn't need to go
     -- through the collectPathSets logic.
-    [ inner ] -> inner
+    [ inner ] -> insertTagSetSelector tags newset inner
     _ ->
       let
         -- Build the path map
         pathmap :: Map String (Set Selector)
-        pathmap = foldl collectPathSets Map.empty tagset
+        pathmap = foldl collectPathSets Map.empty oldset
         -- Then convert it into a set of union elements
         inners = Map.foldWithKey (\elem pathset accum ->
                                    Set.insert (genPathSelector elem pathset)
@@ -150,9 +159,9 @@ normalizeTagMapEntry tagset
       in case Set.elems inners of
         -- If the set of union elements is a singleton, just return
         -- the one element
-        [ inner ] -> inner
+        [ inner ] -> insertTagSetSelector tags newset inner
         -- Otherwise, build a union
-        _ -> Union { unionInners = inners }
+        _ -> Set.foldl (insertTagSetSelector tags) newset inners
 
 -- | Walk all nested Union and Tags elements, and group all elements
 -- into categories by which tags they filter for.
@@ -168,7 +177,8 @@ collectTagSets tagset tagmap elem @ Union { unionInners = inners }
   | Set.empty == inners =
     Map.insertWith Set.union tagset (Set.singleton elem) tagmap
   | otherwise =
-    foldl (collectTagSets tagset) tagmap (Set.map normalizeSelector inners)
+    Set.foldl (collectTagSets tagset) tagmap
+              (Set.map normalizeSelector inners)
 -- For tags, add tags to the current tag set, and descend
 collectTagSets tagset tagmap Tags { tagsNames = tags, tagsInner = inner } =
   collectTagSets (Set.union tagset tags) tagmap inner
@@ -177,23 +187,29 @@ collectTagSets tagset tagmap elem =
   Map.insertWith Set.union tagset
                  (Set.singleton (normalizeSelector elem)) tagmap
 
--- | Generate a selector from an entry in a tagset map
-genTagSetSelector :: Set String -> Set Selector -> Selector
-genTagSetSelector tags tagset
-  | tags == Set.empty = normalizeTagMapEntry tagset
-  | otherwise = Tags { tagsInner = normalizeTagMapEntry tagset,
-                       tagsNames = tags }
+getTags :: Selector -> Set String
+getTags Tags { tagsNames = tags } = tags
+getTags Path {} = Set.empty
+getTags s = error ("Shouldn't see " ++ show s)
+
+removeTags :: Set String -> Selector -> Selector
+removeTags del t @ Tags { tagsNames = tags, tagsInner = inner }
+  | del == tags = inner
+  | otherwise = t { tagsNames = Set.difference tags del }
+removeTags _ s = error ("Shouldn't see " ++ show s)
 
 -- | Normalize a Selector
-normalizeSelector :: Selector -> Selector
+normalizeSelector' :: Set String -> Selector -> Selector
+normalizeSelector' tagset selector | selector == allSelector =
+  if tagset == Set.empty
+    then allSelector
+    else Tags { tagsNames = tagset, tagsInner = allSelector }
 -- For this case, we have three degeneracies to worry about:
 -- overlapping union members, nested unions, singleton unions.
-normalizeSelector u @ Union { unionInners = inners } =
+normalizeSelector' tagset Union { unionInners = inners } =
   let
-    norminners = Set.map normalizeSelector inners
-  in case Set.elems inners of
-    -- Turn an empty union into an All
-    [] -> u
+    norminners = Set.map (normalizeSelector' tagset) inners
+  in case Set.elems norminners of
     -- For singleton sets, just normalize the single element
     [ inner ] -> inner
     -- Fast short-circuit case if inners contains an All
@@ -202,38 +218,43 @@ normalizeSelector u @ Union { unionInners = inners } =
         let
           -- Build the tag map
           tagmap :: Map (Set String) (Set Selector)
-          tagmap = combineTagSets
-                     (foldl (collectTagSets Set.empty) Map.empty norminners)
+          tagmap = combineTagSets (foldl (collectTagSets Set.empty)
+                                         Map.empty norminners)
           -- Then convert it into a set of union elements
-          newinners =
-            Map.foldWithKey (\tags tagset accum ->
-                              Set.insert (genTagSetSelector tags tagset) accum)
-                            Set.empty $! tagmap
+          newinners = Map.foldWithKey normalizeTagMapEntry Set.empty $! tagmap
         in case Map.lookup Set.empty tagmap of
-          -- If we have a zero-tag set that contains All, it subsumes everything
+          -- If we have a zero-tag set that contains All, it
+          -- subsumes everything
           Just notagmap | Set.member allSelector notagmap -> allSelector
           _ -> case Set.elems newinners of
             -- If the set of union elements is a singleton, just return
             -- the one element
             [ inner ] -> inner
             -- Otherwise, build a union
-            _ -> Union { unionInners = newinners }
+            elems ->
+              let
+                common = foldl1 Set.intersection (map getTags elems)
+              in
+                if common == Set.empty
+                  then Union { unionInners = newinners }
+                  else Tags { tagsInner =
+                                 Union { unionInners =
+                                            Set.map (removeTags common)
+                                                    newinners },
+                              tagsNames = common }
 -- For paths, move any tags elements to the outside
-normalizeSelector p @ Path { pathInner = inner } =
-  case normalizeSelector inner of
+normalizeSelector' tagset p @ Path { pathInner = inner } =
+  case normalizeSelector' tagset inner of
     -- For tags, swap places
-    t @ Tags { tagsInner = inner' } ->
-      t { tagsInner = p { pathInner = inner' } }
+    t @ Tags { tagsInner = inner' } -> t { tagsInner = p { pathInner = inner' } }
     -- Otherwise, install the normalized inner
     inner' -> p { pathInner = inner' }
 -- For a tags element, combine two immediately nested tags
-normalizeSelector t @ Tags { tagsNames = tags, tagsInner = inner } =
-  case normalizeSelector inner of
-    -- Combine immediately nested tags
-    Tags { tagsNames = innertags, tagsInner = inner' } ->
-      Tags { tagsNames = Set.union tags innertags, tagsInner = inner' }
-    -- Otherwise, install the normalized inner
-    inner' -> t { tagsInner = inner' }
+normalizeSelector' tagset Tags { tagsNames = tags, tagsInner = inner } =
+  normalizeSelector' (Set.union tagset tags) inner
+
+normalizeSelector :: Selector -> Selector
+normalizeSelector = normalizeSelector' Set.empty
 
 -- | Collect all the selectors from filters that apply to all suites
 collectUniversals :: Filter -> Set Selector -> Set Selector
