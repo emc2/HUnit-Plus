@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
+{-# OPTIONS_GHC -Wall -Werror #-}
 
 module Test.HUnit.Execution(
        performTestCase,
@@ -31,12 +31,12 @@ performTestCase :: Reporter us
                 -- ^ The test to be executed
                 -> IO (State, us)
 performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
-                                 reporterError = reportError,
-                                 reporterEndCase = reportEndCase }
+                                  reporterError = reportError,
+                                  reporterEndCase = reportEndCase }
                 ss @ State { stCounts = c @ Counts { cTried = tried,
-                                                     cCases = cases },
-                             stName = oldname, stOptions = optmap,
-                             stOptionDescs = descs } initialUs
+                                                      cCases = cases },
+                              stName = oldname, stOptions = optmap,
+                              stOptionDescs = descs } initialUs
                 initTi @ TestInstance { name = testname,
                                         options = testdescs,
                                         setOption = setopt } =
@@ -145,8 +145,8 @@ performTest rep initSelector initState initialUs initialTest =
           | sel == allSelector =
             if tagset == Set.empty
               then res
-              else Just (tagset, Tags { tagsNames = tagset,
-                                        tagsInner = allSelector })
+              else Just $! (tagset, Tags { tagsNames = tagset,
+                                           tagsInner = allSelector })
         -- For Union, pick the first inner that produces a result
         -- other than Nothing.
         updateSelector (Just (tagset, Union { unionInners = inners })) =
@@ -159,7 +159,7 @@ performTest rep initSelector initState initialUs initialTest =
             newinners = foldl foldfun' Set.empty (map mapfun (Set.elems inners))
           in
             if newinners /= Set.empty
-              then Just (tagset, Union { unionInners = newinners })
+              then Just $! (tagset, Union { unionInners = newinners })
               else Nothing
         -- For Unions, pick the first one that matches
         updateSelector (Just (tagset, Path { pathElem = elem,
@@ -168,26 +168,27 @@ performTest rep initSelector initState initialUs initialTest =
         -- import all tags in the inner selector and return it.
           | gname == elem =
             if tagset == Set.empty
-              then Just (tagset, inner)
-              else Just (tagset, Tags { tagsNames = tagset, tagsInner = inner })
+              then Just $! (tagset, inner)
+              else Just $! (tagset, Tags { tagsNames = tagset,
+                                           tagsInner = inner })
         -- Otherwise, we don't match the path, so return Nothing
           | otherwise = Nothing
         -- For tags, just union them with the tag set
         updateSelector (Just (tagset, Tags { tagsNames = newtags,
                                              tagsInner = inner })) =
-          updateSelector (Just (Set.union tagset newtags, inner))
+          updateSelector (Just $! (Set.union tagset newtags, inner))
         -- For Nothing, we're already skipping all the tests
         updateSelector Nothing = Nothing
 
-        selector' = id $! (updateSelector selector)
         -- Update the path for running the group's tests
         oldpath = stPath ss
         ssWithPath = ss { stPath = Label gname : oldpath }
 
-        foldfun (ss', us') t = performTest' selector' ss' us' t
+        foldfun selector' (ss', us') t = performTest' selector' ss' us' t
       in do
         -- Run the tests with the updated path
-        (ssAfter, usAfter) <- foldM foldfun (ssWithPath, us) testlist
+        (ssAfter, usAfter) <- foldM (foldfun $! updateSelector selector)
+                                    (ssWithPath, us) testlist
         -- Return the state, reset to the old path
         return $! (ssAfter { stPath = oldpath }, usAfter)
     performTest' selector ss us (Test t @ TestInstance { name = testname,
@@ -216,9 +217,8 @@ performTest rep initSelector initState initialUs initialTest =
                  us (ExtraOptions newopts inner) =
       performTest' selector ss { stOptionDescs = descs ++ newopts } us inner
   in do
-    (ss', us') <-
-      performTest' (Just (Set.empty, initSelector))
-                   initState initialUs initialTest
+    (ss', us') <- performTest' (Just (Set.empty, initSelector))
+                               initState initialUs initialTest
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
     return $! (ss', us')
 
