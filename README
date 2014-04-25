@@ -2,3 +2,5 @@ hunit-plus
 ==========
 
 A test framework expanding on the HUnit Haskell testing package
+
+[![Build Status](http://tachyon.metricspace.net:8080/jenkins/buildStatus/icon?job=HUnit-Plus)](http://tachyon.metricspace.net:8080/jenkins/job/HUnit-Plus/)
