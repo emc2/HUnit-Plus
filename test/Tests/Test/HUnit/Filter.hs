@@ -444,9 +444,9 @@ combineSelectorTestCases =
    ("Outer_tag1__Outer_Inner_tag1", outerPath (tag1 allSelector),
     outerInnerPath (tag1 allSelector), outerPath (tag1 allSelector)),
    ("tag1_Outer__Outer_tag1", tag1 (outerPath allSelector),
-    outerPath (tag1 allSelector), outerPath (tag1 allSelector)),
+    outerPath (tag1 allSelector), tag1 (outerPath allSelector)),
    ("Outer_tag1__tag1_Outer", outerPath (tag1 allSelector),
-    tag1 (outerPath allSelector), outerPath (tag1 allSelector))
+    tag1 (outerPath allSelector), tag1 (outerPath allSelector))
   ]
 
 combineSelectorTests :: [Test]
