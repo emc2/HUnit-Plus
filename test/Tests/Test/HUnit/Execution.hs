@@ -171,54 +171,54 @@ getTests None = map Left testData
 
 -- Generate a list of all mod filters we can use for a sub-module, and
 -- the selectors we need for them
-getSuperSet :: Selector -> ModFilter ->
-               [(ModFilter, [Selector] -> [Selector])]
+getSuperSet :: (Selector -> Selector) -> ModFilter -> [(ModFilter, Selector)]
 -- If we're already running all tests, there's nothing else we can do
-getSuperSet _ All = [(All, \selectors -> selectors)]
+getSuperSet wrapinner All =
+  [(All, wrapinner (allSelector { selectorTags = Nothing }))]
 -- If we're running tests with both tags, we can do that, or we can
 -- run all tests in the submodule.
-getSuperSet inner (WithTags (True, True)) =
-  [(WithTags (True, True), \selectors -> selectors),
-   (All, \selectors -> inner : selectors)]
+getSuperSet wrapinner (WithTags (True, True)) =
+  [(WithTags (True, True),
+    wrapinner (allSelector { selectorTags = Nothing })),
+   (All, wrapinner allSelector)]
 -- If we're running tests with one of the tags, we can do that, or we
 -- can run with both tags, or we can run all tests.
-getSuperSet inner (WithTags (False, True)) =
-  [(WithTags (False, True), \selectors -> selectors),
+getSuperSet wrapinner (WithTags (False, True)) =
+  [(WithTags (False, True),
+    wrapinner (allSelector { selectorTags = Nothing })),
    (WithTags (True, True),
-    \selectors -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
-                         tagsInner = inner } : selectors),
-   (All, \selectors -> inner : selectors) ]
-getSuperSet inner (WithTags (True, False)) =
-  [(WithTags (True, False), \selectors -> selectors),
+    wrapinner (allSelector { selectorTags =
+                                   Just $! Set.fromList ["tag1", "tag2" ] })),
+   (All, wrapinner allSelector) ]
+getSuperSet wrapinner (WithTags (True, False)) =
+  [(WithTags (True, False),
+    wrapinner (allSelector { selectorTags = Nothing })),
    (WithTags (True, True),
-    \selectors -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
-                         tagsInner = inner } : selectors),
-   (All, \selectors -> inner : selectors) ]
+    wrapinner (allSelector { selectorTags =
+                                   Just $! Set.fromList ["tag1", "tag2" ] })),
+   (All, wrapinner allSelector) ]
 -- If we're not running any tests, we can do anything
-getSuperSet inner None =
-  [(None, \selectors -> selectors),
+getSuperSet wrapinner None =
+  [(None, wrapinner (allSelector { selectorTags = Nothing })),
    (WithTags (True, False),
-    \selectors -> Tags { tagsNames = Set.singleton "tag1",
-                         tagsInner = inner } : selectors),
+    wrapinner (allSelector { selectorTags = Just $! Set.singleton "tag1" })),
    (WithTags (False, True),
-    \selectors -> Tags { tagsNames = Set.singleton "tag2",
-                         tagsInner = inner } : selectors),
+    wrapinner (allSelector { selectorTags = Just $! Set.singleton "tag2" })),
    (WithTags (True, True),
-    \selectors -> Tags { tagsNames = Set.fromList ["tag1", "tag2"],
-                         tagsInner = inner } : selectors),
-   (All, \selectors -> inner : selectors) ]
+    wrapinner (allSelector { selectorTags =
+                                   Just $! Set.fromList ["tag1", "tag2" ] })),
+   (All, wrapinner allSelector) ]
 
 -- Make the tests for a group, with a starting modfilter
-makeLeafGroup :: String -> Selector -> ModFilter ->
+makeLeafGroup :: String -> (Selector -> Selector) -> ModFilter ->
                  ([Test], [ReportEvent], State, [Selector]) ->
                  [([Test], [ReportEvent], State, [Selector])]
-makeLeafGroup gname inner mfilter initialTests =
+makeLeafGroup gname wrapinner mfilter initialTests =
   let
     mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
-              (ModFilter, [Selector] -> [Selector]) ->
-              ([Test], [ReportEvent], State, [Selector])
+              (ModFilter, Selector) -> ([Test], [ReportEvent], State, [Selector])
     mapfun (tests, events, ss @ State { stPath = oldpath }, selectors)
-           (mfilter, selectorfunc) =
+           (mfilter, selector) =
       let
         ssWithPath = ss { stPath = Label gname : oldpath }
         (grouptests, events', ss') = foldl (makeTestData (gname ++ "_"))
@@ -227,19 +227,19 @@ makeLeafGroup gname inner mfilter initialTests =
         tests' = Group { groupName = gname, groupTests = reverse grouptests,
                          concurrently = True } : tests
       in
-        (tests', events', ss' { stPath = oldpath }, selectorfunc selectors)
+        (tests', events', ss' { stPath = oldpath }, selector : selectors)
   in
-    map (mapfun initialTests) (getSuperSet inner mfilter)
+    map (mapfun initialTests) (getSuperSet wrapinner mfilter)
 
 makeOuterGroup :: ModFilter -> ([Test], [ReportEvent], State, [Selector]) ->
                   [([Test], [ReportEvent], State, [Selector])]
 makeOuterGroup mfilter initialTests =
   let
     mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
-              (ModFilter, [Selector] -> [Selector]) ->
+              (ModFilter, Selector) ->
               [([Test], [ReportEvent], State, [Selector])]
     mapfun (tests, events, ss @ State { stPath = oldpath }, selectors)
-           (mfilter, selectorfunc) =
+           (mfilter, selector) =
       let
         ssWithPath = ss { stPath = Label "Outer" : oldpath }
 
@@ -255,21 +255,30 @@ makeOuterGroup mfilter initialTests =
                              groupTests = reverse grouptests,
                              concurrently = True } : tests
           in
-           (tests', events', ss' { stPath = oldpath }, selectorfunc selectors)
+           (tests', events', ss' { stPath = oldpath }, selector : selectors)
 
-        innerPath = Path { pathInner = Path { pathInner = allSelector,
-                                              pathElem = "Inner" },
-                           pathElem = "Outer" }
+        wrapInnerPath inner =
+          Selector {
+            selectorInners =
+               Map.singleton "Outer" Selector {
+                                       selectorInners =
+                                          Map.singleton "Inner" inner,
+                                       selectorTags = Nothing
+                                     },
+            selectorTags = Nothing
+          }
 
         withInner :: [([Test], [ReportEvent], State, [Selector])]
-        withInner = makeLeafGroup "Inner" innerPath mfilter
+        withInner = makeLeafGroup "Inner" wrapInnerPath mfilter
                                   (tests, events, ssWithPath, selectors)
       in
         map mapfun withInner
 
-    outerPath = Path { pathElem = "Outer", pathInner = allSelector }
+    wrapOuterPath inner =
+      Selector { selectorInners = Map.singleton "Outer" inner,
+                 selectorTags = Nothing }
   in
-    concatMap (mapfun initialTests) (getSuperSet outerPath mfilter)
+    concatMap (mapfun initialTests) (getSuperSet wrapOuterPath mfilter)
 
 modfilters = [ All, WithTags (True, False), WithTags (False, True),
                WithTags (True, True), None ]
@@ -295,8 +304,8 @@ genFilter sname =
         rootSelectors =
           case mfilter of
             All -> [allSelector]
-            WithTags tags -> [Tags { tagsNames = makeTagSet tags,
-                                     tagsInner = allSelector }]
+            WithTags tags ->
+              [allSelector { selectorTags = Just $! makeTagSet tags }]
             None -> []
 
         -- Result after executing the root tests.
@@ -304,11 +313,13 @@ genFilter sname =
           foldl (makeTestData "") ([], [StartSuiteEvent initState], initState)
                 (getTests mfilter)
 
-        otherPath = Path { pathElem = "Other", pathInner = allSelector }
+        wrapOtherPath inner =
+          Selector { selectorInners = Map.singleton "Other" inner,
+                     selectorTags = Nothing }
 
         -- Results after executing tests in the Other module
         withOther :: [([Test], [ReportEvent], State, [Selector])]
-        withOther = makeLeafGroup "Other" otherPath mfilter
+        withOther = makeLeafGroup "Other" wrapOtherPath mfilter
                                   (rootTests, rootEvents,
                                    rootState, rootSelectors)
 
@@ -343,12 +354,7 @@ genFilter sname =
             selectormap =
               case selectors of
                 [one] -> Map.singleton sname one
-                _ ->
-                  let
-                    suiteSelector =
-                      Union { unionInners = Set.fromList selectors }
-                  in
-                    Map.singleton sname suiteSelector
+                _ -> Map.singleton sname (foldl1 combineSelectors selectors)
           in
             (suite, reverse eventsWithEnd, selectormap, counts)
       in

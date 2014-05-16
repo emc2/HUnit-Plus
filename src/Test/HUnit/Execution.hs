@@ -10,7 +10,6 @@ module Test.HUnit.Execution(
 import Control.Monad (unless, foldM)
 import Distribution.TestSuite
 import Data.Map(Map)
-import Data.Set(Set)
 import Prelude hiding (elem)
 import System.TimeIt
 import Test.HUnit.Base
@@ -135,90 +134,63 @@ performTest rep initSelector initState initialUs initialTest =
     --
     -- We also have to keep a set of tags by which we're filtering.
     -- The empty tag set means we don't actually filter at all.
-    performTest' selector ss us Group { groupTests = testlist,
-                                        groupName = gname } =
+    performTest' Selector { selectorInners = inners, selectorTags = currtags }
+                 ss us Group { groupTests = testlist, groupName = gname } =
       let
-        updateSelector :: Maybe (Set String, Selector) ->
-                          Maybe (Set String, Selector)
-        -- For All, we are going to run all tests that match the tag set
-        updateSelector res @ (Just (tagset, sel))
-          | sel == allSelector =
-            if tagset == Set.empty
-              then res
-              else Just $! (tagset, Tags { tagsNames = tagset,
-                                           tagsInner = allSelector })
-        -- For Union, pick the first inner that produces a result
-        -- other than Nothing.
-        updateSelector (Just (tagset, Union { unionInners = inners })) =
-          let
-            mapfun inner = updateSelector (Just (tagset, inner))
-
-            foldfun' accum (Just (_, inner)) = Set.insert inner accum
-            foldfun' accum Nothing = accum
-
-            newinners = foldl foldfun' Set.empty (map mapfun (Set.elems inners))
-          in
-            if newinners /= Set.empty
-              then Just $! (tagset, Union { unionInners = newinners })
-              else Nothing
-        -- For Unions, pick the first one that matches
-        updateSelector (Just (tagset, Path { pathElem = elem,
-                                             pathInner = inner }))
-        -- For Paths, if the path element matches the name we have, then
-        -- import all tags in the inner selector and return it.
-          | gname == elem =
-            if tagset == Set.empty
-              then Just $! (tagset, inner)
-              else Just $! (tagset, Tags { tagsNames = tagset,
-                                           tagsInner = inner })
-        -- Otherwise, we don't match the path, so return Nothing
-          | otherwise = Nothing
-        -- For tags, just union them with the tag set
-        updateSelector (Just (tagset, Tags { tagsNames = newtags,
-                                             tagsInner = inner })) =
-          updateSelector (Just $! (Set.union tagset newtags, inner))
-        -- For Nothing, we're already skipping all the tests
-        updateSelector Nothing = Nothing
+        -- Build the new selector
+        selector' =
+          -- Try looking up the group in the inners
+          case Map.lookup gname inners of
+            -- If we don't find anything, we can only keep executing
+            -- if our tag state allows it.
+            Nothing -> Selector { selectorInners = Map.empty,
+                                  selectorTags = currtags }
+            -- Otherwise, combine the inner's tag state with ours and
+            -- carry on.
+            Just inner @ Selector { selectorTags = innertags } ->
+              inner { selectorTags = combineTags currtags innertags }
 
         -- Update the path for running the group's tests
         oldpath = stPath ss
         ssWithPath = ss { stPath = Label gname : oldpath }
 
-        foldfun selector' (ss', us') t = performTest' selector' ss' us' t
+        foldfun (ss', us') t = performTest' selector' ss' us' t
       in do
         -- Run the tests with the updated path
-        (ssAfter, usAfter) <- foldM (foldfun $! updateSelector selector)
-                                    (ssWithPath, us) testlist
+        (ssAfter, usAfter) <- foldM foldfun (ssWithPath, us) testlist
         -- Return the state, reset to the old path
         return $! (ssAfter { stPath = oldpath }, usAfter)
-    performTest' selector ss us (Test t @ TestInstance { name = testname,
-                                                         tags = testtags }) =
+    performTest' Selector { selectorInners = inners, selectorTags = currtags }
+                 ss us (Test t @ TestInstance { name = testname,
+                                                tags = testtags }) =
       let
-        -- Decide whether or not we can execute the test
-        canExecute :: Maybe (Set String, Selector) -> Bool
-        canExecute Nothing = False
-        canExecute (Just (tagset, selector')) | selector' == allSelector =
-          tagset == Set.empty || any (\tag -> Set.member tag tagset) testtags
-        canExecute (Just (tagset, Path { pathElem = elem,
-                                         pathInner = inner }))
-          | elem == testname && inner == allSelector =
-            tagset == Set.empty || any (\tag -> Set.member tag tagset) testtags
-          | otherwise = False
-        canExecute (Just (tagset, Tags { tagsNames = newtags,
-                                         tagsInner = inner })) =
-          canExecute (Just (Set.union tagset newtags, inner))
-        canExecute (Just (tagset, Union { unionInners = inners })) =
-          any (\inner -> canExecute (Just (tagset, inner))) (Set.elems inners)
+        -- Get the final tag state
+        finaltags =
+          -- Try looking up the group in the inners
+          case Map.lookup testname inners of
+            -- If we don't find anything, we can only keep executing
+            -- if our tag state allows it.
+            Nothing -> currtags
+            -- Otherwise, combine the inner's tag state with ours and
+            -- carry on.
+            Just Selector { selectorTags = innertags } ->
+              combineTags currtags innertags
+        -- Decide if we can execute the test
+        canExecute =
+          case finaltags of
+            Nothing -> False
+            Just set
+              | set == Set.empty -> True
+              | otherwise -> any (\tag -> Set.member tag set) testtags
       in
-        if canExecute selector
+        if canExecute
           then performTestCase rep ss us t
           else skipTestCase rep ss us t
     performTest' selector ss @ State { stOptionDescs = descs }
                  us (ExtraOptions newopts inner) =
       performTest' selector ss { stOptionDescs = descs ++ newopts } us inner
   in do
-    (ss', us') <- performTest' (Just (Set.empty, initSelector))
-                               initState initialUs initialTest
+    (ss', us') <- performTest' initSelector initState initialUs initialTest
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
     return $! (ss', us')
 

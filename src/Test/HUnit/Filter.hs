@@ -7,9 +7,10 @@
 module Test.HUnit.Filter(
        Selector(..),
        Filter(..),
+       combineTags,
        passFilter,
        allSelector,
-       normalizeSelector,
+       combineSelectors,
        suiteSelectors,
        parseFilter,
        parseFilterFile,
@@ -29,35 +30,23 @@ import Text.ParserCombinators.Parsec hiding (try)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
--- | A [@Selector@] is a tree structure used to select and run tests
+-- | A @Selector@ is a tree structure used to select and run tests
 -- within one or more suites.
 data Selector =
-  -- | A test set created from a union of multiple test sets.
-    Union {
-      -- | The elements of the union.
-      unionInners :: (Set Selector)
-    }
-  -- | Append a path element to the context path, then apply the inner
-  -- selector to all tests that begin with the context path.
-  | Path {
-      -- | The name to add to the current context path.
-      pathElem :: !String,
-      -- | The selector to apply in the new context.
-      pathInner :: Selector
-    }
-  -- | Add tags to the set of tags used to filter tests.  Note that if
-  -- that set is empty, all tests will be selected.
-  | Tags {
-      -- | The tags to add to the current set of tags.
-      tagsNames :: !(Set String),
-      -- | The selector from which to filter tests by tags.
-      tagsInner :: Selector 
+    Selector {
+      -- | @Selector@s for subgroups of this one, indexed by the leading
+      -- path element.
+      selectorInners :: Map String Selector,
+      -- | Tags by which to filter all tests, or @Nothing@ if we cannot
+      -- execute local tests.  Note that the empty set actually means
+      -- "run all tests regardless of tags".
+      selectorTags :: !(Maybe (Set String))
     }
     deriving (Eq, Ord, Show)
 
--- | A [@Filter@] specifies zero or more test suites, to which a
--- [@Selector@] is then applied.  If no test suites are specified,
--- then the [@Selector@] applies to all test suites.
+-- | A @Filter@ specifies zero or more test suites, to which a
+-- @Selector@ is then applied.  If no test suites are specified,
+-- then the @Selector@ applies to all test suites.
 data Filter =
   Filter {
     -- | The test suites to which the [@Selector@] applies.
@@ -67,194 +56,35 @@ data Filter =
   }
   deriving (Ord, Eq, Show)
 
--- | A [@Filter@] that selects everything
+-- | Combine two tags fields into one.
+combineTags :: Maybe (Set String) -> Maybe (Set String) -> Maybe (Set String)
+-- Nothing means we can't execute, so if the other side says we can,
+-- we can.
+combineTags Nothing t = t
+combineTags t Nothing = t
+combineTags (Just a) (Just b)
+  -- The empty set means we execute everything, so it absorbs
+  | a == Set.empty || b == Set.empty = Just $! Set.empty
+  -- Otherwise, we do set union
+  | otherwise = Just $! Set.union a b
+
+-- | A @Filter@ that selects everything
 passFilter :: Filter
 passFilter = Filter { filterSuites = Set.empty, filterSelector = allSelector }
 
--- | A [@Selector@] that selects everything
+-- | A @Selector@ that selects everything
 allSelector :: Selector
-allSelector = Union { unionInners = Set.empty }
+allSelector = Selector { selectorInners = Map.empty,
+                         selectorTags = Just Set.empty }
 
--- | Gather up path elements into sets of inners grouped by the
--- leading path element.
-collectPathSets :: Map String (Set Selector)
-                -- ^ A map from beginning path elements to the inner selectors
-                -> Selector
-                -- ^ The selector being collected
-                -> Map String (Set Selector)
-collectPathSets pathmap Path { pathElem = elem, pathInner = inner } =
-  Map.insertWith Set.union elem (Set.singleton inner) pathmap
-collectPathSets _ selector = error ("Should not see " ++ show selector)
-
--- | Generate a selector from an entry in a path map
-genPathSelector :: String -> Set Selector -> Selector
-genPathSelector elem pathset
-  -- All subsumes everything else, so short-circuit if it's in the pathset
-  | Set.member allSelector pathset = Path { pathElem = elem,
-                                            pathInner = allSelector }
+-- | Combine two selectors into a single one
+combineSelectors :: Selector -> Selector -> Selector
+combineSelectors s1 @ Selector { selectorInners = inners1, selectorTags = tags1 }
+                 s2 @ Selector { selectorInners = inners2, selectorTags = tags2 }
+  | s1 == allSelector || s2 == allSelector = allSelector
   | otherwise =
-    case Set.elems pathset of
-      -- Pull tags outside
-      [ t @ Tags { tagsInner = inner } ] ->
-        t { tagsInner = Path { pathElem = elem, pathInner = inner } }
-      -- For singleton sets, build a single path element
-      [ inner ] -> Path { pathElem = elem, pathInner = inner }
-      -- Otherwise, build a union
-      _ -> Path { pathElem = elem, pathInner = Union { unionInners = pathset } }
-
--- | Turn all cases of { tag1 } -> selector, { tag2 } -> selector into
--- { tag1, tag2 } -> selector
-combineTagSets :: Map (Set String) (Set Selector) ->
-                  Map (Set String) (Set Selector)
-combineTagSets pathmap =
-  let
-    combinefunc :: Set String -> Set String -> Set String
-    combinefunc a b
-      | a == Set.empty || b == Set.empty = Set.empty
-      | otherwise = Set.union a b
-    -- Build up a reverse map, from selectors to tag sets.  This will
-    -- combine all tag sets for each selector.
-    revmap :: Map Selector (Set String)
-    revmap =
-      Map.foldWithKey (\tagset selectors accum ->
-                        foldl (\accum' selector ->
-                                Map.insertWith combinefunc selector
-                                               tagset accum')
-                              accum selectors)
-                      Map.empty pathmap
-  in
-    -- Now rebuild the original map by reversing it again.
-    Map.foldWithKey (\selector tagset accum ->
-                      Map.insertWith Set.union tagset
-                                     (Set.singleton selector) accum)
-                    Map.empty revmap
-
--- | Generate a selector from an entry in a tagset map
-insertTagSetSelector :: Set String -> Set Selector -> Selector -> Set Selector
-insertTagSetSelector tags set inner
-  | tags == Set.empty = Set.insert inner set
-  | otherwise = Set.insert Tags { tagsInner = inner, tagsNames = tags } set
-
--- | Transform a tag set into a single normal-form Selector
-normalizeTagMapEntry :: Set String -> Set Selector ->
-                        Set Selector -> Set Selector
-normalizeTagMapEntry tags oldset newset
-  -- Short-circuit case: if the set contains an All, then it subsumes
-  -- everything else
-  | Set.member allSelector oldset = insertTagSetSelector tags newset allSelector
-  | otherwise = case Set.elems oldset of
-    -- Second short-circuit case: singleton set doesn't need to go
-    -- through the collectPathSets logic.
-    [ inner ] -> insertTagSetSelector tags newset inner
-    _ ->
-      let
-        -- Build the path map
-        pathmap :: Map String (Set Selector)
-        pathmap = foldl collectPathSets Map.empty oldset
-        -- Then convert it into a set of union elements
-        inners = Map.foldWithKey (\elem pathset accum ->
-                                   Set.insert (genPathSelector elem pathset)
-                                              accum)
-                       Set.empty $! pathmap
-      in case Set.elems inners of
-        -- If the set of union elements is a singleton, just return
-        -- the one element
-        [ inner ] -> insertTagSetSelector tags newset inner
-        -- Otherwise, build a union
-        _ -> Set.foldl (insertTagSetSelector tags) newset inners
-
--- | Walk all nested Union and Tags elements, and group all elements
--- into categories by which tags they filter for.
-collectTagSets :: Set String
-               -- ^ The selector being collected
-               -> Map (Set String) (Set Selector)
-               -- ^ The current set of tags
-               -> Selector
-               -- ^ A map from tag sets to selectors that filter by them
-               -> Map (Set String) (Set Selector)
--- For unions, fold over the inners
-collectTagSets tagset tagmap elem @ Union { unionInners = inners }
-  | Set.empty == inners =
-    Map.insertWith Set.union tagset (Set.singleton elem) tagmap
-  | otherwise =
-    Set.foldl (collectTagSets tagset) tagmap
-              (Set.map normalizeSelector inners)
--- For tags, add tags to the current tag set, and descend
-collectTagSets tagset tagmap Tags { tagsNames = tags, tagsInner = inner } =
-  collectTagSets (Set.union tagset tags) tagmap inner
--- For everything else, add the element to the mapping for the current tag set
-collectTagSets tagset tagmap elem =
-  Map.insertWith Set.union tagset
-                 (Set.singleton (normalizeSelector elem)) tagmap
-
-getTags :: Selector -> Set String
-getTags Tags { tagsNames = tags } = tags
-getTags Path {} = Set.empty
-getTags s = error ("Shouldn't see " ++ show s)
-
-removeTags :: Set String -> Selector -> Selector
-removeTags del t @ Tags { tagsNames = tags, tagsInner = inner }
-  | del == tags = inner
-  | otherwise = t { tagsNames = Set.difference tags del }
-removeTags _ s = error ("Shouldn't see " ++ show s)
-
--- | Normalize a Selector
-normalizeSelector' :: Set String -> Selector -> Selector
-normalizeSelector' tagset selector | selector == allSelector =
-  if tagset == Set.empty
-    then allSelector
-    else Tags { tagsNames = tagset, tagsInner = allSelector }
--- For this case, we have three degeneracies to worry about:
--- overlapping union members, nested unions, singleton unions.
-normalizeSelector' tagset Union { unionInners = inners } =
-  let
-    norminners = Set.map (normalizeSelector' tagset) inners
-  in case Set.elems norminners of
-    -- For singleton sets, just normalize the single element
-    [ inner ] -> inner
-    -- Fast short-circuit case if inners contains an All
-    _ -> if Set.member allSelector norminners then allSelector
-      else
-        let
-          -- Build the tag map
-          tagmap :: Map (Set String) (Set Selector)
-          tagmap = combineTagSets (foldl (collectTagSets Set.empty)
-                                         Map.empty norminners)
-          -- Then convert it into a set of union elements
-          newinners = Map.foldWithKey normalizeTagMapEntry Set.empty $! tagmap
-        in case Map.lookup Set.empty tagmap of
-          -- If we have a zero-tag set that contains All, it
-          -- subsumes everything
-          Just notagmap | Set.member allSelector notagmap -> allSelector
-          _ -> case Set.elems newinners of
-            -- If the set of union elements is a singleton, just return
-            -- the one element
-            [ inner ] -> inner
-            -- Otherwise, build a union
-            elems ->
-              let
-                common = foldl1 Set.intersection (map getTags elems)
-              in
-                if common == Set.empty
-                  then Union { unionInners = newinners }
-                  else Tags { tagsInner =
-                                 Union { unionInners =
-                                            Set.map (removeTags common)
-                                                    newinners },
-                              tagsNames = common }
--- For paths, move any tags elements to the outside
-normalizeSelector' tagset p @ Path { pathInner = inner } =
-  case normalizeSelector' tagset inner of
-    -- For tags, swap places
-    t @ Tags { tagsInner = inner' } -> t { tagsInner = p { pathInner = inner' } }
-    -- Otherwise, install the normalized inner
-    inner' -> p { pathInner = inner' }
--- For a tags element, combine two immediately nested tags
-normalizeSelector' tagset Tags { tagsNames = tags, tagsInner = inner } =
-  normalizeSelector' (Set.union tagset tags) inner
-
-normalizeSelector :: Selector -> Selector
-normalizeSelector = normalizeSelector' Set.empty
+    Selector { selectorInners = Map.unionWith combineSelectors inners1 inners2,
+               selectorTags = combineTags tags1 tags2 }
 
 -- | Collect all the selectors from filters that apply to all suites
 collectUniversals :: Filter -> Set Selector -> Set Selector
@@ -272,7 +102,8 @@ collectSelectors :: Filter
 collectSelectors Filter { filterSuites = suites, filterSelector = selector }
                  suitemap =
     foldl (\suitemap' suite -> Map.insertWith Set.union suite
-                               (Set.singleton selector) suitemap')
+                                              (Set.singleton selector)
+                                              suitemap')
           suitemap suites
 
 -- | Take a list of test suite names and a list of filters, and build
@@ -299,13 +130,12 @@ suiteSelectors allsuites filters
           then foldl (\suitemap suite -> Map.insert suite universals suitemap)
                      Map.empty allsuites
           else Map.empty
-      -- Now collect all the suite-specific selectors
-      suiteMap = foldr collectSelectors initMap filters
 
-      -- Last thing we want to do is normalize all the map entries
-      mapfun selectors = normalizeSelector Union { unionInners = selectors }
+      -- Now collect all the suite-specific selectors
+      suiteMap :: Map String (Set Selector)
+      suiteMap = foldr collectSelectors initMap filters
     in
-      Map.map mapfun suiteMap
+      Map.map (foldl1 combineSelectors . Set.elems) suiteMap
 
 namesParser :: GenParser Char st [String]
 namesParser = sepBy1 (many1 alphaNum) (string ",")
@@ -330,15 +160,18 @@ filterParser =
 makeFilter :: ([String], [String], [String]) -> Filter
 makeFilter (suites, path, tags) =
   let
-    genPath [] = allSelector
-    genPath (elem : rest) = Path { pathElem = elem, pathInner = genPath rest }
+    withTags = case tags of
+      [] -> allSelector
+      _ -> allSelector { selectorTags = Just $! Set.fromList tags }
+
+    genPath [] = withTags
+    genPath (elem : rest) =
+      Selector { selectorInners = Map.singleton elem $! genPath rest,
+                 selectorTags = Nothing }
 
     withPath = genPath path
-    withTags = case tags of
-      [] -> withPath
-      _ -> Tags { tagsNames = Set.fromList tags, tagsInner = withPath }
   in
-   Filter { filterSuites = Set.fromList suites, filterSelector = withTags }
+   Filter { filterSuites = Set.fromList suites, filterSelector = withPath }
 
 -- | Parse a Filter expression
 parseFilter :: String
