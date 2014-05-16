@@ -68,6 +68,24 @@ combineTags (Just a) (Just b)
   -- Otherwise, we do set union
   | otherwise = Just $! Set.union a b
 
+-- | Take the difference of one set of tags from another
+diffTags :: Maybe (Set String) -> Maybe (Set String) -> Maybe (Set String)
+-- Nothing means we can't execute, so if the other side says we can,
+-- we can.
+diffTags Nothing _ = Nothing
+diffTags t Nothing = t
+diffTags (Just a) (Just b)
+  | a == Set.empty = Just Set.empty
+  | b == Set.empty = Nothing
+  -- Otherwise, we do set union
+  | otherwise =
+    let
+      diff = Set.difference a b
+    in
+      if diff == Set.empty
+        then Nothing
+        else Just $! diff
+
 -- | A @Filter@ that selects everything
 passFilter :: Filter
 passFilter = Filter { filterSuites = Set.empty, filterSelector = allSelector }
@@ -77,14 +95,68 @@ allSelector :: Selector
 allSelector = Selector { selectorInners = Map.empty,
                          selectorTags = Just Set.empty }
 
+reduceSelector :: Maybe (Set String) -> Selector -> Maybe Selector
+reduceSelector parentTags Selector { selectorInners = inners,
+                                     selectorTags = tags } =
+  let
+    newTags = diffTags tags parentTags
+    newParentTags = combineTags parentTags tags
+    newInners = Map.mapMaybe (reduceSelector newParentTags) inners
+  in
+    if newTags == Nothing && newInners == Map.empty
+      then Nothing
+      else Just $! Selector { selectorInners = inners, selectorTags = tags }
+
 -- | Combine two selectors into a single one
 combineSelectors :: Selector -> Selector -> Selector
-combineSelectors s1 @ Selector { selectorInners = inners1, selectorTags = tags1 }
-                 s2 @ Selector { selectorInners = inners2, selectorTags = tags2 }
-  | s1 == allSelector || s2 == allSelector = allSelector
-  | otherwise =
-    Selector { selectorInners = Map.unionWith combineSelectors inners1 inners2,
-               selectorTags = combineTags tags1 tags2 }
+combineSelectors selector1 selector2 =
+  let
+    combineSelectors' :: Maybe (Set String) -> Selector -> Selector ->
+                         Maybe Selector
+    combineSelectors' parentTags
+                      s1 @ Selector { selectorInners = inners1,
+                                      selectorTags = tags1 }
+                      s2 @ Selector { selectorInners = inners2,
+                                      selectorTags = tags2 }
+      | s1 == allSelector || s2 == allSelector = Just allSelector
+      | otherwise =
+        let
+          combinedTags = combineTags tags1 tags2
+          newTags = diffTags combinedTags parentTags
+          newParentTags = combineTags combinedTags parentTags
+
+          firstpass :: Map String Selector -> String -> Selector ->
+                       Map String Selector
+          firstpass accum elem inner =
+            case Map.lookup elem inners1 of
+              Just inner' -> case combineSelectors' newParentTags inner inner' of
+                Just entry -> Map.insert elem entry accum
+                Nothing -> accum
+              Nothing -> case reduceSelector newParentTags inner of
+                Just entry -> Map.insert elem entry accum
+                Nothing -> accum
+
+          secondpass :: Map String Selector -> String -> Selector ->
+                        Map String Selector
+          secondpass accum elem inner =
+            case Map.lookup elem accum of
+              Nothing -> case reduceSelector newParentTags inner of
+                Just entry -> Map.insert elem entry accum
+                Nothing -> accum
+              Just _ -> accum
+
+          firstPassMap = Map.foldlWithKey firstpass Map.empty inners2
+          newInners = Map.foldlWithKey secondpass firstPassMap inners1
+        in
+          if newTags == Nothing && newInners == Map.empty
+            then Nothing
+            else Just $! Selector { selectorInners = newInners,
+                                    selectorTags = newTags }
+  in
+    case combineSelectors' Nothing selector1 selector2 of
+      Just out -> out
+      Nothing -> error ("Got Nothing back from combineSelectors " ++
+                        show selector1 ++ " " ++ show selector2)
 
 -- | Collect all the selectors from filters that apply to all suites
 collectUniversals :: Filter -> Set Selector -> Set Selector
