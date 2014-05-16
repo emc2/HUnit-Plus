@@ -349,11 +349,11 @@ outerInnerAndInnerPath =
                                             ("Inner", allSelector)],
              selectorTags = Nothing }
 
-outerAndTag1InnerPath :: Selector
-outerAndTag1InnerPath =
+tag1OuterAndInnerPath :: Selector
+tag1OuterAndInnerPath =
   Selector { selectorInners = Map.fromList [("Outer", allSelector),
-                                            ("Inner", tag1 allSelector)],
-             selectorTags = Nothing }
+                                            ("Inner", allSelector)],
+             selectorTags = Just $! Set.singleton "tag1" }
 
 tag1 :: Selector -> Selector
 tag1 inner = inner { selectorTags = Just $! Set.singleton "tag1" }
@@ -399,9 +399,9 @@ combineSelectorTestCases =
    ("Outer__tag1_Outer", outerPath allSelector, tag1 (outerPath allSelector),
     tag1 (outerPath allSelector)),
    ("tag1_Inner__Outer", tag1 (innerPath allSelector), outerPath allSelector,
-    outerAndTag1InnerPath),
+    tag1OuterAndInnerPath),
    ("Outer__tag1_Inner", outerPath allSelector, tag1 (innerPath allSelector),
-    outerAndTag1InnerPath),
+    tag1OuterAndInnerPath),
    ("tag1_Outer__tag1_Inner", tag1 (innerPath allSelector),
     tag1 (outerPath allSelector),
     tag1 outerAndInnerPath),
