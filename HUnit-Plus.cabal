@@ -1,5 +1,5 @@
 Name:                   HUnit-Plus
-Version:                0.1.0.1
+Version:                0.2.0.0
 Synopsis:               A test framework building on HUnit.
 Description:
   HUnit-Plus is a testing framework for Haskell that builds on the
