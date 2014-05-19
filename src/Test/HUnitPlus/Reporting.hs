@@ -5,7 +5,7 @@
 -- for these events, which have access to and update a
 -- [@Reporter@]-defined state value.  The handlers in a [@Reporter@]
 -- are called at appropriate points during text execution.
-module Test.HUnit.Reporting(
+module Test.HUnitPlus.Reporting(
        Node(..),
        State(..),
        Counts(..),

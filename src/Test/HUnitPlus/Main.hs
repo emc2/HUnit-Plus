@@ -8,7 +8,7 @@
 --
 -- The [@main@] herein obtains and parses the command-line options,
 -- then executes tests accordingly.
-module Test.HUnit.Main(
+module Test.HUnitPlus.Main(
        Opts(..),
        ConsoleMode(..),
        opts,
@@ -23,12 +23,12 @@ import Data.Map(Map)
 import System.Console.CmdArgs hiding (Quiet)
 import System.Exit
 import System.IO
-import Test.HUnit.Base hiding (name)
-import Test.HUnit.Execution
-import Test.HUnit.Filter
-import Test.HUnit.Reporting hiding (Node)
-import Test.HUnit.Text
-import Test.HUnit.XML
+import Test.HUnitPlus.Base hiding (name)
+import Test.HUnitPlus.Execution
+import Test.HUnitPlus.Filter
+import Test.HUnitPlus.Reporting hiding (Node)
+import Test.HUnitPlus.Text
+import Test.HUnitPlus.XML
 import Text.XML.Expat.Format
 import Text.XML.Expat.Tree(Node)
 

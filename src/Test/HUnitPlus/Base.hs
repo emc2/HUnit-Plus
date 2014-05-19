@@ -10,7 +10,7 @@
 --   implementing test controllers (which are used to execute tests). 
 --   See "Test.HUnit.Text" for a great example of how to implement a test 
 --   controller.
-module Test.HUnit.Base(
+module Test.HUnitPlus.Base(
        -- ** Declaring tests
        Test(..),
        TestInstance(..),
@@ -57,7 +57,7 @@ import Distribution.TestSuite
 import Prelude hiding (concat, sum, sequence_)
 import System.IO.Unsafe
 import System.TimeIt
-import Test.HUnit.Reporting
+import Test.HUnitPlus.Reporting
 
 -- | An exception used to abort test execution immediately
 data TestException =

@@ -1,10 +1,10 @@
-module Tests.Test.HUnit.Main where
+module Tests.Test.HUnitPlus.Main where
 
 import Data.List
 import Distribution.TestSuite
 import System.Directory
-import Test.HUnit.Main
-import Test.HUnit.Base
+import Test.HUnitPlus.Main
+import Test.HUnitPlus.Base
 
 makeMainTest :: (String, IO (), IO (), Bool, [TestSuite], Opts) -> Test
 makeMainTest (name, setup, cleanup, shouldPass, suites, opts) =

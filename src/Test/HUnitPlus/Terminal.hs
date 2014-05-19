@@ -2,7 +2,7 @@
 
 -- | This module handles the complexities of writing information to the
 -- terminal, including modifying text in place.
-module Test.HUnit.Terminal(
+module Test.HUnitPlus.Terminal(
        terminalAppearance
        ) where
 

@@ -1,4 +1,4 @@
-module Tests.Test.HUnit.Reporting(tests) where
+module Tests.Test.HUnitPlus.Reporting(tests) where
 
 import Data.List
 import Distribution.TestSuite(Test(..),
@@ -6,10 +6,10 @@ import Distribution.TestSuite(Test(..),
                               Progress(Finished),
                               Result(Pass, Fail),
                               testGroup)
-import Test.HUnit.Reporting
-import Tests.Test.HUnit.ReporterUtils(ReportEvent(..))
+import Test.HUnitPlus.Reporting
+import Tests.Test.HUnitPlus.ReporterUtils(ReportEvent(..))
 
-import qualified Tests.Test.HUnit.ReporterUtils as Utils
+import qualified Tests.Test.HUnitPlus.ReporterUtils as Utils
 
 type ReporterState = [ReportEvent]
 type CombinedReporterState = (ReporterState, ReporterState)

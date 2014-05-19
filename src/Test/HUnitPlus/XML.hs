@@ -2,7 +2,7 @@
 
 -- | Test controller for running HUnit tests and reporting results as
 --   JUnit-style XML reports.
-module Test.HUnit.XML(
+module Test.HUnitPlus.XML(
        -- * XML Generation
        propertyElem,
        propertiesElem,
@@ -23,8 +23,8 @@ import Data.Time
 import Data.Word
 import Network.HostName
 import System.Locale
-import Test.HUnit.Reporting(Reporter(..), State(..), Counts(..),
-                            defaultReporter, showPath)
+import Test.HUnitPlus.Reporting(Reporter(..), State(..), Counts(..),
+                                defaultReporter, showPath)
 import Text.XML.Expat.Tree
 
 import qualified Data.Map as Map

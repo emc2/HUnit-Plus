@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 
-module Test.HUnit.Execution(
+module Test.HUnitPlus.Execution(
        performTestCase,
        performTest,
        performTestSuite,
@@ -12,9 +12,9 @@ import Distribution.TestSuite
 import Data.Map(Map)
 import Prelude hiding (elem)
 import System.TimeIt
-import Test.HUnit.Base
-import Test.HUnit.Filter
-import Test.HUnit.Reporting
+import Test.HUnitPlus.Base
+import Test.HUnitPlus.Filter
+import Test.HUnitPlus.Reporting
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map

@@ -68,13 +68,11 @@
 --    \>
 -- @
 
-module Test.HUnit
-(
-  module Test.HUnit.Base,
-  module Test.HUnit.Text
-)
-where
+module Test.HUnitPlus(
+       module Test.HUnitPlus.Base,
+       module Test.HUnitPlus.Text
+       ) where
 
-import Test.HUnit.Base
-import Test.HUnit.Text
+import Test.HUnitPlus.Base
+import Test.HUnitPlus.Text
 

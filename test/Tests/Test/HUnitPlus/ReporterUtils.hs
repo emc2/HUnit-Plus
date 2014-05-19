@@ -1,9 +1,9 @@
-module Tests.Test.HUnit.ReporterUtils where
+module Tests.Test.HUnitPlus.ReporterUtils where
 
 import Control.Monad
 import Data.Word
 import Distribution.TestSuite(Result(Pass, Fail))
-import Test.HUnit.Reporting
+import Test.HUnitPlus.Reporting
 
 import qualified Data.Map as Map
 

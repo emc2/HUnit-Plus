@@ -1,13 +1,13 @@
-module Tests.Test.HUnit.Execution where
+module Tests.Test.HUnitPlus.Execution where
 
 import Data.List
 import Data.Map(Map)
 import Data.Maybe
 import Distribution.TestSuite
-import Test.HUnit.Base
-import Test.HUnit.Execution
-import Test.HUnit.Filter
-import Test.HUnit.Reporting
+import Test.HUnitPlus.Base
+import Test.HUnitPlus.Execution
+import Test.HUnitPlus.Filter
+import Test.HUnitPlus.Reporting
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map

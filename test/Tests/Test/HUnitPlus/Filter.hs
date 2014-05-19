@@ -1,9 +1,9 @@
-module Tests.Test.HUnit.Filter(tests) where
+module Tests.Test.HUnitPlus.Filter(tests) where
 
 import Data.List
 import Data.Map(Map)
 import Distribution.TestSuite
-import Test.HUnit.Filter
+import Test.HUnitPlus.Filter
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set

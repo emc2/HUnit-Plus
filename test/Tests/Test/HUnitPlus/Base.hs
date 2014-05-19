@@ -1,4 +1,4 @@
-module Tests.Test.HUnit.Base(tests) where
+module Tests.Test.HUnitPlus.Base(tests) where
 
 import Data.List
 import Debug.Trace
@@ -7,12 +7,12 @@ import Distribution.TestSuite(Test(..),
                               Result(..),
                               Progress(..),
                               testGroup)
-import Test.HUnit.Base
-import Test.HUnit.Reporting
+import Test.HUnitPlus.Base
+import Test.HUnitPlus.Reporting
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Tests.Test.HUnit.ReporterUtils as Utils
+import qualified Tests.Test.HUnitPlus.ReporterUtils as Utils
 
 type ReportEvent = Utils.ReportEvent
 

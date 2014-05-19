@@ -3,7 +3,7 @@
 -- | Text-based test controller for running HUnit tests and reporting
 --   results as text, usually to a terminal.
 
-module Test.HUnit.Text(
+module Test.HUnitPlus.Text(
        PutText(..),
        putTextToHandle,
        putTextToShowS,
@@ -19,10 +19,10 @@ module Test.HUnit.Text(
        ) where
 
 import Distribution.TestSuite
-import Test.HUnit.Base
-import Test.HUnit.Execution
-import Test.HUnit.Filter
-import Test.HUnit.Reporting
+import Test.HUnitPlus.Base
+import Test.HUnitPlus.Execution
+import Test.HUnitPlus.Filter
+import Test.HUnitPlus.Reporting
 
 import Control.Monad (when)
 import System.IO (Handle, stderr, hPutStr, hPutStrLn)

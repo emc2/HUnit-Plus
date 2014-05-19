@@ -1,18 +1,18 @@
-module Tests.Test.HUnit.XML(tests) where
+module Tests.Test.HUnitPlus.XML(tests) where
 
 import Control.Monad
 import Data.Word
 import Distribution.TestSuite
 import Network.HostName
 import System.IO.Unsafe
-import Test.HUnit.XML
-import Test.HUnit.Reporting hiding (Node)
+import Test.HUnitPlus.XML
+import Test.HUnitPlus.Reporting hiding (Node)
 import Text.XML.Expat.Format
 import Text.XML.Expat.Tree
 
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy.Char8 as BC
-import qualified Tests.Test.HUnit.ReporterUtils as Utils
+import qualified Tests.Test.HUnitPlus.ReporterUtils as Utils
 
 type ReporterState = [[Node String String]]
 type ReporterOp = Utils.ReporterOp ReporterState

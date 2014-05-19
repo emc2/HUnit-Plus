@@ -5,11 +5,11 @@
 -- [@Distribution.TestSuite@] module, plus the [@TestSuite@]
 -- definition in [@Test.HUnit.Base@].  They are included to provide
 -- backward-compatibility with existing HUnit test suites.
-module Test.HUnit.Legacy(
+module Test.HUnitPlus.Legacy(
        Test(..)
        ) where
 
-import Test.HUnit.Base hiding (Test)
+import Test.HUnitPlus.Base hiding (Test)
 
 -- Test Definition
 -- ===============

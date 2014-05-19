@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
 -- | Filters for running tests.  These are used by
--- [@Test.HUnit.Execution@] to select which tests are run.  It is
--- important to note that [@Filter@]s and [@Selector@]s may specify
+-- @Test.HUnit.Execution@ to select which tests are run.  It is
+-- important to note that @Filter@s and @Selector@s may specify
 -- that a test should be run multiple times, but with different options.
-module Test.HUnit.Filter(
+module Test.HUnitPlus.Filter(
        Selector(..),
        Filter(..),
        combineTags,
@@ -30,7 +30,7 @@ import Text.ParserCombinators.Parsec hiding (try)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
--- | A @Selector@ is a tree structure used to select and run tests
+-- | A @Selector@ is a tree-like structure used to select and run tests
 -- within one or more suites.
 data Selector =
     Selector {
