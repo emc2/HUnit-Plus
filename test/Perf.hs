@@ -8,7 +8,6 @@ import Test.HUnitPlus.Execution
 import Test.HUnitPlus.Filter
 import Test.HUnitPlus.Reporting
 
-import qualified Data.HashTable.IO as HashTable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -71,8 +70,9 @@ runPerf dryrun ["run_tests", widthstr, heightstr] =
 
     height :: Word
     height = read heightstr
+
+    selectormap = Map.singleton "suite" allSelector
   in do
-    selectormap <- HashTable.fromListWithSizeHint 1 [("suite", allSelector)]
     tree <- makeTestTree width height width []
     _ <- performTestSuites quietReporter selectormap
                            [TestSuite { suiteName = "suite", suiteTests = [tree],
@@ -94,7 +94,7 @@ runPerf dryrun ["filters", selectorsstr, suitesstr] =
 
     fakesuite = makeFakeSuites numsuites []
   in do
-    selectormap <- suiteSelectors suites filters
+    selectormap <- return $! (suiteSelectors suites filters)
     _ <- performTestSuites quietReporter selectormap fakesuite
     return ()
 
