@@ -2,11 +2,11 @@
 
 -- | The legacy test definitions for compatibility with the original
 -- HUnit library.  These are not guaranteed to be compatible for all
--- cases, but they should work for most.  The "Testable" instance
+-- cases, but they should work for most.  The 'Testable' instance
 -- converts them into "Distribution.TestSuite" tests, with no tags.
 --
 -- These are deprecated in favor of the test definitions from the
--- Cabal "Distribution.TestSuite" module, plus the "TestSuite"
+-- Cabal "Distribution.TestSuite" module, plus the 'TestSuite'
 -- definition in "Test.HUnitPlus.Base".
 module Test.HUnitPlus.Legacy(
        Test(..)

@@ -78,7 +78,7 @@ errorElem message = Element { eAttributes = [("message", message)],
 testcaseElem :: String
              -- ^ The name of the test
              -> String
-             -- ^ The path to the test (reported as "classname")
+             -- ^ The path to the test (reported as \"classname\")
              -> Word
              -- ^ The number of assertions in the test
              -> Double

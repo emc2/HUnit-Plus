@@ -1,14 +1,14 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
 -- | Reporting functionality for HUnit-Plus.  Test reporting is now
--- defined using a set of events.  A "Reporter" contains handlers for
--- these events, which have access to and update a "Reporter"-defined
--- state value.  The handlers in a "Reporter" are called at
+-- defined using a set of events.  A 'Reporter' contains handlers for
+-- these events, which have access to and update a 'Reporter'-defined
+-- state value.  The handlers in a 'Reporter' are called at
 -- appropriate points during text execution.
 --
--- This module also contains a basic "defaultReporter" that simply
+-- This module also contains a basic 'defaultReporter' that simply
 -- passes the state value through unchanged.  It also defines
--- "combinedReporter", which facilitates 'gluing' two "Reporter"s
+-- 'combinedReporter', which facilitates \"gluing\" two 'Reporter's
 -- together.
 module Test.HUnitPlus.Reporting(
        Node(..),
@@ -161,7 +161,7 @@ data Reporter us = Reporter {
                   -> IO us
   }
 
--- | A "Counts" with all zero counts.
+-- | A 'Counts' with all zero counts.
 zeroCounts :: Counts
 zeroCounts = Counts { cCases = 0, cTried = 0, cErrors = 0,
                       cFailures = 0, cAsserts = 0, cSkipped = 0 }
@@ -196,7 +196,7 @@ showPath nodes =
   in
     intercalate "." (reverse (map showNode nodes))
 
--- | Combines two "Reporter"s into a single reporter that calls both.
+-- | Combines two 'Reporter's into a single reporter that calls both.
 combinedReporter :: Reporter us1 -> Reporter us2 -> Reporter (us1, us2)
 combinedReporter Reporter { reporterStart = reportStart1,
                             reporterEnd = reportEnd1,

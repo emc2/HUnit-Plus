@@ -1,13 +1,14 @@
 -- | HUnit-Plus is a unit testing framework for Haskell, based on the
--- original HUnit framework.
+-- older HUnit framework.
 --
--- In the Haskell module where your tests will reside, import module 
--- "Test.HUnitPlus":
+-- To use HUnit-Plus,  first import the module "Test.HUnitPlus":
 --
 -- > import Test.HUnitPlus
 --
--- There are a number of facilities which can be used to define test
--- cases.
+-- HUnit-Plus provides the same succinct syntax for defining test as
+-- HUnit.  However, HUnit-Plus tests use the data structures from
+-- "Distribution.TestSuite" to describe tests, as opposed to the data
+-- structures used by HUnit.
 -- 
 -- > test1 = "test1" ~: (assertEqual "for (foo 3)," (1,2) (foo 3))
 -- > test2 = "test2" ~: (do (x,y) <- partA 3
@@ -36,7 +37,7 @@
 -- > test1Tags = testTags ["demo"] test1
 -- > test5 = testNameTags "test5" ["demo"] (a @?= b)
 --
--- You can also create tests from groups of tests:
+-- You can also create groups of tests:
 --
 -- > testgroup3 = "group3" ~: [ test1, test2, testgroup1, test3 ]
 --
@@ -67,7 +68,7 @@
 -- You can also generate various kinds of reports, and control console
 -- output:
 --
--- > $> ./testprog --xmlreport --txtreport --consolemode=quiet
+-- > $> ./testprog --xmlreport --txtreport --consolemode=quiet --testlist=tests
 --
 -- You can also use the 'topLevel' function to supply options to test
 -- execution and get the result, allowing limited integration with a

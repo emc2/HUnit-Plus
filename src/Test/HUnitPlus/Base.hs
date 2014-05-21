@@ -14,6 +14,11 @@
 -- single test.  HUnit-Plus contains several \"abort\" functions,
 -- which can be used to terminate a test immediately.
 --
+-- HUnit-Plus test execution handles exceptions.  An uncaught
+-- exception will cause the test to report an error (along with any
+-- failures and/or errors that have occurred so far), and test
+-- execution and reporting will continue.
+--
 -- The data structures for describing tests are the same as those in
 -- the "Distribution.TestSuite" module used by cabal's testing
 -- facilities.  This allows for easy interfacing with cabal's

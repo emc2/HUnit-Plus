@@ -1,21 +1,18 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
--- | Filters for selecting which tests to run.  These are used by
--- "Test.HUnitPlus.Execution" and "Test.HUnitPlus.Main" to select
--- which tests are run.
---
--- Filters can specify tests belonging to a certain suite, starting
--- with a certain path, having a certain tag, or combinations thereof.
+-- | Sets HUnit-Plus tests can be specified using 'Filter's.  These
+-- are used by "Test.HUnitPlus.Execution" and "Test.HUnitPlus.Main" to
+-- select which tests are run.  Filters can specify tests belonging to
+-- a certain suite, starting with a certain path, having a certain
+-- tag, or combinations thereof.
 --
 -- Filters are optimized for the behavior of programs created by the
--- 'createMain' function, which runs a test if it matches /any/
--- of the filters specified.
---
--- There is also a string format for filters, which is how filters are
--- specified in testlist files and command-line arguments.  The format
--- is optimized for simplicity, and as such, it is not necessarily
--- possible to describe a given "Filter" with a single textual
--- representation of a filter.
+-- 'createMain' function, which runs a test if it matches /any/ of the
+-- filters specified.  There is also a string format for filters,
+-- which is how filters are specified in testlist files and
+-- command-line arguments.  The format is optimized for simplicity,
+-- and as such, it is not necessarily possible to describe a given
+-- "Filter" with a single textual representation of a filter.
 --
 -- The format for filters is as follows:
 --
