@@ -1,36 +1,48 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 {-# LANGUAGE FlexibleInstances, DeriveDataTypeable #-}
 
--- | Basic definitions for the HUnit library.
--- 
---   This module contains what you need to create assertions and test cases and
---   combine them into test suites. 
--- 
---   This module also provides infrastructure for 
---   implementing test controllers (which are used to execute tests). 
---   See "Test.HUnit.Text" for a great example of how to implement a test 
---   controller.
+-- | Basic definitions for the HUnitPlus library.
+--
+-- This module contains what you need to create assertions and test
+-- cases and combine them into test suites.
+--
+-- The assertion and test definition operators are the same as those
+-- found in the HUnit library.  However, an important note is that the
+-- behavior of assertions in HUnit-Plus differs from those in HUnit.
+-- HUnit-Plus assertions do /not/ stop executing a test if they fail,
+-- and are designed so that multiple assertions can be made by a
+-- single test.  HUnit-Plus contains several \"abort\" functions,
+-- which can be used to terminate a test immediately.
+--
+-- The data structures for describing tests are the same as those in
+-- the "Distribution.TestSuite" module used by cabal's testing
+-- facilities.  This allows for easy interfacing with cabal's
+-- @detailed@ testing scheme.
+--
+-- This gives rise to a grid possible use cases: creating a test using
+-- the HUnit-Plus facilities vs. executing an existing
+-- "Distribution.TestSuite" test which was not created by the
+-- facilities in this module, and executing a test with HUnit-Plus vs
+-- executing it with another test framework.  The 'executeTest'
+-- function is designed to cope with either possible origin of a test,
+-- and the 'Testable' instances are designed to produce tests which
+-- work as expected in either possible execution environment.
 module Test.HUnitPlus.Base(
-       -- ** Declaring tests
+       -- * Test Definition
        Test(..),
        TestInstance(..),
        TestSuite(..),
+
+       -- ** Extended Test Creation
+       Testable(..),
 
        (~=?),
        (~?=),
        (~:),
        (~?),
 
-       -- ** Low-level Test Functions
-       executeTest,
-       logAssert,
-       logFailure,
-       logError,
-       withPrefix,
-       getErrors,
-       getFailures,
 
-       -- ** Making assertions
+       -- * Assertions
        Assertion,
        assertSuccess,
        assertFailure,
@@ -40,12 +52,20 @@ module Test.HUnitPlus.Base(
        assertString,
        assertStringWithPrefix,
        assertEqual,
+       -- ** Extended Assertion Functionality
+       Assertable(..),
        (@=?),
        (@?=),
        (@?),
-       -- ** Extending the assertion functionality
-       Assertable(..),
-       Testable(..),
+
+       -- * Low-level Test Functions
+       executeTest,
+       logAssert,
+       logFailure,
+       logError,
+       withPrefix,
+       getErrors,
+       getFailures
        ) where
 
 import Control.Exception hiding (assert)
@@ -59,12 +79,12 @@ import System.IO.Unsafe
 import System.TimeIt
 import Test.HUnitPlus.Reporting
 
--- | An exception used to abort test execution immediately
+-- | An 'Exception' used to abort test execution immediately.
 data TestException =
   TestException {
-    -- | Whether this is a failure or an error
+    -- | Whether this is a failure or an error.
     teError :: !Bool,
-    -- | The failure (or error) message
+    -- | The failure (or error) message.
     teMsg :: !String
   } deriving (Show, Typeable)
 
@@ -74,7 +94,7 @@ instance Exception TestException
 -- =====================
 data TestInfo =
   TestInfo {
-    -- | Current counts of assertions, tried, failed, and errors
+    -- | Current counts of assertions, tried, failed, and errors.
     tiAsserts :: !Word,
     -- | Events that have been logged
     tiEvents :: ![(Word, String)],
@@ -102,17 +122,17 @@ sysErrCode = 3
 testinfo :: IORef TestInfo
 testinfo = unsafePerformIO $ newIORef undefined
 
--- | Do the actual work of executing a test.  This maintains the
+-- | Does the actual work of executing a test.  This maintains the
 -- necessary bookkeeping recording assertions and failures, It also
 -- sets up exception handlers and times the test.
 executeTest :: Reporter us
-            -- ^ The reporter to use for reporting results
+            -- ^ The reporter to use for reporting results.
             -> State
-            -- ^ The HUnit internal state
+            -- ^ The HUnit internal state.
             -> us
-            -- ^ The reporter state
+            -- ^ The reporter state.
             -> IO Progress
-            -- ^ The test to run
+            -- ^ The test to run.
             -> IO (Double, State, us)
 executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
             ss usInitial runTest =
@@ -151,7 +171,7 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
     (ssReported, usReported) <- reportTestInfo res rep ss usFinished
     return (time, ssReported, usReported)
 
--- | Interface between invisible @TestInfo@ and the rest of the test
+-- | Interface between invisible 'TestInfo' and the rest of the test
 -- execution framework.
 reportTestInfo :: Result -> Reporter us -> State -> us -> IO (State, us)
 reportTestInfo result Reporter { reporterError = reportError,
@@ -214,7 +234,7 @@ reportTestInfo result Reporter { reporterError = reportError,
                                      else errors } },
                      eventsUs)
 
--- | Indicate that the result of a test is already reflected in the testinfo
+-- | Indicate that the result of a test is already reflected in the testinfo.
 ignoreResult :: IO ()
 ignoreResult = modifyIORef testinfo (\t -> t { tiIgnoreResult = True })
 
@@ -224,7 +244,7 @@ resetTestInfo = writeIORef testinfo TestInfo { tiAsserts = 0,
                                                tiIgnoreResult = False,
                                                tiPrefix = "" }
 
--- | Execute the given computation with a message prefix
+-- | Execute the given computation with a message prefix.
 withPrefix :: String -> IO () -> IO ()
 withPrefix prefix c =
   do
@@ -249,7 +269,7 @@ logFailure msg =
   modifyIORef testinfo (\t -> t { tiEvents = (failureCode, tiPrefix t ++ msg) :
                                              tiEvents t })
 
--- | Get a combined failure message, if there is one
+-- | Get a combined failure message, if there is one.
 getFailures :: IO (Maybe String)
 getFailures =
   do
@@ -258,7 +278,7 @@ getFailures =
       [] -> return $ Nothing
       fails -> return $ (Just (concat (reverse fails)))
 
--- | Get a combined failure message, if there is one
+-- | Get a combined failure message, if there is one.
 getErrors :: IO (Maybe String)
 getErrors =
   do
@@ -349,11 +369,10 @@ assertEqual preface expected actual =
 
 -- | Allows the extension of the assertion mechanism.
 -- 
--- Since an 'Assertion' can be a sequence of @Assertion@s and @IO@ actions, 
--- there is a fair amount of flexibility of what can be achieved.  As a rule,
--- the resulting @Assertion@ should be the body of a 'TestCase' or part of
--- a @TestCase@; it should not be used to assert multiple, independent 
--- conditions.
+-- Since an 'Assertion' can be a sequence of @Assertion@s and @IO@
+-- actions, there is a fair amount of flexibility of what can be
+-- achieved.  As a rule, the resulting 'Assertion' should not assert
+-- multiple, independent conditions.
 -- 
 -- If more complex arrangements of assertions are needed, 'Test's and
 -- 'Testable' should be used.
@@ -403,7 +422,7 @@ instance ListAssertable Assertion where
 
 infix  1 @?, @=?, @?=
 
--- | Shorthand for @assertBool@.
+-- | Shorthand for 'assertBool'.
 (@?) :: (Assertable t) =>
         t
      -- ^ A value of which the asserted condition is predicated
@@ -413,7 +432,7 @@ infix  1 @?, @=?, @?=
 predi @? msg = assertWithMsg msg predi
 
 -- | Asserts that the specified actual value is equal to the expected value
---   (with the expected value on the left-hand side).
+-- (with the expected value on the left-hand side).
 (@=?) :: (Eq a, Show a)
       => a
       -- ^ The expected value
@@ -423,7 +442,7 @@ predi @? msg = assertWithMsg msg predi
 expected @=? actual = assertEqual "" expected actual
 
 -- | Asserts that the specified actual value is equal to the expected value
---   (with the actual value on the left-hand side).
+-- (with the actual value on the left-hand side).
 (@?=) :: (Eq a, Show a)
          => a
          -- ^ The actual value
@@ -438,22 +457,22 @@ actual @?= expected = assertEqual "" expected actual
 -- | Definition for a test suite.  This is intended to be a top-level
 -- (ie. non-nestable) container for tests.  Test suites have a name, a
 -- list of options with default values (which can be overridden either
--- at runtime or statically using [@ExtraOptions@]), and a set of
--- [@Test@]s to be run.
+-- at runtime or statically using 'ExtraOptions'), and a set of
+-- 'Test's to be run.
 --
 -- Individual tests are described using definitions found in cabal's
--- [@Distribution.TestSuite@] module, to allow for straightforward
+-- "Distribution.TestSuite" module, to allow for straightforward
 -- integration with cabal testing facilities.
 data TestSuite =
   TestSuite {
-    -- | The name of the test suite
+    -- | The name of the test suite.
     suiteName :: !String,
-    -- | Whether or not to run the tests concurrently
+    -- | Whether or not to run the tests concurrently.
     suiteConcurrently :: !Bool,
     -- | A list of all options used by this suite, and the default
-    -- values for those options
+    -- values for those options.
     suiteOptions :: [(String, String)],
-    -- | The tests in the suite
+    -- | The tests in the suite.
     suiteTests :: [Test]
   }
 

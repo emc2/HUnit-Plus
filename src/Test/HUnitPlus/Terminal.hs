@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 
--- | This module handles the complexities of writing information to the
--- terminal, including modifying text in place.
+-- | This module handles the complexities of writing information to
+-- the terminal, including modifying text in place.  This code is
+-- imported from the original HUnit library.
 module Test.HUnitPlus.Terminal(
        terminalAppearance
        ) where

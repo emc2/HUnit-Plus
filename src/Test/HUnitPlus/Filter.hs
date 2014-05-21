@@ -1,9 +1,66 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
--- | Filters for running tests.  These are used by
--- @Test.HUnit.Execution@ to select which tests are run.  It is
--- important to note that @Filter@s and @Selector@s may specify
--- that a test should be run multiple times, but with different options.
+-- | Filters for selecting which tests to run.  These are used by
+-- "Test.HUnitPlus.Execution" and "Test.HUnitPlus.Main" to select
+-- which tests are run.
+--
+-- Filters can specify tests belonging to a certain suite, starting
+-- with a certain path, having a certain tag, or combinations thereof.
+--
+-- Filters are optimized for the behavior of programs created by the
+-- 'createMain' function, which runs a test if it matches /any/
+-- of the filters specified.
+--
+-- There is also a string format for filters, which is how filters are
+-- specified in testlist files and command-line arguments.  The format
+-- is optimized for simplicity, and as such, it is not necessarily
+-- possible to describe a given "Filter" with a single textual
+-- representation of a filter.
+--
+-- The format for filters is as follows:
+--
+-- \[/suite/\]\[/path/\]\[/tags/\]
+--
+-- Where at least one of the /suite/, /path/, or /tags/ elements are present
+--
+-- The /suite/ element is a comma-separated list of suite names (alphanumeric,
+-- no spaces), enclosed in brackets ('[' ']').
+--
+-- The /path/ element is a series of path elements (alphanumeric, no
+-- spaces), separated by dots ('.').
+--
+-- The /tags/ element consists of a '\@' character, followed by a
+-- comma-separated list of tag names (alphanumeric, no spaces).
+--
+-- The following are examples of textual filters, and their meanings:
+--
+-- * @first.second.third@: Run all tests starting with the path
+--   @first.second.third@.  If there is a test named
+--   @first.second.third@, it will be run.
+--
+-- * @[unit]@: Run all tests in the suite 'unit'.
+--
+-- * @[unit,stress]@: Run all tests in the suites 'unit' and 'stress'
+--
+-- * @\@parser@: Run all tests with the 'parser' tag
+--
+-- * @\@parser,lexer@: Run all tests with the 'parser' /or/ the 'lexer' tags.
+--
+-- * @backend.codegen\@asm@: Run all tests starting with the path
+--   @backend.codegen@ with the 'asm' tag.
+--
+-- * @[stress]\@net@: Run all tests in the 'stress' suite with the tag 'net'.
+--
+-- * @[perf,profile]inner.outer@: Run all tests in the 'perf' and
+--   'profile' suites that start with the path @inner.outer@.
+--
+-- * @[whitebox]network.protocol\@security@: Run all tests in the
+--   'whitebox' suite beginning with the path @network.protocol@ that
+--   have the 'security' tag.
+--
+-- The most common use case of filters is to select a single failing
+-- test to run, as part of fixing it.  In this case, a single filter
+-- consisting of the path to the test will have this effect.
 module Test.HUnitPlus.Filter(
        Selector(..),
        Filter(..),
@@ -30,33 +87,38 @@ import Text.ParserCombinators.Parsec hiding (try)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
--- | A @Selector@ is a tree-like structure used to select and run tests
--- within one or more suites.
+-- | A tree-like structure that represents a set of tests within a
+-- given suite.
 data Selector =
     Selector {
-      -- | @Selector@s for subgroups of this one, indexed by the leading
-      -- path element.
+      -- | @Selector@s for subgroups of this one.  The entry for each
+      -- path element contains the @Selector@ to be used for that
+      -- group (or test).  An empty map actually means 'select all
+      -- tests'.
       selectorInners :: Map String Selector,
-      -- | Tags by which to filter all tests, or @Nothing@ if we cannot
-      -- execute local tests.  Note that the empty set actually means
-      -- "run all tests regardless of tags".
+      -- | Tags by which to filter all tests.  The empty set actually
+      -- means 'run all tests regardless of tags'.  'Nothing' means
+      -- that all tests will be skipped (though this will be
+      -- overridden by any @Selector@s in @selectorInners@.
       selectorTags :: !(Maybe (Set String))
     }
     deriving (Eq, Ord, Show)
 
--- | A @Filter@ specifies zero or more test suites, to which a
--- @Selector@ is then applied.  If no test suites are specified,
--- then the @Selector@ applies to all test suites.
+-- | Specifies zero or more test suites, to which the given 'Selector'
+-- is then applied.  If no test suites are specified, then the
+-- 'Selector' applies to all test suites.
 data Filter =
   Filter {
-    -- | The test suites to which the [@Selector@] applies.
+    -- | The test suites to which the 'Selector' applies.  The empty
+    -- set actually means 'all suites'.
     filterSuites :: !(Set String),
-    -- | The [@Selector@] to apply.
+    -- | The 'Selector' to apply.
     filterSelector :: !Selector
   }
   deriving (Ord, Eq, Show)
 
--- | Combine two tags fields into one.
+-- | Combine two 'selectorTags' fields into one.  This operation represents the
+-- union of the tests that are selected by the two fields.
 combineTags :: Maybe (Set String) -> Maybe (Set String) -> Maybe (Set String)
 -- Nothing means we can't execute, so if the other side says we can,
 -- we can.
@@ -68,7 +130,7 @@ combineTags (Just a) (Just b)
   -- Otherwise, we do set union
   | otherwise = Just $! Set.union a b
 
--- | Take the difference of one set of tags from another
+-- | Take the difference of one set of tags from another.
 diffTags :: Maybe (Set String) -> Maybe (Set String) -> Maybe (Set String)
 -- Nothing means we can't execute, so if the other side says we can,
 -- we can.
@@ -86,11 +148,11 @@ diffTags (Just a) (Just b)
         then Nothing
         else Just $! diff
 
--- | A @Filter@ that selects everything
+-- | A 'Filter' that selects all tests in all suites.
 passFilter :: Filter
 passFilter = Filter { filterSuites = Set.empty, filterSelector = allSelector }
 
--- | A @Selector@ that selects everything
+-- | A 'Selector' that selects all tests.
 allSelector :: Selector
 allSelector = Selector { selectorInners = Map.empty,
                          selectorTags = Just Set.empty }
@@ -107,7 +169,7 @@ reduceSelector parentTags Selector { selectorInners = inners,
       then Nothing
       else Just $! Selector { selectorInners = inners, selectorTags = tags }
 
--- | Combine two selectors into a single one
+-- | Combine two 'Selector's into a single 'Selector'.
 combineSelectors :: Selector -> Selector -> Selector
 combineSelectors selector1 selector2 =
   let
@@ -158,7 +220,7 @@ combineSelectors selector1 selector2 =
       Nothing -> error ("Got Nothing back from combineSelectors " ++
                         show selector1 ++ " " ++ show selector2)
 
--- | Collect all the selectors from filters that apply to all suites
+-- | Collect all the selectors from filters that apply to all suites.
 collectUniversals :: Filter -> Set Selector -> Set Selector
 collectUniversals Filter { filterSuites = suites,
                            filterSelector = selector } accum
@@ -178,13 +240,13 @@ collectSelectors Filter { filterSuites = suites, filterSelector = selector }
                                               suitemap')
           suitemap suites
 
--- | Take a list of test suite names and a list of filters, and build
--- a map that says for each test suite, which (normalized) selectors
--- should be run.
+-- | Take a list of test suite names and a list of 'Filter's, and
+-- build a 'Map' that says for each test suite, what (combined)
+-- 'Selector' should be used to select tests.
 suiteSelectors :: [String]
-               -- ^ The names of all test suites
+               -- ^ The names of all test suites.
                -> [Filter]
-               -- ^ The list of filters from which to build the map
+               -- ^ The list of 'Filter's from which to build the map.
                -> Map String Selector
 suiteSelectors allsuites filters
   -- Short-circuit case if we have no filters, we run everything
@@ -245,11 +307,12 @@ makeFilter (suites, path, tags) =
   in
    Filter { filterSuites = Set.fromList suites, filterSelector = withPath }
 
--- | Parse a Filter expression
+-- | Parse a 'Filter' expression.  The format for filter expressions is
+-- described in the module documentation.
 parseFilter :: String
-            -- ^ The name of the source
+            -- ^ The name of the source.
             -> String
-            -- ^ The input
+            -- ^ The input.
             -> Either String Filter
 parseFilter sourcename input =
   case parse filterParser sourcename input of
@@ -274,11 +337,14 @@ lineParser =
       ([], [], []) -> return $ Nothing
       _ -> return $ (Just (makeFilter content))
 
--- | Parse content from a filter file
+-- | Parse content from a testlist file.  The file must contain one
+-- filter per line.  Leading and trailing spaces are ignored, as are
+-- lines that contain no filter.  A @\#@ will cause the parser to skip
+-- the rest of the line.
 parseFilterFileContent :: String
-                       -- ^ The name of the input file
+                       -- ^ The name of the input file.
                        -> String
-                       -- ^ The file content
+                       -- ^ The file content.
                        -> Either [String] [Filter]
 parseFilterFileContent sourcename input =
   let
@@ -288,7 +354,8 @@ parseFilterFileContent sourcename input =
     ([], maybes) -> Right (catMaybes maybes)
     (errs, _) -> Left (map show errs)
 
--- | Parse the contents of a testlist file
+-- | Given a 'FilePath', get the contents of the file and parse it as
+-- a testlist file.
 parseFilterFile :: FilePath -> IO (Either [String] [Filter])
 parseFilterFile filename =
   do

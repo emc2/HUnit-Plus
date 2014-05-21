@@ -1,10 +1,15 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
 -- | Reporting functionality for HUnit-Plus.  Test reporting is now
--- defined using a set of events.  A [@Reporter@] contains handlers
--- for these events, which have access to and update a
--- [@Reporter@]-defined state value.  The handlers in a [@Reporter@]
--- are called at appropriate points during text execution.
+-- defined using a set of events.  A "Reporter" contains handlers for
+-- these events, which have access to and update a "Reporter"-defined
+-- state value.  The handlers in a "Reporter" are called at
+-- appropriate points during text execution.
+--
+-- This module also contains a basic "defaultReporter" that simply
+-- passes the state value through unchanged.  It also defines
+-- "combinedReporter", which facilitates 'gluing' two "Reporter"s
+-- together.
 module Test.HUnitPlus.Reporting(
        Node(..),
        State(..),
@@ -22,15 +27,21 @@ import Data.Word
 import Data.Map(Map)
 import Distribution.TestSuite
 
--- | A data structure that hold the results of tests that have been performed
+-- | A record that holds the results of tests that have been performed
 -- up until this point.
 data Counts =
   Counts {
+    -- | Number of total cases.
     cCases :: !Word,
+    -- | Number of cases tried.
     cTried :: !Word,
+    -- | Number of cases that failed with an error.
     cErrors :: !Word,
+    -- | Number of cases that failed.
     cFailures :: !Word,
+    -- | Number of cases that were skipped.
     cSkipped :: !Word,
+    -- | Total number of assertions checked.
     cAsserts :: !Word
   }
   deriving (Eq, Show, Read)
@@ -40,15 +51,15 @@ data Counts =
 -- updated as appropriate.
 data State =
   State {
-    -- | The name of the case or suite currently being run
+    -- | The name of the case or suite currently being run.
     stName :: !String,
-    -- | The path to the test case currently being run
+    -- | The path to the test case currently being run.
     stPath :: !Path,
-    -- | The current test statistics
+    -- | The current test statistics.
     stCounts :: !Counts,
-    -- | The current option values
+    -- | The current option values.
     stOptions :: !(Map String String),
-    -- | The current option descriptions we know about
+    -- | The current option descriptions we know about.
     stOptionDescs :: ![OptionDescr]
   }
   deriving (Eq, Show, Read)
@@ -64,9 +75,9 @@ data Node = Label String
 -- | Report generator.  This record type contains a number of
 -- functions that are called at various points throughout a test run.
 data Reporter us = Reporter {
-    -- | Called at the beginning of a test run
+    -- | Called at the beginning of a test run.
     reporterStart :: IO us,
-    -- | Called at the end of a test run
+    -- | Called at the end of a test run.
     reporterEnd :: Double
                 --  The total time it took to run the tests
                 -> Counts
@@ -74,27 +85,27 @@ data Reporter us = Reporter {
                 -> us
                 --  The user state for this test reporter
                 -> IO us,
-    -- | Called at the start of a test suite run
+    -- | Called at the start of a test suite run.
     reporterStartSuite :: State
                        --  Options given to the test suite
                        -> us
                        --  The user state for this test reporter
                        -> IO us,
-    -- | Called at the end of a test suite run
+    -- | Called at the end of a test suite run.
     reporterEndSuite :: Double
-                     --  The total time it took to run the test suite
+                     --  The total time it tgook to run the test suite
                      -> State
                      --  The counts from running the tests
                      -> us
                      --  The user state for this test reporter
                      -> IO us,
-    -- | Called at the start of a test case run
+    -- | Called at the start of a test case run.
     reporterStartCase :: State
                       --  The HUnit internal state
                       -> us
                       --  The user state for this test reporter
                       -> IO us,
-    -- | Called to report progress of a test case run
+    -- | Called to report progress of a test case run.
     reporterCaseProgress :: String
                          --  A progress message
                          -> State
@@ -102,7 +113,7 @@ data Reporter us = Reporter {
                          -> us
                          --  The user state for this test reporter
                          -> IO us,
-    -- | Called at the end of a test case run
+    -- | Called at the end of a test case run.
     reporterEndCase :: Double
                     --  The total time it took to run the test suite
                     -> State
@@ -110,13 +121,13 @@ data Reporter us = Reporter {
                     -> us
                     --  The user state for this test reporter
                     -> IO us,
-    -- | Called when skipping a test case
+    -- | Called when skipping a test case.
     reporterSkipCase :: State
                      --  The HUnit internal state
                      -> us
                      --  The user state for this test reporter
                      -> IO us,
-    -- | Called to report output printed to the system output stream
+    -- | Called to report output printed to the system output stream.
     reporterSystemOut :: String
                       --  The content printed to system out
                       -> State
@@ -124,7 +135,7 @@ data Reporter us = Reporter {
                       -> us
                       --  The user state for this test reporter
                       -> IO us,
-    -- | Called to report output printed to the system error stream
+    -- | Called to report output printed to the system error stream.
     reporterSystemErr :: String
                       --  The content printed to system out
                       -> State
@@ -132,7 +143,7 @@ data Reporter us = Reporter {
                       -> us
                       --  The user state for this test reporter
                       -> IO us,
-    -- | Called when a test fails
+    -- | Called when a test fails.
     reporterFailure :: String
                     --  A message relating to the error
                     -> State
@@ -140,7 +151,7 @@ data Reporter us = Reporter {
                     -> us
                     --  The user state for this test reporter
                     -> IO us,
-    -- | Called when a test reports an error
+    -- | Called when a test reports an error.
     reporterError :: String
                   --  A message relating to the error
                   -> State
@@ -150,7 +161,7 @@ data Reporter us = Reporter {
                   -> IO us
   }
 
--- | A [@Counts@] with all zero counts
+-- | A "Counts" with all zero counts.
 zeroCounts :: Counts
 zeroCounts = Counts { cCases = 0, cTried = 0, cErrors = 0,
                       cFailures = 0, cAsserts = 0, cSkipped = 0 }
@@ -176,7 +187,6 @@ defaultReporter = Reporter {
 -- | Converts a test case path to a string, separating adjacent elements by 
 --   a dot (\'.\'). An element of the path is quoted (as with 'show') when
 --   there is potential ambiguity.
-
 showPath :: Path -> String
 showPath [] = ""
 showPath nodes =
@@ -186,7 +196,7 @@ showPath nodes =
   in
     intercalate "." (reverse (map showNode nodes))
 
--- | Combines two reporters into a single reporter that calls both.
+-- | Combines two "Reporter"s into a single reporter that calls both.
 combinedReporter :: Reporter us1 -> Reporter us2 -> Reporter (us1, us2)
 combinedReporter Reporter { reporterStart = reportStart1,
                             reporterEnd = reportEnd1,

@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
--- | Test controller for running HUnit tests and reporting results as
---   JUnit-style XML reports.
+-- | 'Reporter' for running HUnit tests and reporting results as
+-- JUnit-style XML reports.  This uses the hexpat library for XML
+-- generation.  This module also contains functions for creating the
+-- various nodes in a JUnit XML report.
 module Test.HUnitPlus.XML(
        -- * XML Generation
        propertyElem,

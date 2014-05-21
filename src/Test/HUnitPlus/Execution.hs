@@ -1,5 +1,10 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 
+-- | Functions for executing test cases, test paths, and test suites.
+-- These functions are provided for the sake of convenience and
+-- testing; however, the preferred way of using HUnit-Plus is to use
+-- the "Test.HUnitPlus.Main#createMain" to create a test program
+-- directly from a list of test suites.
 module Test.HUnitPlus.Execution(
        performTestCase,
        performTest,
@@ -19,15 +24,15 @@ import Test.HUnitPlus.Reporting
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
--- | Perform an individual test case.
+-- | Execute an individual test case.
 performTestCase :: Reporter us
-                -- ^ Report generator for the test run
+                -- ^ Report generator for the test run.
                 -> State
-                -- ^ HUnit internal state
+                -- ^ HUnit-Plus internal state.
                 -> us
-                -- ^ State for the report generator
+                -- ^ State for the report generator.
                 -> TestInstance
-                -- ^ The test to be executed
+                -- ^ The test to be executed.
                 -> IO (State, us)
 performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
                                   reporterError = reportError,
@@ -78,14 +83,15 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
     -- Restore the old name before returning
     return $ (ssFinal { stName = oldname }, usEnded)
 
+-- | Log a skipped test case.
 skipTestCase :: Reporter us
-             -- ^ Report generator for the test run
+             -- ^ Report generator for the test run.
              -> State
-             -- ^ HUnit internal state
+             -- ^ HUnit-Plus internal state.
              -> us
-             -- ^ State for the report generator
+             -- ^ State for the report generator.
              -> TestInstance
-             -- ^ The test to be executed
+             -- ^ The test to be executed.
              -> IO (State, us)
 skipTestCase Reporter { reporterSkipCase = reportSkipCase }
              ss @ State { stCounts = c @ Counts { cSkipped = skipped,
@@ -99,30 +105,19 @@ skipTestCase Reporter { reporterSkipCase = reportSkipCase }
     us' <- reportSkipCase ss' us
     return $! (ss' { stName = oldname }, us')
 
--- | Performs a test run with the specified report generators.
---
--- This handles the actual running of the tests.  Most developers will want
--- to use @HUnit.Text.runTestTT@ instead.  A developer could use this function
--- to execute tests via another IO system, such as a GUI, or to output the
--- results in a different manner (e.g., upload XML-formatted results to a
--- webservice).
---
--- Note that the counts in a start report do not include the test case
--- being started, whereas the counts in a problem report do include the
--- test case just finished.  The principle is that the counts are sampled
--- only between test case executions.  As a result, the number of test
--- case successes always equals the difference of test cases tried and
--- the sum of test case errors and failures.
+-- | Execute a given test (which may be a group), with the specified
+-- selector and report generators.  Only tests which match the
+-- selector will be executed.  The rest will be logged as skipped.
 performTest :: Reporter us
-            -- ^ Report generator for the test run
+            -- ^ Report generator for the test run.
             -> Selector
-            -- ^ The selector to apply to all tests in the suite
+            -- ^ The selector to apply to all tests in the suite.
             -> State
-            -- ^ Initial counts for tests
+            -- ^ HUnit-Plus internal state.
             -> us
-            -- ^ State for the report generator
+            -- ^ State for the report generator.
             -> Test
-            -- ^ The test to be executed
+            -- ^ The test to be executed.
             -> IO (State, us)
 performTest rep initSelector initState initialUs initialTest =
   let
@@ -194,18 +189,19 @@ performTest rep initSelector initState initialUs initialTest =
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
     return $! (ss', us')
 
--- | Given a name representing the current group or test name and a
--- selection state, return a new selection state to use in recursive
--- calls.
-
+-- | Decide whether to execute a test suite based on a map from suite
+-- names to selectors.  If the map contains a selector for the test
+-- suite, execute all tests matching the selector, and log the rest as
+-- skipped.  If the map does not contain a selector, do not execute
+-- the suite, and do /not/ log its tests as skipped.
 performTestSuite :: Reporter us
-                 -- ^ Report generator to use for running the test suite
+                 -- ^ Report generator to use for running the test suite.
                  -> Map String Selector
-                 -- ^ The selector to apply to all tests in the suite
+                 -- ^ The map containing selectors for each suite.
                  -> us
-                 -- ^ State for the report generator
+                 -- ^ State for the report generator.
                  -> TestSuite
-                 -- ^ Test suite to be run
+                 -- ^ Test suite to be run.
                  -> IO (Counts, us)
 performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
                                   reporterEndSuite = reportEndSuite }
@@ -230,12 +226,18 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
       return $! (Counts { cCases = 0, cTried = 0, cErrors = 0, cFailures = 0,
                          cAsserts = 0, cSkipped = 0 }, initialUs)
 
+-- | Top-level function for a test run.  Given a set of suites and a
+-- map from suite names to selectors, execute all suites that have
+-- selectors.  For any test suite, only the tests specified by its
+-- selector will be executed; the rest will be logged as skipped.
+-- Suites that do not have a selector will be omitted entirely, and
+-- their tests will /not/ be logged as skipped.
 performTestSuites :: Reporter us
-                  -- ^ Report generator to use for running the test suite
+                  -- ^ Report generator to use for running the test suite.
                   -> Map String Selector
-                  -- ^ The processed filter to use
+                  -- ^ The processed filter to use.
                   -> [TestSuite]
-                  -- ^ Test suite to be run
+                  -- ^ Test suite to be run.
                   -> IO (Counts, us)
 performTestSuites rep @ Reporter { reporterStart = reportStart,
                                    reporterEnd = reportEnd }

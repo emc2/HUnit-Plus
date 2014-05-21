@@ -1,13 +1,53 @@
-{-# OPTIONS_GHC -Wall -funbox-strict-fields #-}
+{-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
--- | A module containing a mostly-complete program for executing
--- tests.  The only thing missing are the actual test suites, which
--- are provided as parameters to the [@main@].  This module is
--- indended to be used to create a top-level [@Main@] module.
+-- | A mostly-complete test selection and execution program for
+-- running HUnit-Plus tests.  The only thing missing are the actual
+-- test suites, which are provided as parameters to 'createMain'.
 --
--- The [@main@] herein obtains and parses the command-line options,
--- then executes tests accordingly.
+-- Given a set of test suites, module can be used to create a test
+-- execution program as follows:
+--
+-- >module Main(main) where
+-- >
+-- >import Test.HUnitPlus.Main
+-- >import MyProgram.Tests(testsuites)
+-- >
+-- >main :: IO ()
+-- >main = createMain testsuites
+--
+-- Where @testsuites@ is a list of 'TestSuite's.
+-- 
+-- The resulting program, when executed with no arguments will execute
+-- all test suites and write a summary to @stdout@.  Additionally, the
+-- test program has a number of options that control reporting and
+-- test execution.
+--
+-- A summary of the options follows:
+--
+-- * @-c /mode/, --consolemode=/mode/@: Set the behavior of console
+--   reporting to /mode/.  Can be 'quiet', 'terminal', 'text', and
+--   'verbose'.  Default is 'terminal'.
+--
+-- * @-t [/file/], --txtreport[=/file/]@: Write a text report to
+--   /file/ (if specified; if not, the default is 'report.txt').
+--   Formatting of the report is the same as the 'verbose' terminal
+--   mode.
+--
+-- * @-x [/file/], --xmlreport[=/file/]@: Write a JUnit-style XML
+--   report to /file/ (if specified; if not, the default is 'report.xml').
+--
+-- * @-l /file/, --testlist=/file/@: Read a testlist from /file/.  The
+--   file must contain a number of filters, one per line.  Empty lines
+--   or lines beginning with '#' are ignored.  Multiple files may be
+--   specified.  The filters from all files are combined, and added to
+--   any filters specified on the command line.
+--
+-- Any additional arguments are assumed to be filters, which specify a
+-- set of tests to be run.  For more information on the format of
+-- filters, see the 'Filter' module.  If no filters are
+-- given either on the command line or in testlist files, then all
+-- tests will be run.
 module Test.HUnitPlus.Main(
        Opts(..),
        ConsoleMode(..),
@@ -32,19 +72,48 @@ import Test.HUnitPlus.XML
 import Text.XML.Expat.Format
 import Text.XML.Expat.Tree(Node)
 
-data ConsoleMode = Quiet | Terminal | Text | Verbose
+-- | Console mode options.
+data ConsoleMode =
+  -- | Do not generate any console output.
+    Quiet
+  -- | Report test counts interactively during execution, updating the
+  -- number of tests run, skipped, failed, and errored as they
+  -- execute.
+  | Terminal
+  -- | Report a summary of tests run, skipped, failed, and errored
+  -- after execution.
+  | Text
+  -- | Report extra information as tests execute.
+  | Verbose
   deriving (Typeable, Data, Show)
 
+-- | Command-line options for generated programs.
 data Opts =
   Opts {
+    -- | A file to which to write a JUnit-style XML report.  The list
+    -- must contain a single value, or be empty, or else the test
+    -- program will report bad options.  If the list is empty, no XML
+    -- report will be generated.
     xmlreport :: ![String],
+    -- | Filters in string format, specifying which tests should be
+    -- run.  If no filters are given, then all tests will be run.  For
+    -- information on the string format, see "Test.HUnitPlus.Filter".
     filters :: ![String],
+    -- | A file to which to write a plain-text report.  The list must
+    -- contain a single value, or be empty, or else the test program
+    -- will report bad options.  If the list is empty, no report will
+    -- be generated.
     txtreport :: ![String],
+    -- | The behavior of the console output.
     consmode :: ![ConsoleMode],
+    -- | Files from which to read testlists.  Multiple files may be
+    -- specified.  The contents will be parsed and added to the list
+    -- of filters specified on the command line.
     testlist :: ![String]
   }
   deriving (Typeable, Show, Data)
 
+-- | Command-line options for the "System.Console.CmdArgs" module.
 opts :: Opts
 opts =
   Opts {
@@ -190,7 +259,10 @@ withReportHandles Opts { xmlreport = _ : _ : _ } _ =
 withReportHandles Opts { txtreport = _ : _ : _ } _ =
   return (Left ["Cannot specify multiple files for text reports"])
 
--- | Create a standard test execution program from a set of test suites.
+-- | Create a standard test execution program from a set of test
+-- suites.  The resulting @main@ will process command line options as
+-- described, execute the appropirate tests, and exit with success if
+-- all tests passed, and fail otherwise.
 createMain :: [TestSuite] -> IO ()
 createMain suites =
   do
@@ -204,7 +276,10 @@ createMain suites =
       Right False -> exitFailure
       Right True -> exitSuccess
 
--- | Top-level function for executing test suites.
+-- | Top-level function for executing test suites. 'createMain' is
+-- simply a wrapper around this function.  This function allows users
+-- to supply their own options, and to decide what to do with the
+-- result of test execution.
 topLevel :: [TestSuite] -> Opts -> IO (Either [String] Bool)
 topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
   let

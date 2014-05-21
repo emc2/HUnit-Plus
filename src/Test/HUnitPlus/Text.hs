@@ -1,17 +1,24 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 
--- | Text-based test controller for running HUnit tests and reporting
---   results as text, usually to a terminal.
-
+-- | Text-based reporting functionality for reporting either as text,
+-- or to the terminal.  This module is an adaptation of code from the
+-- original HUnit library.
+--
+-- Note that the test execution function in this module are included
+-- for (a measure of) compatibility with HUnit, but are deprecated in
+-- favor of the function in the "Test.HUnitPlus.Main" module.
 module Test.HUnitPlus.Text(
+       -- * Utilities
        PutText(..),
        putTextToHandle,
        putTextToShowS,
+       showCounts,
+       -- * Text Reporting
        textReporter,
        runTestText,
        runSuiteText,
        runSuitesText,
-       showCounts,
+       -- * Terminal reporting
        terminalReporter,
        runTestTT,
        runSuiteTT,
@@ -31,41 +38,24 @@ import Text.Printf(printf)
 import qualified Data.Map as Map
 
 
--- | As the general text-based test controller ('runTestText') executes a
---   test, it reports each test case start, error, and failure by
---   constructing a string and passing it to the function embodied in a
---   'PutText'.  A report string is known as a \"line\", although it includes
---   no line terminator; the function in a 'PutText' is responsible for
---   terminating lines appropriately.  Besides the line, the function
---   receives a flag indicating the intended \"persistence\" of the line:
---   'True' indicates that the line should be part of the final overall
---   report; 'False' indicates that the line merely indicates progress of
---   the test execution.  Each progress line shows the current values of
---   the cumulative test execution counts; a final, persistent line shows
---   the final count values.
+-- | The text-based reporters ('textReporter' and 'terminalReporter')
+-- construct strings and pass them to the function embodied in a
+-- 'PutText'.  This function handles the string in one of several
+-- ways.  Two schemes are defined here.  'putTextToHandle' writes
+-- report lines to a given handle.  'putTextToShowS' accumulates lines
+-- for return as a whole.
 -- 
---   The 'PutText' function is also passed, and returns, an arbitrary state
---   value (called 'st' here).  The initial state value is given in the
---   'PutText'; the final value is returned by 'runTestText'.
+-- The 'PutText' function is also passed, and returns, an arbitrary state
+-- value (called 'st' here).  The initial state value is given in the
+-- 'PutText'; the final value is returned by 'runTestText'.
 
 data PutText st = PutText (String -> st -> IO st) st
 
--- | Two reporting schemes are defined here.  @putTextToHandle@ writes
--- report lines to a given handle.  'putTextToString' accumulates
--- persistent lines for return as a whole by 'runTestText'.
--- 
--- @putTextToHandle@ writes persistent lines to the given handle,
--- following each by a newline character.  In addition, if the given flag
--- is @True@, it writes progress lines to the handle as well.  A progress
--- line is written with no line termination, so that it can be
--- overwritten by the next report line.  As overwriting involves writing
--- carriage return and blank characters, its proper effect is usually
--- only obtained on terminal devices.
-
+-- | Writes persistent lines to the given handle.
 putTextToHandle :: Handle -> PutText ()
 putTextToHandle handle = PutText (\line () -> hPutStr handle line) ()
 
--- | Accumulates persistent lines for return by 'runTestText'.  The
+-- | Accumulates lines for return by 'runTestText'.  The
 -- accumulated lines are represented by a @'ShowS' ('String' ->
 -- 'String')@ function whose first argument is the string to be
 -- appended to the accumulated report lines.
@@ -73,11 +63,12 @@ putTextToShowS :: PutText ShowS
 putTextToShowS =
   PutText (\line func -> return (\rest -> func (line ++ rest))) id
 
--- | Create a reporter that outputs a textual report, not to a terminal.
+-- | Create a 'Reporter' that outputs a textual report for
+-- non-terminal output.
 textReporter :: PutText us
-             -- ^ The method for outputting text
+             -- ^ The method for outputting text.
              -> Bool
-             -- ^ Whether or not to run the test in verbose mode.
+             -- ^ Whether or not to output verbose text.
              -> Reporter us
 textReporter (PutText put initUs) verbose =
   let
@@ -127,12 +118,16 @@ textReporter (PutText put initUs) verbose =
       reporterFailure = reportProblem "Failure" "Failure in "
     }
 
--- | Executes a test, processing each report line according to the given
---   reporting scheme.  The reporting scheme's state is threaded through calls
---   to the reporting scheme's function and finally returned, along with final
---   count values.
+-- | Execute a test, processing text output according to the given
+-- reporting scheme.  The reporting scheme's state is threaded through
+-- calls to the reporting scheme's function and finally returned,
+-- along with final count values.  The text is output in non-terminal
+-- mode.
+--
+-- This function is deprecated.  The preferred way to run tests is to
+-- use the functions in "Test.HUnitPlus.Main".
 runTestText :: PutText us
-            -- ^ A function which accumulates output
+            -- ^ A function which accumulates output.
             -> Bool
             -- ^ Whether or not to run the test in verbose mode.
             -> Test
@@ -150,12 +145,20 @@ runTestText puttext @ (PutText put us0) verbose t =
     us2 <- put (showCounts (stCounts ss1) ++ "\n") us1
     return (stCounts ss1, us2)
 
+-- | Execute a test suite, processing text output according to the
+-- given reporting scheme.  The reporting scheme's state is threaded
+-- through calls to the reporting scheme's function and finally
+-- returned, along with final count values.  The text is output in
+-- non-terminal mode.
+--
+-- This function is deprecated.  The preferred way to run tests is to
+-- use the functions in "Test.HUnitPlus.Main".
 runSuiteText :: PutText us
-             -- ^ A function which accumulates output
+             -- ^ A function which accumulates output.
              -> Bool
-             -- ^ Whether or not to run the test in verbose mode.
+             -- ^ Whether or not to run the tests in verbose mode.
              -> TestSuite
-             -- ^ The test to run
+             -- ^ The test suite to run.
              -> IO (Counts, us)
 runSuiteText puttext @ (PutText put us0) verbose
              suite @ TestSuite { suiteName = sname } =
@@ -167,6 +170,14 @@ runSuiteText puttext @ (PutText put us0) verbose
     us2 <- put (showCounts counts ++ "\n") us1
     return (counts, us2)
 
+-- | Execute the given test suites, processing text output according
+-- to the given reporting scheme.  The reporting scheme's state is
+-- threaded through calls to the reporting scheme's function and
+-- finally returned, along with final count values.  The text is
+-- output in non-terminal mode.
+--
+-- This function is deprecated.  The preferred way to run tests is to
+-- use the functions in "Test.HUnitPlus.Main".
 runSuitesText :: PutText us
               -- ^ A function which accumulates output
               -> Bool
@@ -187,7 +198,6 @@ runSuitesText puttext @ (PutText put _) verbose suites =
     return (counts, us2)
 
 -- | Converts test execution counts to a string.
-
 showCounts :: Counts -> String
 showCounts Counts { cCases = cases, cTried = tried,
                     cErrors = errors, cFailures = failures,
@@ -208,7 +218,9 @@ termPut line False _   = do hPutStr stderr ('\r' : line); return (length line)
 erase :: Int -> String
 erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
 
--- | A reporter that outputs lines indicating progress to the terminal.
+-- | A reporter that outputs lines indicating progress to the
+-- terminal.  Reporting is made to standard error, and progress
+-- reports are included.
 terminalReporter :: Reporter Int
 terminalReporter =
   let
@@ -228,11 +240,14 @@ terminalReporter =
       reporterFailure = reportProblem "Failure:" "Failure in: "
     }
 
--- | Provides the \"standard\" text-based test controller. Reporting is made to
---   standard error, and progress reports are included. For possible
---   programmatic use, the final counts are returned.
+-- | Execute a test, processing text output according to the given
+-- reporting scheme.  The reporting scheme's state is threaded through
+-- calls to the reporting scheme's function and finally returned,
+-- along with final count values.  The text is output in terminal
+-- mode.
 --
---   The \"TT\" in the name suggests \"Text-based reporting to the Terminal\".
+-- This function is deprecated.  The preferred way to run tests is to
+-- use the functions in "Test.HUnitPlus.Main".
 runTestTT :: Test -> IO Counts
 runTestTT t =
   let
@@ -244,6 +259,14 @@ runTestTT t =
     0 <- termPut (showCounts (stCounts ss1)) True us1
     return (stCounts ss1)
 
+-- | Execute a test suite, processing text output according to the
+-- given reporting scheme.  The reporting scheme's state is threaded
+-- through calls to the reporting scheme's function and finally
+-- returned, along with final count values.  The text is output in
+-- terminal mode.
+--
+-- This function is deprecated.  The preferred way to run tests is to
+-- use the functions in "Test.HUnitPlus.Main".
 runSuiteTT :: TestSuite -> IO Counts
 runSuiteTT suite @ TestSuite { suiteName = sname } =
   let
@@ -253,6 +276,14 @@ runSuiteTT suite @ TestSuite { suiteName = sname } =
     0 <- termPut (showCounts counts ++ "\n") True us
     return counts
 
+-- | Execute the given test suites, processing text output according
+-- to the given reporting scheme.  The reporting scheme's state is
+-- threaded through calls to the reporting scheme's function and
+-- finally returned, along with final count values.  The text is
+-- output in terminal mode.
+--
+-- This function is deprecated.  The preferred way to run tests is to
+-- use the functions in "Test.HUnitPlus.Main".
 runSuitesTT :: [TestSuite] -> IO Counts
 runSuitesTT suites =
   let
