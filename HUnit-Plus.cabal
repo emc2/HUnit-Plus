@@ -1,6 +1,6 @@
 Name:                   HUnit-Plus
 Category:               Testing, Test
-Version:                0.3.0
+Version:                0.3.1
 License:                BSD3
 License-File:           LICENSE
 Author:                 Eric McCorkle
@@ -35,7 +35,7 @@ Test-Suite RunTests
   type:                 exitcode-stdio-1.0
   Main-Is:              RunTests.hs
   hs-source-dirs:       src test
-  build-depends:        base >= 4.4.0 && < 5, Cabal >= 1.16.0, deepseq, hexpat, timeit,
+  build-depends:        base >= 4.4.0 && < 5, Cabal >= 1.16.0, hexpat, timeit,
                         cmdargs, hashable, containers, time, old-locale, hostname,
                         parsec, bytestring, directory
   ghc-options:          -fhpc
@@ -43,9 +43,9 @@ Test-Suite RunTests
 Library
   default-language:     Haskell2010
   hs-source-dirs:       src
-  build-depends:        base >= 4.4.0, Cabal >= 1.16.0, deepseq, hexpat, timeit,
+  build-depends:        base >= 4.4.0 && < 5, Cabal >= 1.16.0, hexpat, timeit,
                         cmdargs, hashable, containers, time, old-locale, hostname,
-                        parsec, bytestring
+                        bytestring, parsec
   exposed-modules:      Test.HUnitPlus.Base
                         Test.HUnitPlus.Execution
                         Test.HUnitPlus.Filter
