@@ -17,7 +17,7 @@ Description:
   HUnit framework.  Unlike HUnit, HUnit-Plus uses the same data
   structures as cabal's "Distribution.TestSuite" framework, allowing
   full compatibility with cabal's testing facilities.
-
+  .
   HUnit-Plus also provides expanded reporting capabilities, including
   the ability to generate JUnit-style XML reports, along with a very
   flexible mechanism for selecting which tests to be executed.
