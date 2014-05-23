@@ -94,22 +94,22 @@ data Opts =
     -- must contain a single value, or be empty, or else the test
     -- program will report bad options.  If the list is empty, no XML
     -- report will be generated.
-    xmlreport :: ![String],
+    xmlreport :: [String],
     -- | Filters in string format, specifying which tests should be
     -- run.  If no filters are given, then all tests will be run.  For
     -- information on the string format, see "Test.HUnitPlus.Filter".
-    filters :: ![String],
+    filters :: [String],
     -- | A file to which to write a plain-text report.  The list must
     -- contain a single value, or be empty, or else the test program
     -- will report bad options.  If the list is empty, no report will
     -- be generated.
-    txtreport :: ![String],
+    txtreport :: [String],
     -- | The behavior of the console output.
-    consmode :: ![ConsoleMode],
+    consmode :: [ConsoleMode],
     -- | Files from which to read testlists.  Multiple files may be
     -- specified.  The contents will be parsed and added to the list
     -- of filters specified on the command line.
-    testlist :: ![String]
+    testlist :: [String]
   }
   deriving (Typeable, Show, Data)
 
@@ -119,18 +119,18 @@ opts =
   Opts {
     testlist = []
       &= explicit
+      &= typFile
       &= name "l"
       &= name "testlist"
-      &= help "Read test filters from FILE"
-      &= typFile,
+      &= help "Read test filters from FILE",
     xmlreport = []
+      &= typFile
       &= help "Output an XML report, with an optional filename for the report (default is \"report.xml\")"
-      &= opt "report.xml"
-      &= typFile,
+      &= opt "report.xml",
     txtreport = []
+      &= typFile
       &= help "Output a plain text report, with an optional filename for the report (default is \"report.txt\")"
-      &= opt "report.txt"
-      &= typFile,
+      &= opt "report.txt",
     consmode = []
       &= explicit
       &= name "c"
