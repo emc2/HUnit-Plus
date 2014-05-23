@@ -86,8 +86,21 @@ textReporter (PutText put initUs) verbose =
         path = showPath (stPath ss)
         line = "### " ++ kind ++ path ++ ": " ++ msg ++ "\n"
       in
-        if verbose then put line us
-        else return us
+        if verbose then put line us else return us
+
+    reportStartSuite ss us =
+      let
+        line = "Test suite " ++ stName ss ++ " starting\n"
+      in
+        if verbose then put line us else return us
+
+    reportEndSuite time ss us =
+      let
+        timestr = printf "%.6f" time
+        line = "Test suite" ++ stName ss ++ " completed in " ++
+               timestr ++ " sec\n"
+      in
+        if verbose then put line us else return us
 
     reportStartCase ss us =
       let
@@ -95,8 +108,7 @@ textReporter (PutText put initUs) verbose =
         line = if null path then "Test case starting\n"
                else "Test case " ++ path ++ " starting\n"
       in
-        if verbose then put line us
-        else return us
+        if verbose then put line us else return us
 
     reportEndCase time ss us =
       let
@@ -105,11 +117,26 @@ textReporter (PutText put initUs) verbose =
         line = if null path then "Test completed in " ++ timestr ++ " sec\n"
                else "Test " ++ path ++ " completed in " ++ timestr ++ " sec\n"
       in
-        if verbose then put line us
-        else return us
+        if verbose then put line us else return us
+
+    reportEnd time counts us =
+      let
+        countstr = showCounts counts ++ "\n"
+        timestr = printf "%.6f" time
+        timeline = "Tests completed in " ++ timestr ++ " sec\n"
+      in do
+        if verbose
+          then do
+            us' <- put timeline us
+            put countstr us'
+          else
+            put countstr us
   in
     defaultReporter {
       reporterStart = return initUs,
+      reporterEnd = reportEnd,
+      reporterStartSuite = reportStartSuite,
+      reporterEndSuite = reportEndSuite,
       reporterStartCase = reportStartCase,
       reporterEndCase = reportEndCase,
       reporterSystemOut = reportOutput "STDOUT " "STDOUT from ",
@@ -234,6 +261,7 @@ terminalReporter =
   in
     defaultReporter {
       reporterStart = return 0,
+      reporterEnd = (\_ _ _ -> do hPutStr stderr "\n"; return 0),
       reporterEndCase =
         (\_ ss us -> termPut (showCounts (stCounts ss)) False us),
       reporterError = reportProblem "Error:" "Error in:   ",
