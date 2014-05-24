@@ -11,4 +11,5 @@ import qualified Tests.Test.HUnitPlus.XML as XML
 
 tests :: Test
 tests = testGroup "HUnitPlus" [Base.tests, Execution.tests, Filter.tests,
-                               Reporting.tests, Main.tests, Text.tests, XML.tests]
+                               Reporting.tests, Main.tests,
+                               Text.tests, XML.tests]
