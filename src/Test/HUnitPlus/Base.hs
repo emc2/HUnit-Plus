@@ -47,7 +47,6 @@ module Test.HUnitPlus.Base(
        (~:),
        (~?),
 
-
        -- * Assertions
        Assertion,
        assertSuccess,
@@ -58,6 +57,9 @@ module Test.HUnitPlus.Base(
        assertString,
        assertStringWithPrefix,
        assertEqual,
+       assertThrows,
+       assertThrowsExact,
+
        -- ** Extended Assertion Functionality
        Assertable(..),
        (@=?),
@@ -370,6 +372,55 @@ assertEqual preface expected actual =
   in
     assertBool msg (actual == expected)
 
+-- | Utility function for exception-checking assertions.
+expectException :: Exception e
+                => (e -> Bool)
+                -- ^ Checks if an exception is valid.
+                -> (e -> String)
+                -- ^ Generates an error message.
+                -> e
+                -- ^ The exception.
+                -> Assertion
+expectException testfunc msgfunc ex =
+  if testfunc ex
+    then assertSuccess
+    else assertFailure (msgfunc ex)
+
+-- | Assert that the given computation throws a specific exception.
+assertThrowsExact :: (Exception e, Show e, Eq e)
+                  => e
+                  -- ^ Exception to be caught
+                  -> IO a
+                  -- ^ Computation that should throw the exception
+                  -> Assertion
+assertThrowsExact ex comp =
+  let
+    runComp = comp >> assertFailure ("expected exception " ++ show ex ++
+                                     " but computation finished normally")
+    msgfunc ex' = "expected exception " ++ show ex ++ " but got " ++ show ex'
+    handler = expectException (ex ==) msgfunc
+  in
+    handle handler runComp
+
+-- | Assert that the given computation throws a specific exception.
+assertThrows :: (Exception e, Show e)
+             => (e -> Bool)
+             -- ^ Exception to be caught
+             -> IO a
+             -- ^ Computation that should throw the exception
+             -> Assertion
+assertThrows check comp =
+  let
+    runComp =
+      do
+        _ <- comp
+        assertFailure "expected exception but computation finished normally"
+
+    msgfunc ex = "unexpected exception " ++ show ex
+    handler = expectException check msgfunc
+  in
+    handle handler runComp
+
 -- Overloaded `assert` Function
 -- ----------------------------
 
@@ -498,10 +549,7 @@ testSuite suitename testlist =
 {-# NOINLINE syntheticName #-}
 syntheticName :: String
 syntheticName = "__synthetic__"
-{-
-handleException :: SomeException -> IO ()
-handleException e = logError ("Exception occurred during test:\n" ++ show e)
--}
+
 wrapTest :: IO a -> IO Progress
 wrapTest t =
   do

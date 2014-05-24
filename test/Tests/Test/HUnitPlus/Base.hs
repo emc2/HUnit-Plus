@@ -1,6 +1,11 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Tests.Test.HUnitPlus.Base(tests) where
 
+import Control.Exception(Exception,
+                         throwIO)
 import Data.List
+import Data.Typeable
 import Debug.Trace
 import Distribution.TestSuite(Test(..),
                               TestInstance(..),
@@ -189,6 +194,11 @@ externalTestException =
   in
     Test testInstance
 
+data TestException = TestException Bool
+  deriving (Typeable, Show, Eq)
+
+instance Exception TestException
+
 testCases :: [(Test, String, [String], Counts, [ReportEvent])]
 testCases = [
     -- Test low-level functions
@@ -257,6 +267,30 @@ testCases = [
     ("assertEqual_neq" ~: assertEqual "Prefix" 3 4,
      "assertEqual_neq", [], oneFailOneAssert,
      [Utils.Failure "Prefix\nexpected: 3\nbut got: 4"]),
+    ("assertThrows_nothrow" ~: assertThrows (\(TestException _) -> True)
+                                            (return ()),
+     "assertThrows_nothrow", [], oneFailOneAssert,
+     [Utils.Failure "expected exception but computation finished normally"]),
+    ("assertThrows_badthrow" ~: assertThrows (TestException False ==)
+                                             (throwIO (TestException True)),
+     "assertThrows_badthrow", [], oneFailOneAssert,
+     [Utils.Failure "unexpected exception TestException True"]),
+    ("assertThrows_goodthrow" ~: assertThrows (TestException True ==)
+                                              (throwIO (TestException True)),
+     "assertThrows_goodthrow", [], oneAssert, []),
+    ("assertThrowsExact_nothrow" ~: assertThrowsExact (TestException True)
+                                                      (return ()),
+     "assertThrowsExact_nothrow", [], oneFailOneAssert,
+     [Utils.Failure ("expected exception TestException True " ++
+                     "but computation finished normally")]),
+    ("assertThrowsExact_badthrow" ~:
+       assertThrowsExact (TestException False) (throwIO (TestException True)),
+     "assertThrowsExact_badthrow", [], oneFailOneAssert,
+     [Utils.Failure ("expected exception TestException False " ++
+                     "but got TestException True")]),
+    ("assertThrowsExact_goodthrow" ~:
+       assertThrowsExact (TestException True) (throwIO (TestException True)),
+     "assertThrowsExact_goodthrow", [], oneAssert, []),
     -- Assertable instances
     ("assert_Unit" ~: assert (), "assert_Unit", [], zeroCounts, []),
     ("assert_True" ~: assert True, "assert_True", [], oneAssert, []),
