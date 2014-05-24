@@ -37,6 +37,7 @@ module Test.HUnitPlus.Base(
        Test(..),
        TestInstance(..),
        TestSuite(..),
+       testSuite,
 
        -- ** Extended Test Creation
        Testable(..),
@@ -476,10 +477,20 @@ data TestSuite =
     suiteConcurrently :: !Bool,
     -- | A list of all options used by this suite, and the default
     -- values for those options.
-    suiteOptions :: [(String, String)],
+    suiteOptions :: ![(String, String)],
     -- | The tests in the suite.
-    suiteTests :: [Test]
+    suiteTests :: ![Test]
   }
+
+-- | Create a test suite from a name and a list of tests.
+testSuite :: String
+          -- ^ The suite's name.
+          -> [Test]
+          -- ^ The tests in the suite.
+          -> TestSuite
+testSuite suitename testlist =
+  TestSuite { suiteName = suitename, suiteConcurrently = True,
+              suiteOptions = [], suiteTests = testlist }
 
 -- Overloaded `test` Function
 -- --------------------------
