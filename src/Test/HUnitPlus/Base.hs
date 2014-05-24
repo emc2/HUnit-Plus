@@ -161,8 +161,15 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
                 return (Finished (Fail msg))
             Nothing ->
               do
-                return (Finished (Error ("Uncaught exception in test: " ++
-                                         show ex)))
+                TestInfo { tiIgnoreResult = ignoreRes } <- readIORef testinfo
+                if ignoreRes
+                  then do
+                    logError ("Uncaught exception in test: " ++ show ex)
+                    return (Finished (Error ("Uncaught exception in test: " ++
+                                             show ex)))
+                  else do
+                    return (Finished (Error ("Uncaught exception in test: " ++
+                                             show ex)))
 
         caughtAction = catch action handleExceptions
       in do

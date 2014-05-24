@@ -1,8 +1,11 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Tests.Test.HUnitPlus.Execution where
 
+import Control.Exception(Exception, throwIO)
 import Data.List
 import Data.Map(Map)
 import Data.Maybe
+import Data.Typeable
 import Distribution.TestSuite
 import Test.HUnitPlus.Base
 import Test.HUnitPlus.Execution
@@ -63,41 +66,55 @@ makeTagSet (True, False) = Set.singleton "tag1"
 makeTagSet (False, True) = Set.singleton "tag2"
 makeTagSet (True, True) = Set.fromList ["tag1", "tag2"]
 
-makeResName Pass = "pass"
-makeResName (Fail _) = "fail"
-makeResName (Error _) = "error"
+data TestException = TestException
+  deriving (Show, Typeable)
 
-makeAssert Pass = assertSuccess
-makeAssert (Fail msg) = assertFailure msg
-makeAssert (Error msg) = abortError msg
+instance Exception TestException
 
-updateCounts Pass c = c
-updateCounts (Fail _) c @ Counts { cFailures = fails } =
-  c { cFailures = fails + 1 }
-updateCounts (Error _) c @ Counts { cErrors = errors } =
-  c { cErrors = errors + 1 }
+data Behavior = Normal Result | Exception
 
-makeName :: (Bool, Bool, Result) -> String
+makeResName (Normal Pass) = "pass"
+makeResName (Normal (Fail _)) = "fail"
+makeResName (Normal (Error _)) = "error"
+makeResName Exception = "exception"
+
+makeAssert (Normal Pass) = assertSuccess
+makeAssert (Normal (Fail msg)) = assertFailure msg
+makeAssert (Normal (Error msg)) = abortError msg
+makeAssert Exception = throwIO TestException
+
+updateCounts (Normal Pass) c @ Counts { cAsserts = asserts } =
+  c { cAsserts = asserts + 1, cCaseAsserts = 1 }
+updateCounts (Normal (Fail _)) c @ Counts { cFailures = fails,
+                                            cAsserts = asserts } =
+  c { cFailures = fails + 1, cAsserts = asserts + 1, cCaseAsserts = 1 }
+updateCounts (Normal (Error _)) c @ Counts { cErrors = errors } =
+  c { cErrors = errors + 1, cCaseAsserts = 0 }
+updateCounts Exception c @ Counts { cErrors = errors } =
+  c { cErrors = errors + 1, cCaseAsserts = 0 }
+
+makeName :: (Bool, Bool, Behavior) -> String
 makeName (tag1, tag2, res) =
   makeTagName tag1 tag2 ++ "_" ++ makeResName res
 
-makeTest :: String -> (Bool, Bool, Result) -> Test
+makeTest :: String -> (Bool, Bool, Behavior) -> Test
 makeTest prefix tdata @ (tag1, tag2, res) =
   let
     inittags = if tag1 then ["tag1"] else []
     tags = if tag2 then "tag2" : inittags else inittags
     testname = prefix ++ makeName tdata
-
-    runTest = return (Finished res)
+  in
+    testNameTags testname tags (makeAssert res)
+{-
 
     testInstance = TestInstance { name = testname, tags = tags,
                                   setOption = (\_ _ -> Right testInstance),
                                   options = [], run = runTest }
   in
     Test testInstance
-
+-}
 makeTestData :: String -> ([Test], [ReportEvent], State) ->
-                Either (Bool, Bool, Result) (Bool, Bool, Result) ->
+                Either (Bool, Bool, Behavior) (Bool, Bool, Behavior) ->
                 ([Test], [ReportEvent], State)
 makeTestData prefix
              (tests, events,
@@ -115,11 +132,18 @@ makeTestData prefix
     -- the events list in the end.
     newevents =
       case res of
-        Pass -> EndCaseEvent ssFinished : StartCaseEvent ssStarted : events
-        Fail msg -> EndCaseEvent ssFinished : FailureEvent msg ssStarted :
-                    StartCaseEvent ssStarted : events
-        Error msg -> EndCaseEvent ssFinished : ErrorEvent msg ssStarted :
-                     StartCaseEvent ssStarted : events
+        Normal Pass ->
+          EndCaseEvent ssFinished : StartCaseEvent ssStarted : events
+        Normal (Fail msg) ->
+          EndCaseEvent ssFinished : FailureEvent msg ssStarted :
+          StartCaseEvent ssStarted : events
+        Normal (Error msg) ->
+          EndCaseEvent ssFinished : ErrorEvent msg ssStarted :
+          StartCaseEvent ssStarted : events
+        Exception ->
+          EndCaseEvent ssFinished :
+          ErrorEvent "Uncaught exception in test: TestException" ssStarted :
+          StartCaseEvent ssStarted : events
   in
     (makeTest prefix tdata : tests, newevents,
      ssFinished { stName = oldname })
@@ -136,13 +160,15 @@ makeTestData prefix
     (makeTest prefix tdata : tests, SkipEvent newstate : events,
      newstate { stName = oldname })
 
-resultVals :: [Result]
-resultVals = [Pass, Fail "Fail Message", Error "Error Message"]
+resultVals :: [Behavior]
+resultVals = [Normal Pass, Normal (Fail "Fail Message"),
+              Normal (Error "Error Message"), Exception]
+
 
 tagVals :: [Bool]
 tagVals = [True, False]
 
-testData :: [(Bool, Bool, Result)]
+testData :: [(Bool, Bool, Behavior)]
 testData = foldl (\accum tag1 ->
                    foldl (\accum tag2 ->
                            foldl (\accum res -> (tag1, tag2, res) : accum)
@@ -162,7 +188,7 @@ tag12Filter tdata = Left tdata
 
 data ModFilter = All | WithTags (Bool, Bool) | None deriving Show
 
-getTests :: ModFilter -> [Either (Bool, Bool, Result) (Bool, Bool, Result)]
+getTests :: ModFilter -> [Either (Bool, Bool, Behavior) (Bool, Bool, Behavior)]
 getTests All = map Right testData
 getTests (WithTags (True, False)) = map tag1Filter testData
 getTests (WithTags (False, True)) = map tag2Filter testData
