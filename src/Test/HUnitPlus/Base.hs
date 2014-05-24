@@ -412,7 +412,8 @@ assertThrowsExact ex comp =
   in
     handle handler runComp
 
--- | Assert that the given computation throws a specific exception.
+-- | Assert that the given computation throws an exception that
+-- matches a predicate.
 assertThrows :: (Exception e, Show e)
              => (e -> Bool)
              -- ^ Exception to be caught
