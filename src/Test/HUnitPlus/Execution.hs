@@ -38,7 +38,7 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
                                   reporterError = reportError,
                                   reporterEndCase = reportEndCase }
                 ss @ State { stCounts = c @ Counts { cTried = tried,
-                                                      cCases = cases },
+                                                     cCases = cases },
                               stName = oldname, stOptions = optmap,
                               stOptionDescs = descs } initialUs
                 initTi @ TestInstance { name = testname,
@@ -223,8 +223,7 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
         endedUs <- reportEndSuite time finishedState finishedUs
         return $! (stCounts finishedState, endedUs)
     _ ->
-      return $! (Counts { cCases = 0, cTried = 0, cErrors = 0, cFailures = 0,
-                         cAsserts = 0, cSkipped = 0 }, initialUs)
+      return $! (zeroCounts, initialUs)
 
 -- | Top-level function for a test run.  Given a set of suites and a
 -- map from suite names to selectors, execute all suites that have
@@ -243,9 +242,6 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
                                    reporterEnd = reportEnd }
                   filters suites =
   let
-    initialCounts = Counts { cCases = 0, cTried = 0, cErrors = 0,
-                             cFailures = 0, cAsserts = 0, cSkipped = 0 }
-
     combineCounts Counts { cCases = cases1, cTried = tried1,
                            cErrors = errors1, cFailures = failures1,
                            cAsserts = asserts1, cSkipped = skipped1 }
@@ -254,7 +250,8 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
                            cAsserts = asserts2, cSkipped = skipped2 } =
       Counts { cCases = cases1 + cases2, cTried = tried1 + tried2,
                cErrors = errors1 + errors2, cFailures = failures1 + failures2,
-               cAsserts = asserts1 + asserts2, cSkipped = skipped1 + skipped2 }
+               cAsserts = asserts1 + asserts2, cSkipped = skipped1 + skipped2,
+               cCaseAsserts = 0 }
 
     foldfun (accumCounts, accumUs) suite =
       do
@@ -263,6 +260,6 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
   in do
     initialUs <- reportStart
     (time, (finishedCounts, finishedUs)) <-
-      timeItT (foldM foldfun (initialCounts, initialUs) suites)
+      timeItT (foldM foldfun (zeroCounts, initialUs) suites)
     endedUs <- reportEnd time finishedCounts finishedUs
     return $! (finishedCounts, endedUs)

@@ -221,6 +221,7 @@ reportTestInfo result Reporter { reporterError = reportError,
           finalUs <- reportError msg ss eventsUs
           return $! (ss { stCounts =
                              c { cAsserts = asserts + fromIntegral currAsserts,
+                                 cCaseAsserts = fromIntegral currAsserts,
                                  cErrors = errors + 1 } },
                     finalUs)
       Fail msg | not ignoreRes ->
@@ -228,10 +229,12 @@ reportTestInfo result Reporter { reporterError = reportError,
           finalUs <- reportFailure msg ss eventsUs
           return $! (ss { stCounts =
                             c { cAsserts = asserts + fromIntegral currAsserts,
+                                cCaseAsserts = fromIntegral currAsserts,
                                 cFailures = failures + 1 } },
                      finalUs)
       _ -> return $! (ss { stCounts =
                              c { cAsserts = asserts + fromIntegral currAsserts,
+                                 cCaseAsserts = fromIntegral currAsserts,
                                  cFailures =
                                    if hasFailure
                                      then failures + 1
@@ -553,6 +556,7 @@ syntheticName = "__synthetic__"
 wrapTest :: IO a -> IO Progress
 wrapTest t =
   do
+    putStr "Running wrapped test\n"
     ignoreResult
     _ <- t
     checkTestInfo

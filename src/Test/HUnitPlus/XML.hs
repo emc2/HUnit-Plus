@@ -188,7 +188,7 @@ xmlReporter =
     reportStartCase _ stack = return ([] : stack)
 
     reportEndCase time State { stName = name, stPath = testpath,
-                               stCounts = Counts { cAsserts = asserts } }
+                               stCounts = Counts { cCaseAsserts = asserts } }
                   (events : rest : stack) =
       return ((testcaseElem name (showPath testpath)
                             asserts time (reverse events) : rest) : stack)

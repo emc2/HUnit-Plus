@@ -42,7 +42,9 @@ data Counts =
     -- | Number of cases that were skipped.
     cSkipped :: !Word,
     -- | Total number of assertions checked.
-    cAsserts :: !Word
+    cAsserts :: !Word,
+    -- | Number of assertions checked by the last test case.
+    cCaseAsserts :: !Word
   }
   deriving (Eq, Show, Read)
 
@@ -163,7 +165,7 @@ data Reporter us = Reporter {
 
 -- | A 'Counts' with all zero counts.
 zeroCounts :: Counts
-zeroCounts = Counts { cCases = 0, cTried = 0, cErrors = 0,
+zeroCounts = Counts { cCases = 0, cTried = 0, cErrors = 0, cCaseAsserts = 0,
                       cFailures = 0, cAsserts = 0, cSkipped = 0 }
 
 -- | A reporter containing default actions, which are to do nothing
