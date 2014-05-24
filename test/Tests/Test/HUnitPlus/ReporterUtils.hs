@@ -66,7 +66,8 @@ addOption key value (s @ State { stOptions = opts }, repstate) =
 countAsserts :: Word -> ReporterOp us
 countAsserts count (s @ State { stCounts = c @ Counts { cAsserts = n } },
                     repstate) =
-  return (s { stCounts = c { cAsserts = n + count } }, repstate)
+  return (s { stCounts = c { cAsserts = n + count,
+                             cCaseAsserts = count } }, repstate)
 
 countTried :: Word -> ReporterOp us
 countTried count (s @ State { stCounts = c @ Counts { cCases = cases,

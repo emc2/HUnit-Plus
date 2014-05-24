@@ -556,7 +556,6 @@ syntheticName = "__synthetic__"
 wrapTest :: IO a -> IO Progress
 wrapTest t =
   do
-    putStr "Running wrapped test\n"
     ignoreResult
     _ <- t
     checkTestInfo

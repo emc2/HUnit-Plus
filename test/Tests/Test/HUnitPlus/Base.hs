@@ -77,7 +77,7 @@ oneError :: Counts
 oneError = zeroCounts { cErrors = 1 }
 
 oneAssert :: Counts
-oneAssert = zeroCounts { cAsserts = 1 }
+oneAssert = zeroCounts { cAsserts = 1, cCaseAsserts = 1 }
 
 twoFails :: Counts
 twoFails = zeroCounts { cFailures = 2 }
@@ -86,29 +86,29 @@ twoErrors :: Counts
 twoErrors = zeroCounts { cErrors = 2 }
 
 twoAsserts :: Counts
-twoAsserts = zeroCounts { cAsserts = 2 }
+twoAsserts = zeroCounts { cAsserts = 2, cCaseAsserts = 2 }
 
 oneFailOneAssert :: Counts
-oneFailOneAssert = zeroCounts { cFailures = 1, cAsserts = 1 }
+oneFailOneAssert = zeroCounts { cFailures = 1, cAsserts = 1, cCaseAsserts = 1 }
 
 twoFailsOneAssert :: Counts
-twoFailsOneAssert = zeroCounts { cFailures = 2, cAsserts = 1 }
+twoFailsOneAssert = zeroCounts { cFailures = 2, cAsserts = 1, cCaseAsserts = 1 }
 
 oneFailOneAssertOneError :: Counts
 oneFailOneAssertOneError =
-  zeroCounts { cFailures = 1, cErrors = 1, cAsserts = 1 }
+  zeroCounts { cFailures = 1, cErrors = 1, cAsserts = 1, cCaseAsserts = 1 }
 
 oneErrorOneAssert :: Counts
-oneErrorOneAssert = zeroCounts { cErrors = 1, cAsserts = 1 }
+oneErrorOneAssert = zeroCounts { cErrors = 1, cAsserts = 1, cCaseAsserts = 1 }
 
 oneFailTwoAsserts :: Counts
-oneFailTwoAsserts = zeroCounts { cFailures = 1, cAsserts = 2 }
+oneFailTwoAsserts = zeroCounts { cFailures = 1, cAsserts = 2, cCaseAsserts = 2 }
 
 twoFailsTwoAsserts :: Counts
-twoFailsTwoAsserts = zeroCounts { cFailures = 2, cAsserts = 2 }
+twoFailsTwoAsserts = zeroCounts { cFailures = 2, cAsserts = 2, cCaseAsserts = 2 }
 
 twoErrorsTwoAsserts :: Counts
-twoErrorsTwoAsserts = zeroCounts { cErrors = 2, cAsserts = 2 }
+twoErrorsTwoAsserts = zeroCounts { cErrors = 2, cAsserts = 2, cCaseAsserts = 2 }
 
 externalTestPass :: Test
 externalTestPass =
