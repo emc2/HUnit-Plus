@@ -267,15 +267,15 @@ testCases = [
     ("assertEqual_neq" ~: assertEqual "Prefix" 3 4,
      "assertEqual_neq", [], oneFailOneAssert,
      [Utils.Failure "Prefix\nexpected: 3\nbut got: 4"]),
-    ("assertThrows_nothrow" ~: assertThrows (\(TestException _) -> True)
+    ("assertThrows_nothrow" ~: assertThrows (\(TestException _) -> assertSuccess)
                                             (return ()),
      "assertThrows_nothrow", [], oneFailOneAssert,
      [Utils.Failure "expected exception but computation finished normally"]),
-    ("assertThrows_badthrow" ~: assertThrows (TestException False ==)
+    ("assertThrows_badthrow" ~: assertThrows (TestException False @=?)
                                              (throwIO (TestException True)),
      "assertThrows_badthrow", [], oneFailOneAssert,
-     [Utils.Failure "unexpected exception TestException True"]),
-    ("assertThrows_goodthrow" ~: assertThrows (TestException True ==)
+     [Utils.Failure "expected: TestException False\nbut got: TestException True"]),
+    ("assertThrows_goodthrow" ~: assertThrows (TestException True @=?)
                                               (throwIO (TestException True)),
      "assertThrows_goodthrow", [], oneAssert, []),
     ("assertThrowsExact_nothrow" ~: assertThrowsExact (TestException True)

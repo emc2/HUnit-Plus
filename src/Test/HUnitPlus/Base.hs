@@ -382,20 +382,6 @@ assertEqual preface expected actual =
   in
     assertBool msg (actual == expected)
 
--- | Utility function for exception-checking assertions.
-expectException :: Exception e
-                => (e -> Bool)
-                -- ^ Checks if an exception is valid.
-                -> (e -> String)
-                -- ^ Generates an error message.
-                -> e
-                -- ^ The exception.
-                -> Assertion
-expectException testfunc msgfunc ex =
-  if testfunc ex
-    then assertSuccess
-    else assertFailure (msgfunc ex)
-
 -- | Assert that the given computation throws a specific exception.
 assertThrowsExact :: (Exception e, Show e, Eq e)
                   => e
@@ -407,15 +393,20 @@ assertThrowsExact ex comp =
   let
     runComp = comp >> assertFailure ("expected exception " ++ show ex ++
                                      " but computation finished normally")
-    msgfunc ex' = "expected exception " ++ show ex ++ " but got " ++ show ex'
-    handler = expectException (ex ==) msgfunc
+    handler ex' =
+      let
+        msg = "expected exception " ++ show ex ++ " but got " ++ show ex'
+      in
+       if ex == ex'
+         then assertSuccess
+         else assertFailure msg
   in
     handle handler runComp
 
 -- | Assert that the given computation throws an exception that
 -- matches a predicate.
 assertThrows :: (Exception e, Show e)
-             => (e -> Bool)
+             => (e -> Assertion)
              -- ^ Exception to be caught
              -> IO a
              -- ^ Computation that should throw the exception
@@ -426,11 +417,8 @@ assertThrows check comp =
       do
         _ <- comp
         assertFailure "expected exception but computation finished normally"
-
-    msgfunc ex = "unexpected exception " ++ show ex
-    handler = expectException check msgfunc
   in
-    handle handler runComp
+    handle check runComp
 
 -- Overloaded `assert` Function
 -- ----------------------------
