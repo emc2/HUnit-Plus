@@ -18,6 +18,7 @@ module Test.HUnitPlus.Reporting(
        Path,
        zeroCounts,
        showPath,
+       showQualName,
        defaultReporter,
        combinedReporter
        ) where
@@ -197,6 +198,20 @@ showPath nodes =
     safe s ss = if '.' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
   in
     intercalate "." (reverse (map showNode nodes))
+
+-- | Gewerate a string showing the entire qualified name from the
+-- reporting state.
+showQualName :: State -> String
+showQualName st =
+  case stPath st of
+    [] -> stName st
+    nodes ->
+      let
+        showNode (Label label) = safe label (show label)
+        safe s ss = if '.' `elem` s || "\"" ++ s ++ "\"" /= ss then ss else s
+      in
+        intercalate "." (reverse (map showNode nodes)) ++ "." ++ stName st
+
 
 -- | Combines two 'Reporter's into a single reporter that calls both.
 combinedReporter :: Reporter us1 -> Reporter us2 -> Reporter (us1, us2)

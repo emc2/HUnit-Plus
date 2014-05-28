@@ -72,19 +72,17 @@ textReporter :: PutText us
              -> Reporter us
 textReporter (PutText put initUs) verbose =
   let
-    reportProblem p0 p1 msg ss us =
+    reportProblem prefix msg ss us =
       let
-        kind = if null path then p0 else p1
-        path = showPath (stPath ss)
-        line = "### " ++ kind ++ path ++ ": " ++ msg ++ "\n"
+        path = showQualName ss
+        line = "### " ++ prefix ++ path ++ ": " ++ msg ++ "\n"
       in
         put line us
 
-    reportOutput p0 p1 msg ss us =
+    reportOutput prefix msg ss us =
       let
-        kind = if null path then p0 else p1
-        path = showPath (stPath ss)
-        line = "### " ++ kind ++ path ++ ": " ++ msg ++ "\n"
+        path = showQualName ss
+        line = "### " ++ prefix ++ path ++ ": " ++ msg ++ "\n"
       in
         if verbose then put line us else return us
 
@@ -104,7 +102,7 @@ textReporter (PutText put initUs) verbose =
 
     reportStartCase ss us =
       let
-        path = showPath (stPath ss)
+        path = showQualName ss
         line = if null path then "Test case starting\n"
                else "Test case " ++ path ++ " starting\n"
       in
@@ -112,7 +110,7 @@ textReporter (PutText put initUs) verbose =
 
     reportEndCase time ss us =
       let
-        path = showPath (stPath ss)
+        path = showQualName ss
         timestr = printf "%.6f" time
         line = if null path then "Test completed in " ++ timestr ++ " sec\n"
                else "Test " ++ path ++ " completed in " ++ timestr ++ " sec\n"
@@ -139,10 +137,10 @@ textReporter (PutText put initUs) verbose =
       reporterEndSuite = reportEndSuite,
       reporterStartCase = reportStartCase,
       reporterEndCase = reportEndCase,
-      reporterSystemOut = reportOutput "STDOUT " "STDOUT from ",
-      reporterSystemErr = reportOutput "STDERR" "STDERR from ",
-      reporterError = reportProblem "Error " "Error in ",
-      reporterFailure = reportProblem "Failure" "Failure in "
+      reporterSystemOut = reportOutput "STDOUT from ",
+      reporterSystemErr = reportOutput "STDERR from ",
+      reporterError = reportProblem "Error in ",
+      reporterFailure = reportProblem "Failure in "
     }
 
 -- | Execute a test, processing text output according to the given
@@ -251,11 +249,10 @@ erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
 terminalReporter :: Reporter Int
 terminalReporter =
   let
-    reportProblem p0 p1 msg ss us =
+    reportProblem prefix msg ss us =
       let
-        line = "### " ++ kind ++ path ++ '\n' : msg
-        path = showPath (stPath ss)
-        kind = if null path then p0 else p1
+        line = "### " ++ prefix ++ path ++ '\n' : msg
+        path = showQualName ss
       in
         termPut line True us
   in
@@ -264,8 +261,8 @@ terminalReporter =
       reporterEnd = (\_ _ _ -> do hPutStr stderr "\n"; return 0),
       reporterEndCase =
         (\_ ss us -> termPut (showCounts (stCounts ss)) False us),
-      reporterError = reportProblem "Error:" "Error in:   ",
-      reporterFailure = reportProblem "Failure:" "Failure in: "
+      reporterError = reportProblem "Error in:   ",
+      reporterFailure = reportProblem "Failure in: "
     }
 
 -- | Execute a test, processing text output according to the given
