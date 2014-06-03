@@ -207,6 +207,10 @@ testCases = [
      oneFail, [Utils.Failure "Fail Message"]),
     ("logError" ~: logError "Error Message", "logError", [],
      oneError, [Utils.Error "Error Message"]),
+    ("logSysout" ~: logSysout "Sysout Message", "logSysout", [],
+     zeroCounts, [Utils.SystemOut "Sysout Message"]),
+    ("logSyserr" ~: logSyserr "Syserr Message", "logSyserr", [],
+     zeroCounts, [Utils.SystemErr "Syserr Message"]),
     ("logAssert_twice" ~: do logAssert; logAssert,
      "logAssert_twice", [], twoAsserts, []),
     ("logFailure_twice" ~: do logFailure "Fail Message\n"

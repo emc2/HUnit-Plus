@@ -68,6 +68,8 @@ module Test.HUnitPlus.Base(
 
        -- * Low-level Test Functions
        executeTest,
+       logSyserr,
+       logSysout,
        logAssert,
        logFailure,
        logError,
@@ -128,7 +130,7 @@ sysErrCode = 3
 
 {-# NOINLINE testinfo #-}
 testinfo :: IORef TestInfo
-testinfo = unsafePerformIO $ newIORef undefined
+testinfo = unsafePerformIO $! newIORef undefined
 
 -- | Does the actual work of executing a test.  This maintains the
 -- necessary bookkeeping recording assertions and failures, It also
@@ -270,6 +272,18 @@ withPrefix prefix c =
     writeIORef testinfo t { tiPrefix = prefix ++ oldprefix }
     c
     modifyIORef testinfo (\t' -> t' { tiPrefix = oldprefix })
+
+-- | Record sysout output.
+logSysout :: String -> IO ()
+logSysout msg =
+  modifyIORef testinfo (\t -> t { tiEvents = (sysOutCode, tiPrefix t ++ msg) :
+                                             tiEvents t })
+
+-- | Record sysout output.
+logSyserr :: String -> IO ()
+logSyserr msg =
+  modifyIORef testinfo (\t -> t { tiEvents = (sysErrCode, tiPrefix t ++ msg) :
+                                             tiEvents t })
 
 -- | Record that one assertion has been checked.
 logAssert :: IO ()
