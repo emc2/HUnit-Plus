@@ -1,6 +1,13 @@
 Release Notes
 =============
 
+1.0.1
+-----
+
+Bug fix release
+
+* Fixed a bug where paths and filters containing '_' (and others) don't parse correctly.
+
 1.0.0
 -----
 

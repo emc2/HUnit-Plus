@@ -12,10 +12,10 @@ suiteNames :: [[String]]
 suiteNames = [[], ["Suite1"], ["Suite1"], ["Suite1", "Suite2"]]
 
 paths :: [[String]]
-paths = [[], ["Outer"], ["Outer", "Middle"], ["Outer", "Middle", "Inner"]]
+paths = [[], ["Outer"], ["Outer", "Middle"], ["Outer", "Middle", "Inner"], ["Underscore_path"], ["t__", "__u__", "__v"]]
 
 tagNames :: [[String]]
-tagNames = [[], ["tag1"], ["tag2"], ["tag1", "tag2"]]
+tagNames = [[], ["tag1"], ["tag2"], ["tag1", "tag2"], ["underscore_tag"], ["t__", "_u__", "__v"]]
 
 suiteString :: [String] -> String
 suiteString [] = ""

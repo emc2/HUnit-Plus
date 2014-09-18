@@ -268,11 +268,15 @@ suiteSelectors allsuites filters
     in
       Map.map (foldl1 combineSelectors . Set.elems) suiteMap
 
+nameParser :: GenParser Char st Char
+nameParser =
+  oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-_"
+
 namesParser :: GenParser Char st [String]
-namesParser = sepBy1 (many1 alphaNum) (string ",")
+namesParser = sepBy1 (many1 nameParser) (string ",")
 
 pathParser :: GenParser Char st [String]
-pathParser = sepBy (many1 alphaNum) (string ".")
+pathParser = sepBy (many1 nameParser) (string ".")
 
 suitesParser :: GenParser Char st [String]
 suitesParser = between (string "[") (string "]") namesParser
