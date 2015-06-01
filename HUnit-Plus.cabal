@@ -35,7 +35,7 @@ Test-Suite RunTests
   type:                 exitcode-stdio-1.0
   Main-Is:              RunTests.hs
   hs-source-dirs:       src test
-  build-depends:        base >= 4.4.0 && < 5, Cabal >= 1.16.0, hexpat, timeit,
+  build-depends:        base >= 4.4.0 && < 4.8, Cabal >= 1.16.0, hexpat, timeit,
                         cmdargs, hashable, containers, time, old-locale, hostname,
                         parsec, bytestring, directory
   ghc-options:          -fhpc
