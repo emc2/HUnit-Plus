@@ -17,7 +17,7 @@
 -- >main = createMain testsuites
 --
 -- Where @testsuites@ is a list of 'TestSuite's.
--- 
+--
 -- The resulting program, when executed with no arguments will execute
 -- all test suites and write a summary to @stdout@.  Additionally, the
 -- test program has a number of options that control reporting and
@@ -284,7 +284,7 @@ topLevel :: [TestSuite] -> Opts -> IO (Either [String] Bool)
 topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
   let
     cmode = case cmodeopt of
-      [] -> Right Terminal
+      [] -> Right Text
       [ cmode' ] -> Right cmode'
       _ -> Left "Cannot specify multiple terminal output options"
 
