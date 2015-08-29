@@ -24,7 +24,6 @@ module Test.HUnitPlus.Reporting(
        ) where
 
 import Data.List
-import Data.Word
 import Data.Map(Map)
 import Distribution.TestSuite
 
@@ -187,7 +186,7 @@ defaultReporter = Reporter {
     reporterError = \_ _ us -> return us
   }
 
--- | Converts a test case path to a string, separating adjacent elements by 
+-- | Converts a test case path to a string, separating adjacent elements by
 --   a dot (\'.\'). An element of the path is quoted (as with 'show') when
 --   there is potential ambiguity.
 showPath :: Path -> String

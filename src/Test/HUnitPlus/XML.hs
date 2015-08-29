@@ -22,9 +22,7 @@ module Test.HUnitPlus.XML(
 
 import Data.Map(Map)
 import Data.Time
-import Data.Word
 import Network.HostName
-import System.Locale
 import Test.HUnitPlus.Reporting(Reporter(..), State(..), Counts(..),
                                 defaultReporter, showPath)
 import Text.XML.Expat.Tree
@@ -227,4 +225,3 @@ xmlReporter =
       reporterSystemOut = reportSystemOut,
       reporterSystemErr = reportSystemErr
     }
-
