@@ -130,7 +130,9 @@ sysErrCode = 3
 
 {-# NOINLINE testinfo #-}
 testinfo :: IORef TestInfo
-testinfo = unsafePerformIO $! newIORef undefined
+testinfo = unsafePerformIO $! newIORef TestInfo { tiAsserts = 0, tiEvents = [],
+                                                  tiIgnoreResult = False,
+                                                  tiPrefix = "" }
 
 -- | Does the actual work of executing a test.  This maintains the
 -- necessary bookkeeping recording assertions and failures, It also
@@ -361,7 +363,7 @@ assertBool msg b = if b then assertSuccess else assertFailure msg
 -- | Signals an assertion failure if a non-empty message (i.e., a message
 -- other than @\"\"@) is passed.
 assertString :: String
-             -- ^ The message that is displayed with the assertion failure 
+             -- ^ The message that is displayed with the assertion failure
              -> Assertion
 assertString = assertStringWithPrefix ""
 
@@ -376,16 +378,16 @@ assertStringWithPrefix :: String
 assertStringWithPrefix prefix s = assertBool (prefix ++ s) (null s)
 
 -- | Asserts that the specified actual value is equal to the expected value.
--- The output message will contain the prefix, the expected value, and the 
+-- The output message will contain the prefix, the expected value, and the
 -- actual value.
---  
+--
 -- If the prefix is the empty string (i.e., @\"\"@), then the prefix is omitted
 -- and only the expected and actual values are output.
 assertEqual :: (Eq a, Show a)
             => String
             -- ^ The message prefix
             -> a
-            -- ^ The expected value 
+            -- ^ The expected value
             -> a
             -- ^ The actual value
             -> Assertion
@@ -438,12 +440,12 @@ assertThrows check comp =
 -- ----------------------------
 
 -- | Allows the extension of the assertion mechanism.
--- 
+--
 -- Since an 'Assertion' can be a sequence of @Assertion@s and @IO@
 -- actions, there is a fair amount of flexibility of what can be
 -- achieved.  As a rule, the resulting 'Assertion' should not assert
 -- multiple, independent conditions.
--- 
+--
 -- If more complex arrangements of assertions are needed, 'Test's and
 -- 'Testable' should be used.
 class Assertable t where
@@ -639,7 +641,7 @@ instance (Testable t) => Testable [t] where
 infix  1 ~?, ~=?, ~?=
 infixr 0 ~:
 
--- | Creates a test case resulting from asserting the condition obtained 
+-- | Creates a test case resulting from asserting the condition obtained
 --   from the specified 'AssertionPredicable'.
 (~?) :: (Assertable t)
      => t
@@ -649,31 +651,31 @@ infixr 0 ~:
      -> Test
 predi ~? msg = test (predi @? msg)
 
--- | Shorthand for a test case that asserts equality (with the expected 
+-- | Shorthand for a test case that asserts equality (with the expected
 --   value on the left-hand side, and the actual value on the right-hand
 --   side).
 (~=?) :: (Eq a, Show a)
       => a
-      -- ^ The expected value 
+      -- ^ The expected value
       -> a
       -- ^ The actual value
       -> Test
 expected ~=? actual = test (expected @=? actual)
 
--- | Shorthand for a test case that asserts equality (with the actual 
+-- | Shorthand for a test case that asserts equality (with the actual
 --   value on the left-hand side, and the expected value on the right-hand
 --   side).
 (~?=) :: (Eq a, Show a)
       => a
       -- ^ The actual value
       -> a
-      -- ^ The expected value 
+      -- ^ The expected value
       -> Test
 actual ~?= expected = test (actual @?= expected)
 
--- | Creates a test from the specified 'Testable', with the specified 
+-- | Creates a test from the specified 'Testable', with the specified
 --   label attached to it.
--- 
+--
 -- Since 'Test' is @Testable@, this can be used as a shorthand way of
 -- attaching a 'TestLabel' to one or more tests.
 (~:) :: (Testable t) => String -> t -> Test
