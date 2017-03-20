@@ -3,7 +3,7 @@ module Tests.Test.HUnitPlus.Execution where
 
 import Control.Exception(Exception, throwIO)
 import Data.List
-import Data.Map(Map)
+import Data.HashMap.Strict(HashMap)
 import Data.Maybe
 import Data.Typeable
 import Distribution.TestSuite
@@ -12,8 +12,8 @@ import Test.HUnitPlus.Execution
 import Test.HUnitPlus.Filter
 import Test.HUnitPlus.Reporting
 
-import qualified Data.Set as Set
-import qualified Data.Map as Map
+import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 
 data ReportEvent =
     EndEvent Counts
@@ -61,10 +61,10 @@ makeTagName True False = "tag1"
 makeTagName False True = "tag2"
 makeTagName True True = "tag12"
 
-makeTagSet (False, False) = Set.empty
-makeTagSet (True, False) = Set.singleton "tag1"
-makeTagSet (False, True) = Set.singleton "tag2"
-makeTagSet (True, True) = Set.fromList ["tag1", "tag2"]
+makeTagSet (False, False) = HashSet.empty
+makeTagSet (True, False) = HashSet.singleton "tag1"
+makeTagSet (False, True) = HashSet.singleton "tag2"
+makeTagSet (True, True) = HashSet.fromList ["tag1", "tag2"]
 
 data TestException = TestException
   deriving (Show, Typeable)
@@ -215,7 +215,7 @@ getSuperSet wrapinner (WithTags (False, True)) =
     wrapinner (allSelector { selectorTags = Nothing }), False),
    (WithTags (True, True),
     wrapinner (allSelector { selectorTags =
-                                   Just $! Set.fromList ["tag1", "tag2" ] }),
+                                   Just $! HashSet.fromList ["tag1", "tag2" ] }),
     True),
    (All, wrapinner allSelector, True) ]
 getSuperSet wrapinner (WithTags (True, False)) =
@@ -223,21 +223,21 @@ getSuperSet wrapinner (WithTags (True, False)) =
     wrapinner (allSelector { selectorTags = Nothing }), False),
    (WithTags (True, True),
     wrapinner (allSelector { selectorTags =
-                                   Just $! Set.fromList ["tag1", "tag2" ] }),
+                                   Just $! HashSet.fromList ["tag1", "tag2" ] }),
     True),
    (All, wrapinner allSelector, True) ]
 -- If we're not running any tests, we can do anything
 getSuperSet wrapinner None =
   [(None, wrapinner (allSelector { selectorTags = Nothing }), False),
    (WithTags (True, False),
-    wrapinner (allSelector { selectorTags = Just $! Set.singleton "tag1" }),
+    wrapinner (allSelector { selectorTags = Just $! HashSet.singleton "tag1" }),
     True),
    (WithTags (False, True),
-    wrapinner (allSelector { selectorTags = Just $! Set.singleton "tag2" }),
+    wrapinner (allSelector { selectorTags = Just $! HashSet.singleton "tag2" }),
     True),
    (WithTags (True, True),
     wrapinner (allSelector { selectorTags =
-                                   Just $! Set.fromList ["tag1", "tag2" ] }),
+                                   Just $! HashSet.fromList ["tag1", "tag2" ] }),
     True),
    (All, wrapinner allSelector, True) ]
 
@@ -271,7 +271,7 @@ makeOuterGroup :: ModFilter -> ([Test], [ReportEvent], State, [Selector]) ->
 makeOuterGroup mfilter initialTests =
   let
     wrapOuterPath inner =
-      Selector { selectorInners = Map.singleton "Outer" inner,
+      Selector { selectorInners = HashMap.singleton "Outer" inner,
                  selectorTags = Nothing }
 
     mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
@@ -302,9 +302,9 @@ makeOuterGroup mfilter initialTests =
         wrapInnerPath inner =
           Selector {
             selectorInners =
-               Map.singleton "Outer" Selector {
+               HashMap.singleton "Outer" Selector {
                                        selectorInners =
-                                          Map.singleton "Inner" inner,
+                                          HashMap.singleton "Inner" inner,
                                        selectorTags = Nothing
                                      },
             selectorTags = Nothing
@@ -322,7 +322,7 @@ makeOuterGroup mfilter initialTests =
 modfilters = [ All, WithTags (True, False), WithTags (False, True),
                WithTags (True, True), None ]
 
-genFilter :: String -> [(TestSuite, [ReportEvent], Map String Selector, Counts)]
+genFilter :: String -> [(TestSuite, [ReportEvent], HashMap String Selector, Counts)]
 genFilter sname =
   let
     -- Take a root ModFilter and an initial (suite list, event list,
@@ -330,12 +330,12 @@ genFilter sname =
     -- the root ModFilter, and produce a list of possible (suite list,
     -- event list, selectors)'s, one for each possibility.
     suiteTestInst :: ModFilter -> [(TestSuite, [ReportEvent],
-                                    Map String Selector, Counts)]
+                                    HashMap String Selector, Counts)]
     suiteTestInst mfilter =
       let
         -- Initial state for a filter
         initState = State { stCounts = zeroCounts, stName = sname,
-                            stPath = [], stOptions = Map.empty,
+                            stPath = [], stOptions = HashMap.empty,
                             stOptionDescs = [] }
 
         -- The selectors for the root set
@@ -353,7 +353,7 @@ genFilter sname =
                 (getTests mfilter)
 
         wrapOtherPath inner =
-          Selector { selectorInners = Map.singleton "Other" inner,
+          Selector { selectorInners = HashMap.singleton "Other" inner,
                      selectorTags = Nothing }
 
         -- Results after executing tests in the Other module
@@ -368,14 +368,14 @@ genFilter sname =
         -- test suite and a filter.  Also add the EndSuite event to
         -- the events list.
         buildSuite :: ([Test], [ReportEvent], State, [Selector]) ->
-                      (TestSuite, [ReportEvent], Map String Selector, Counts)
+                      (TestSuite, [ReportEvent], HashMap String Selector, Counts)
         buildSuite (tests, _, _, []) =
           let
             suite =
               TestSuite { suiteName = sname, suiteTests = reverse tests,
                           suiteConcurrently = True, suiteOptions = [] }
           in
-            (suite, [], Map.empty, zeroCounts)
+            (suite, [], HashMap.empty, zeroCounts)
         buildSuite (tests, events, state @ State { stCounts = counts },
                     selectors) =
           let
@@ -389,11 +389,11 @@ genFilter sname =
             eventsWithEnd = EndSuiteEvent state : events
 
             -- Add an entry for this suite to the selector map
-            selectormap :: Map String Selector
+            selectormap :: HashMap String Selector
             selectormap =
               case selectors of
-                [one] -> Map.singleton sname one
-                _ -> Map.singleton sname (foldl1 combineSelectors selectors)
+                [one] -> HashMap.singleton sname one
+                _ -> HashMap.singleton sname (foldl1 combineSelectors selectors)
           in
             (suite, reverse eventsWithEnd, selectormap, counts)
       in
@@ -403,15 +403,15 @@ genFilter sname =
     -- and add it to the existing list of test instances.
     concatMap suiteTestInst modfilters
 
-suite1Data :: [(TestSuite, [ReportEvent], Map String Selector, Counts)]
+suite1Data :: [(TestSuite, [ReportEvent], HashMap String Selector, Counts)]
 suite1Data = genFilter "Suite1"
 
-suite2Data :: [(TestSuite, [ReportEvent], Map String Selector, Counts)]
+suite2Data :: [(TestSuite, [ReportEvent], HashMap String Selector, Counts)]
 suite2Data = genFilter "Suite2"
 
-combineSuites :: (TestSuite, [ReportEvent], Map String Selector, Counts) ->
-                 (TestSuite, [ReportEvent], Map String Selector, Counts) ->
-                 ([TestSuite], [ReportEvent], Map String Selector)
+combineSuites :: (TestSuite, [ReportEvent], HashMap String Selector, Counts) ->
+                 (TestSuite, [ReportEvent], HashMap String Selector, Counts) ->
+                 ([TestSuite], [ReportEvent], HashMap String Selector)
 combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                                        cCases = cases1,
                                                        cErrors = errors1,
@@ -434,19 +434,19 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                       cCaseAsserts = 0 }
     suites = [suite1, suite2]
     events = events1 ++ events2 ++ [EndEvent counts]
-    selectormap = Map.union selectormap1 selectormap2
+    selectormap = HashMap.union selectormap1 selectormap2
   in
     (suites, events, selectormap)
 
 
-suiteData :: [([TestSuite], [ReportEvent], Map String Selector)]
+suiteData :: [([TestSuite], [ReportEvent], HashMap String Selector)]
 suiteData = foldl (\accum suite1 ->
                     foldl (\accum suite2 ->
                             (combineSuites suite1 suite2) : accum)
                           accum suite2Data)
                   [] suite1Data
 
-makeExecutionTest :: ([TestSuite], [ReportEvent], Map String Selector) ->
+makeExecutionTest :: ([TestSuite], [ReportEvent], HashMap String Selector) ->
                      (Int, [Test]) -> (Int, [Test])
 makeExecutionTest (suites, expected, selectors) (index, tests) =
   let
@@ -455,7 +455,7 @@ makeExecutionTest (suites, expected, selectors) (index, tests) =
     selectorStrs =
       intercalate "\n" (map (\(suite, selector) -> "[" ++ suite ++ "]" ++
                                                    show selector)
-                            (Map.assocs selectors))
+                            (HashMap.toList selectors))
 
     check expected @ (e : expecteds) actual @ (a : actuals)
       | e == a = check expecteds actuals

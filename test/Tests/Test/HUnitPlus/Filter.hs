@@ -1,21 +1,23 @@
 module Tests.Test.HUnitPlus.Filter(tests) where
 
 import Data.List
-import Data.Map(Map)
+import Data.HashMap.Strict(HashMap)
 import Distribution.TestSuite
 import Test.HUnitPlus.Filter
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 
 suiteNames :: [[String]]
 suiteNames = [[], ["Suite1"], ["Suite1"], ["Suite1", "Suite2"]]
 
 paths :: [[String]]
-paths = [[], ["Outer"], ["Outer", "Middle"], ["Outer", "Middle", "Inner"], ["Underscore_path"], ["t__", "__u__", "__v"]]
+paths = [[], ["Outer"], ["Outer", "Middle"], ["Outer", "Middle", "Inner"],
+         ["Underscore_path"], ["t__", "__u__", "__v"]]
 
 tagNames :: [[String]]
-tagNames = [[], ["tag1"], ["tag2"], ["tag1", "tag2"], ["underscore_tag"], ["t__", "_u__", "__v"]]
+tagNames = [[], ["tag1"], ["tag2"], ["tag1", "tag2"], ["underscore_tag"],
+            ["t__", "_u__", "__v"]]
 
 suiteString :: [String] -> String
 suiteString [] = ""
@@ -35,16 +37,16 @@ makeFilterString suites path tags =
 
 tagsSelector :: [String] -> Selector
 tagsSelector [] = allSelector
-tagsSelector tags = allSelector { selectorTags = Just $! Set.fromList tags }
+tagsSelector tags = allSelector { selectorTags = Just $! HashSet.fromList tags }
 
 pathSelector :: Selector -> [String] -> Selector
 pathSelector inner [] = inner
 pathSelector inner (elem : path) =
-  Selector { selectorInners = Map.singleton elem (pathSelector inner path),
+  Selector { selectorInners = HashMap.singleton elem (pathSelector inner path),
              selectorTags = Nothing }
 
 makeFilter :: [String] -> Selector -> Filter
-makeFilter names selector = Filter { filterSuites = Set.fromList names,
+makeFilter names selector = Filter { filterSuites = HashSet.fromList names,
                                      filterSelector = selector }
 
 suitesName :: [String] -> String
@@ -116,7 +118,8 @@ makeFileParserTest name content expected =
           Right actual
             | expected == actual -> return (Finished Pass)
             | otherwise ->
-              return (Finished (Fail ("In parse of\n************\n" ++ content ++
+              return (Finished (Fail ("In parse of\n************\n" ++
+                                      content ++
                                       "\n************\nexpected " ++
                                       show expected ++ "\nactual " ++
                                       show actual)))
@@ -134,41 +137,41 @@ fileTests =
       Selector {
         selectorTags = Nothing,
         selectorInners =
-          Map.singleton "Outer"
+          HashMap.singleton "Outer"
             Selector { selectorTags = Nothing,
-                       selectorInners = Map.singleton "Inner" allSelector }
+                       selectorInners = HashMap.singleton "Inner" allSelector }
       }
     simplePathStr = "Outer.Inner"
 
     onlyTags = allSelector { selectorTags =
-                                Just $! Set.fromList ["tag1", "tag2"] }
+                                Just $! HashSet.fromList ["tag1", "tag2"] }
     onlyTagsStr = "@tag1,tag2"
     pathTags =
       Selector {
         selectorTags = Nothing,
         selectorInners =
-          Map.singleton "Outer"
+          HashMap.singleton "Outer"
             Selector { selectorTags = Nothing,
-                       selectorInners = Map.singleton "Inner" onlyTags }
+                       selectorInners = HashMap.singleton "Inner" onlyTags }
       }
     pathTagsStr = "Outer.Inner@tag1,tag2"
-    suiteAllFilter = Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+    suiteAllFilter = Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
                               filterSelector = allSelector }
     suiteFilterStr = "[Suite1,Suite2]"
-    simplePathFilter = Filter { filterSuites = Set.empty,
+    simplePathFilter = Filter { filterSuites = HashSet.empty,
                                 filterSelector = simplePath }
-    suitePathFilter = Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+    suitePathFilter = Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
                                filterSelector = simplePath }
     suitePathStr = suiteFilterStr ++ simplePathStr
-    onlyTagsFilter = Filter { filterSuites = Set.empty,
+    onlyTagsFilter = Filter { filterSuites = HashSet.empty,
                                 filterSelector = onlyTags }
-    suiteTagsFilter = Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+    suiteTagsFilter = Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
                                filterSelector = onlyTags }
     suiteTagsStr = suiteFilterStr ++ onlyTagsStr
-    pathTagsFilter = Filter { filterSuites = Set.empty,
+    pathTagsFilter = Filter { filterSuites = HashSet.empty,
                                 filterSelector = pathTags }
     suitePathTagsFilter =
-      Filter { filterSuites = Set.fromList ["Suite1", "Suite2"],
+      Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
                filterSelector = pathTags }
     suitePathTagsStr = suiteFilterStr ++ pathTagsStr
 
@@ -327,11 +330,11 @@ fileParserTests =
       fileTests
 
 innerPath :: Selector -> Selector
-innerPath inner = Selector { selectorInners = Map.singleton "Inner" inner,
+innerPath inner = Selector { selectorInners = HashMap.singleton "Inner" inner,
                              selectorTags = Nothing }
 
 outerPath :: Selector -> Selector
-outerPath inner = Selector { selectorInners = Map.singleton "Outer" inner,
+outerPath inner = Selector { selectorInners = HashMap.singleton "Outer" inner,
                              selectorTags = Nothing }
 
 outerInnerPath :: Selector -> Selector
@@ -339,30 +342,30 @@ outerInnerPath = outerPath . innerPath
 
 outerAndInnerPath :: Selector
 outerAndInnerPath =
-  Selector { selectorInners = Map.fromList [("Outer", allSelector),
+  Selector { selectorInners = HashMap.fromList [("Outer", allSelector),
                                             ("Inner", allSelector)],
              selectorTags = Nothing }
 
 outerInnerAndInnerPath :: Selector
 outerInnerAndInnerPath =
-  Selector { selectorInners = Map.fromList [("Outer", innerPath allSelector),
+  Selector { selectorInners = HashMap.fromList [("Outer", innerPath allSelector),
                                             ("Inner", allSelector)],
              selectorTags = Nothing }
 
 tag1OuterAndInnerPath :: Selector
 tag1OuterAndInnerPath =
-  Selector { selectorInners = Map.fromList [("Outer", allSelector),
+  Selector { selectorInners = HashMap.fromList [("Outer", allSelector),
                                             ("Inner", allSelector)],
-             selectorTags = Just $! Set.singleton "tag1" }
+             selectorTags = Just $! HashSet.singleton "tag1" }
 
 tag1 :: Selector -> Selector
-tag1 inner = inner { selectorTags = Just $! Set.singleton "tag1" }
+tag1 inner = inner { selectorTags = Just $! HashSet.singleton "tag1" }
 
 tag2 :: Selector -> Selector
-tag2 inner = inner { selectorTags = Just $! Set.singleton "tag2" }
+tag2 inner = inner { selectorTags = Just $! HashSet.singleton "tag2" }
 
 tag12 :: Selector -> Selector
-tag12 inner = inner { selectorTags = Just $! Set.fromList ["tag1", "tag2"] }
+tag12 inner = inner { selectorTags = Just $! HashSet.fromList ["tag1", "tag2"] }
 
 
 combineSelectorTestCases :: [(String, Selector, Selector, Selector)]
@@ -475,98 +478,98 @@ combineSelectorTests =
     map makeTest combineSelectorTestCases
 
 onePath :: Selector
-onePath = Selector { selectorInners = Map.singleton "One" allSelector,
+onePath = Selector { selectorInners = HashMap.singleton "One" allSelector,
                      selectorTags = Nothing }
 
 twoPath :: Selector
-twoPath = Selector { selectorInners = Map.singleton "Two" allSelector,
+twoPath = Selector { selectorInners = HashMap.singleton "Two" allSelector,
                      selectorTags = Nothing }
 
 oneTwoPath :: Selector
-oneTwoPath = Selector { selectorInners = Map.fromList [("One", allSelector),
+oneTwoPath = Selector { selectorInners = HashMap.fromList [("One", allSelector),
                                                        ("Two", allSelector)],
                         selectorTags = Nothing }
 
 emptyOneFilter :: Filter
-emptyOneFilter = Filter { filterSuites = Set.empty, filterSelector = onePath }
+emptyOneFilter = Filter { filterSuites = HashSet.empty, filterSelector = onePath }
 
 emptyTwoFilter :: Filter
-emptyTwoFilter = Filter { filterSuites = Set.empty, filterSelector = twoPath }
+emptyTwoFilter = Filter { filterSuites = HashSet.empty, filterSelector = twoPath }
 
 emptyOneTwoFilter :: Filter
-emptyOneTwoFilter = Filter { filterSuites = Set.empty,
+emptyOneTwoFilter = Filter { filterSuites = HashSet.empty,
                              filterSelector = oneTwoPath }
 
 allAFilter :: Filter
-allAFilter = Filter { filterSuites = Set.singleton "A",
+allAFilter = Filter { filterSuites = HashSet.singleton "A",
                       filterSelector = allSelector }
 
 oneAFilter :: Filter
-oneAFilter = Filter { filterSuites = Set.singleton "A",
+oneAFilter = Filter { filterSuites = HashSet.singleton "A",
                       filterSelector = onePath }
 
 oneBFilter :: Filter
-oneBFilter = Filter { filterSuites = Set.singleton "B",
+oneBFilter = Filter { filterSuites = HashSet.singleton "B",
                       filterSelector = onePath }
 
 oneABFilter :: Filter
-oneABFilter = Filter { filterSuites = Set.fromList ["A", "B"],
+oneABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
                        filterSelector = onePath }
 
 oneACFilter :: Filter
-oneACFilter = Filter { filterSuites = Set.fromList ["A", "C"],
+oneACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
                        filterSelector = onePath }
 
 twoAFilter :: Filter
-twoAFilter = Filter { filterSuites = Set.singleton "A",
+twoAFilter = Filter { filterSuites = HashSet.singleton "A",
                       filterSelector = twoPath }
 
 twoBFilter :: Filter
-twoBFilter = Filter { filterSuites = Set.singleton "B",
+twoBFilter = Filter { filterSuites = HashSet.singleton "B",
                       filterSelector = twoPath }
 
 twoABFilter :: Filter
-twoABFilter = Filter { filterSuites = Set.fromList ["A", "B"],
+twoABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
                        filterSelector = twoPath }
 
 twoACFilter :: Filter
-twoACFilter = Filter { filterSuites = Set.fromList ["A", "C"],
+twoACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
                        filterSelector = twoPath }
 
 oneTwoAFilter :: Filter
-oneTwoAFilter = Filter { filterSuites = Set.singleton "A",
+oneTwoAFilter = Filter { filterSuites = HashSet.singleton "A",
                          filterSelector = oneTwoPath }
 
 oneTwoBFilter :: Filter
-oneTwoBFilter = Filter { filterSuites = Set.singleton "B",
+oneTwoBFilter = Filter { filterSuites = HashSet.singleton "B",
                          filterSelector = oneTwoPath }
 
 oneTwoABFilter :: Filter
-oneTwoABFilter = Filter { filterSuites = Set.fromList ["A", "B"],
+oneTwoABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
                           filterSelector = oneTwoPath }
 
 oneTwoACFilter :: Filter
-oneTwoACFilter = Filter { filterSuites = Set.fromList ["A", "C"],
+oneTwoACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
                           filterSelector = oneTwoPath }
 
 allBFilter :: Filter
-allBFilter = Filter { filterSuites = Set.singleton "B",
+allBFilter = Filter { filterSuites = HashSet.singleton "B",
                       filterSelector = allSelector }
 
 allCFilter :: Filter
-allCFilter = Filter { filterSuites = Set.singleton "C",
+allCFilter = Filter { filterSuites = HashSet.singleton "C",
                       filterSelector = allSelector }
 
 allABFilter :: Filter
-allABFilter = Filter { filterSuites = Set.fromList ["A", "B"],
+allABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
                        filterSelector = allSelector }
 
 allACFilter :: Filter
-allACFilter = Filter { filterSuites = Set.fromList ["A", "C"],
+allACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
                        filterSelector = allSelector }
 
 allBCFilter :: Filter
-allBCFilter = Filter { filterSuites = Set.fromList ["B", "C"],
+allBCFilter = Filter { filterSuites = HashSet.fromList ["B", "C"],
                        filterSelector = allSelector }
 
 
@@ -798,7 +801,7 @@ filterTests =
       let
         runTest =
           let
-            actual = Map.assocs (suiteSelectors suites filters)
+            actual = HashMap.toList (suiteSelectors suites filters)
           in do
             if actual == expected
               then return (Finished Pass)

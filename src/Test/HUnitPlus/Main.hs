@@ -59,7 +59,7 @@ module Test.HUnitPlus.Main(
 import Control.Exception
 import Data.ByteString.Lazy(hPut)
 import Data.Either
-import Data.Map(Map)
+import Data.HashMap.Strict(HashMap)
 import System.Console.CmdArgs hiding (Quiet)
 import System.Exit
 import System.IO
@@ -303,7 +303,7 @@ topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
 
 executeTests :: [TestSuite]
              -- ^ The test suites to run
-             -> Map String Selector
+             -> HashMap String Selector
              -- ^ The filters to use
              -> ConsoleMode
              -- ^ The mode to use for console output

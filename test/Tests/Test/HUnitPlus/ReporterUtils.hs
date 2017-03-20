@@ -5,7 +5,7 @@ import Data.List
 import Distribution.TestSuite(Result(Pass, Fail))
 import Test.HUnitPlus.Reporting
 
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HashMap
 
 data ReportEvent =
     End Double
@@ -59,7 +59,7 @@ loggingReporter = defaultReporter {
 
 initState :: State
 initState = State { stName = "", stPath = [], stCounts = zeroCounts,
-                    stOptions = Map.empty, stOptionDescs = [] }
+                    stOptions = HashMap.empty, stOptionDescs = [] }
 
 setName :: String -> ReporterOp us
 setName name (s @ State { stName = _ }, repstate) =
@@ -67,7 +67,7 @@ setName name (s @ State { stName = _ }, repstate) =
 
 setOpt :: String -> String -> ReporterOp us
 setOpt key value (s @ State { stOptions = opts }, repstate) =
-  return (s { stOptions = Map.insert key value opts }, repstate)
+  return (s { stOptions = HashMap.insert key value opts }, repstate)
 
 pushPath :: String -> ReporterOp us
 pushPath name (s @ State { stPath = path }, repstate) =
@@ -79,7 +79,7 @@ popPath (s @ State { stPath = _ : path }, repstate) =
 
 addOption :: String -> String -> ReporterOp us
 addOption key value (s @ State { stOptions = opts }, repstate) =
-  return (s { stOptions = Map.insert key value opts }, repstate)
+  return (s { stOptions = HashMap.insert key value opts }, repstate)
 
 countAsserts :: Word -> ReporterOp us
 countAsserts count (s @ State { stCounts = c @ Counts { cAsserts = n } },

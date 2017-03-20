@@ -35,7 +35,7 @@ import Control.Monad (when)
 import System.IO (Handle, stderr, hPutStr, hPutStrLn)
 import Text.Printf(printf)
 
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HashMap
 
 
 -- | The text-based reporters ('textReporter' and 'terminalReporter')
@@ -44,7 +44,7 @@ import qualified Data.Map as Map
 -- ways.  Two schemes are defined here.  'putTextToHandle' writes
 -- report lines to a given handle.  'putTextToShowS' accumulates lines
 -- for return as a whole.
--- 
+--
 -- The 'PutText' function is also passed, and returns, an arbitrary state
 -- value (called 'st' here).  The initial state value is given in the
 -- 'PutText'; the final value is returned by 'runTestText'.
@@ -161,7 +161,7 @@ runTestText :: PutText us
 runTestText puttext @ (PutText put us0) verbose t =
   let
     initState = State { stCounts = zeroCounts, stName = "",
-                        stPath = [], stOptions = Map.empty,
+                        stPath = [], stOptions = HashMap.empty,
                         stOptionDescs = [] }
 
     reporter = textReporter puttext verbose
@@ -188,7 +188,7 @@ runSuiteText :: PutText us
 runSuiteText puttext @ (PutText put us0) verbose
              suite @ TestSuite { suiteName = sname } =
   let
-    selectorMap = Map.singleton sname allSelector
+    selectorMap = HashMap.singleton sname allSelector
     reporter = textReporter puttext verbose
   in do
     (counts, us1) <- ((performTestSuite $! reporter) $!selectorMap) us0 suite
@@ -214,8 +214,8 @@ runSuitesText puttext @ (PutText put _) verbose suites =
   let
     suiteNames = map suiteName suites
     selectorMap = foldl (\suitemap sname ->
-                          Map.insert sname allSelector suitemap)
-                        Map.empty suiteNames
+                          HashMap.insert sname allSelector suitemap)
+                        HashMap.empty suiteNames
     reporter = textReporter puttext verbose
   in do
     (counts, us1) <- ((performTestSuites $! reporter) $! selectorMap) suites
@@ -277,7 +277,7 @@ runTestTT :: Test -> IO Counts
 runTestTT t =
   let
     initState = State { stCounts = zeroCounts, stName = "",
-                        stPath = [], stOptions = Map.empty,
+                        stPath = [], stOptions = HashMap.empty,
                         stOptionDescs = [] }
   in do
     (ss1, us1) <- (performTest terminalReporter allSelector $! initState) 0 t
@@ -295,7 +295,7 @@ runTestTT t =
 runSuiteTT :: TestSuite -> IO Counts
 runSuiteTT suite @ TestSuite { suiteName = sname } =
   let
-    selectorMap = Map.singleton sname allSelector
+    selectorMap = HashMap.singleton sname allSelector
   in do
     (counts, us) <- (performTestSuite terminalReporter $! selectorMap) 0 suite
     0 <- termPut (showCounts counts ++ "\n") True us
@@ -314,8 +314,8 @@ runSuitesTT suites =
   let
     suiteNames = map suiteName suites
     selectorMap = foldl (\suitemap sname ->
-                          Map.insert sname allSelector suitemap)
-                        Map.empty suiteNames
+                          HashMap.insert sname allSelector suitemap)
+                        HashMap.empty suiteNames
   in do
     (counts, us) <- (performTestSuites terminalReporter $! selectorMap) suites
     0 <- termPut (showCounts counts ++ "\n") True us

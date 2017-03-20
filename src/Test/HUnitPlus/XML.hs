@@ -20,14 +20,15 @@ module Test.HUnitPlus.XML(
        xmlReporter
        ) where
 
-import Data.Map(Map)
+import Data.HashMap.Strict(HashMap)
+import Data.List(sort)
 import Data.Time
 import Network.HostName
 import Test.HUnitPlus.Reporting(Reporter(..), State(..), Counts(..),
                                 defaultReporter, showPath)
 import Text.XML.Expat.Tree
 
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HashMap
 
 -- | Generate an element for a property definition
 propertyElem :: (String, String)
@@ -109,7 +110,7 @@ skippedTestElem name classname =
 -- | Generate an element for a test suite run
 testSuiteElem :: String
               -- ^ The name of the test suite
-              -> Map String String
+              -> HashMap String String
               -- ^ The properties defined for this suite
               -> Word
               -- ^ The number of tests
@@ -132,7 +133,7 @@ testSuiteElem name propmap tests failures errors skipped
               hostname timestamp time content =
   let
     contentWithProps =
-      case Map.assocs propmap of
+      case sort (HashMap.toList propmap) of
         [] -> content
         props -> propertiesElem props : content
     timestr = formatTime defaultTimeLocale "%c" timestamp

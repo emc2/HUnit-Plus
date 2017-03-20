@@ -15,8 +15,8 @@ import Distribution.TestSuite(Test(..),
 import Test.HUnitPlus.Base
 import Test.HUnitPlus.Reporting
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import qualified Tests.Test.HUnitPlus.ReporterUtils as Utils
 
 type ReportEvent = Utils.ReportEvent
@@ -30,7 +30,7 @@ makeTestCase (Test TestInstance { name = actualName,
               expectedName, expectedTags, expectedCounts, expectedEvents) =
   let
     initState = State { stCounts = zeroCounts, stName = "", stPath = [],
-                        stOptions = Map.empty, stOptionDescs = [] }
+                        stOptions = HashMap.empty, stOptionDescs = [] }
 
     genResult actualCounts actualEvents =
       let
@@ -40,7 +40,7 @@ makeTestCase (Test TestInstance { name = actualName,
                   "\" but got \"" ++ actualName ++ "\""]
             else []
         tagsErr =
-          if Set.fromList expectedTags /= Set.fromList actualTags
+          if HashSet.fromList expectedTags /= HashSet.fromList actualTags
             then ("Expected tags " ++ show expectedTags ++
                   " but got " ++ show actualTags) : nameErr
             else nameErr

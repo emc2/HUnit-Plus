@@ -1,6 +1,6 @@
 Name:                   HUnit-Plus
 Category:               Testing, Test
-Version:                1.1.1
+Version:                1.2.0
 License:                BSD3
 License-File:           LICENSE
 Author:                 Eric McCorkle
@@ -36,14 +36,14 @@ Test-Suite RunTests
   Main-Is:              RunTests.hs
   hs-source-dirs:       test
   build-depends:        base >= 4.8 && < 5, Cabal >= 1.16.0, hexpat, timeit,
-                        cmdargs, hashable, containers, time, hostname,
+                        cmdargs, hashable, unordered-containers, time, hostname,
                         parsec, bytestring, directory, HUnit-Plus
 
 Library
   default-language:     Haskell2010
   hs-source-dirs:       src
   build-depends:        base >= 4.8 && < 5, Cabal >= 1.16.0, hexpat, timeit,
-                        cmdargs, hashable, containers, time, hostname,
+                        cmdargs, hashable, unordered-containers, time, hostname,
                         bytestring, parsec
   exposed-modules:      Test.HUnitPlus.Base
                         Test.HUnitPlus.Execution

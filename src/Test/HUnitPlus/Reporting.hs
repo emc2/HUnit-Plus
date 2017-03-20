@@ -24,7 +24,7 @@ module Test.HUnitPlus.Reporting(
        ) where
 
 import Data.List
-import Data.Map(Map)
+import Data.HashMap.Strict(HashMap)
 import Distribution.TestSuite
 
 -- | A record that holds the results of tests that have been performed
@@ -60,7 +60,7 @@ data State =
     -- | The current test statistics.
     stCounts :: !Counts,
     -- | The current option values.
-    stOptions :: !(Map String String),
+    stOptions :: !(HashMap String String),
     -- | The current option descriptions we know about.
     stOptionDescs :: ![OptionDescr]
   }

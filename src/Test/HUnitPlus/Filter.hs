@@ -74,15 +74,17 @@ module Test.HUnitPlus.Filter(
 import Control.Exception
 import Data.Foldable(foldl)
 import Data.Either
-import Data.Map(Map)
+import Data.Hashable
+import Data.HashMap.Strict(HashMap)
 import Data.Maybe
-import Data.Set(Set)
+import Data.HashSet(HashSet)
+import Data.List(sort)
 import Prelude hiding (foldl, elem)
 import System.IO.Error
 import Text.ParserCombinators.Parsec hiding (try)
 
-import qualified Data.Set as Set
-import qualified Data.Map as Map
+import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 
 -- | A tree-like structure that represents a set of tests within a
 -- given suite.
@@ -92,14 +94,14 @@ data Selector =
       -- path element contains the @Selector@ to be used for that
       -- group (or test).  An empty map actually means 'select all
       -- tests'.
-      selectorInners :: Map String Selector,
+      selectorInners :: HashMap String Selector,
       -- | Tags by which to filter all tests.  The empty set actually
       -- means 'run all tests regardless of tags'.  'Nothing' means
       -- that all tests will be skipped (though this will be
       -- overridden by any @Selector@s in @selectorInners@.
-      selectorTags :: !(Maybe (Set String))
+      selectorTags :: !(Maybe (HashSet String))
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Show)
 
 -- | Specifies zero or more test suites, to which the given 'Selector'
 -- is then applied.  If no test suites are specified, then the
@@ -108,61 +110,103 @@ data Filter =
   Filter {
     -- | The test suites to which the 'Selector' applies.  The empty
     -- set actually means 'all suites'.
-    filterSuites :: !(Set String),
+    filterSuites :: !(HashSet String),
     -- | The 'Selector' to apply.
     filterSelector :: !Selector
   }
-  deriving (Ord, Eq, Show)
+  deriving (Eq, Show)
+
+instance Ord Selector where
+  compare Selector { selectorInners = inners1, selectorTags = Just tags1 }
+          Selector { selectorInners = inners2, selectorTags = Just tags2 } =
+    let
+      sortedtags1 = sort (HashSet.toList tags1)
+      sortedtags2 = sort (HashSet.toList tags2)
+      sortedinners1 = sort (HashMap.toList inners1)
+      sortedinners2 = sort (HashMap.toList inners2)
+    in
+      case compare sortedtags1 sortedtags2 of
+        EQ -> compare sortedinners1 sortedinners2
+        out -> out
+  compare Selector { selectorTags = Nothing }
+          Selector { selectorTags = Just _ } = LT
+  compare Selector { selectorTags = Just _ }
+          Selector { selectorTags = Nothing } = GT
+  compare Selector { selectorInners = inners1, selectorTags = Nothing }
+          Selector { selectorInners = inners2, selectorTags = Nothing } =
+    let
+      sortedinners1 = sort (HashMap.toList inners1)
+      sortedinners2 = sort (HashMap.toList inners2)
+    in
+      compare sortedinners1 sortedinners2
+
+instance Hashable Selector where
+  hashWithSalt s Selector { selectorInners = inners,
+                            selectorTags = Just tags } =
+    let
+      sortedtags = sort (HashSet.toList tags)
+      sortedinners = sort (HashMap.toList inners)
+    in
+      s `hashWithSalt` sortedinners `hashWithSalt` sortedtags
+  hashWithSalt s Selector { selectorInners = inners,
+                            selectorTags = Nothing } =
+    let
+      sortedinners = sort (HashMap.toList inners)
+    in
+      s `hashWithSalt` sortedinners
 
 -- | Combine two 'selectorTags' fields into one.  This operation represents the
 -- union of the tests that are selected by the two fields.
-combineTags :: Maybe (Set String) -> Maybe (Set String) -> Maybe (Set String)
+combineTags :: Maybe (HashSet String) -> Maybe (HashSet String) ->
+               Maybe (HashSet String)
 -- Nothing means we can't execute, so if the other side says we can,
 -- we can.
 combineTags Nothing t = t
 combineTags t Nothing = t
 combineTags (Just a) (Just b)
   -- The empty set means we execute everything, so it absorbs
-  | a == Set.empty || b == Set.empty = Just $! Set.empty
+  | HashSet.null a || HashSet.null b = Just $! HashSet.empty
   -- Otherwise, we do set union
-  | otherwise = Just $! Set.union a b
+  | otherwise = Just $! HashSet.union a b
 
 -- | Take the difference of one set of tags from another.
-diffTags :: Maybe (Set String) -> Maybe (Set String) -> Maybe (Set String)
+diffTags :: Maybe (HashSet String) -> Maybe (HashSet String) ->
+            Maybe (HashSet String)
 -- Nothing means we can't execute, so if the other side says we can,
 -- we can.
 diffTags Nothing _ = Nothing
 diffTags t Nothing = t
 diffTags (Just a) (Just b)
-  | a == Set.empty = Just Set.empty
-  | b == Set.empty = Nothing
+  | HashSet.null a = Just HashSet.empty
+  | HashSet.null b = Nothing
   -- Otherwise, we do set union
   | otherwise =
     let
-      diff = Set.difference a b
+      diff = HashSet.difference a b
     in
-      if diff == Set.empty
+      if diff == HashSet.empty
         then Nothing
         else Just $! diff
 
 -- | A 'Filter' that selects all tests in all suites.
 passFilter :: Filter
-passFilter = Filter { filterSuites = Set.empty, filterSelector = allSelector }
+passFilter = Filter { filterSuites = HashSet.empty,
+                      filterSelector = allSelector }
 
 -- | A 'Selector' that selects all tests.
 allSelector :: Selector
-allSelector = Selector { selectorInners = Map.empty,
-                         selectorTags = Just Set.empty }
+allSelector = Selector { selectorInners = HashMap.empty,
+                         selectorTags = Just HashSet.empty }
 
-reduceSelector :: Maybe (Set String) -> Selector -> Maybe Selector
+reduceSelector :: Maybe (HashSet String) -> Selector -> Maybe Selector
 reduceSelector parentTags Selector { selectorInners = inners,
                                      selectorTags = tags } =
   let
     newTags = diffTags tags parentTags
     newParentTags = combineTags parentTags tags
-    newInners = Map.mapMaybe (reduceSelector newParentTags) inners
+    newInners = HashMap.mapMaybe (reduceSelector newParentTags) inners
   in
-    if newTags == Nothing && newInners == Map.empty
+    if isNothing newTags && HashMap.null newInners
       then Nothing
       else Just $! Selector { selectorInners = inners, selectorTags = tags }
 
@@ -170,7 +214,7 @@ reduceSelector parentTags Selector { selectorInners = inners,
 combineSelectors :: Selector -> Selector -> Selector
 combineSelectors selector1 selector2 =
   let
-    combineSelectors' :: Maybe (Set String) -> Selector -> Selector ->
+    combineSelectors' :: Maybe (HashSet String) -> Selector -> Selector ->
                          Maybe Selector
     combineSelectors' parentTags
                       s1 @ Selector { selectorInners = inners1,
@@ -184,30 +228,31 @@ combineSelectors selector1 selector2 =
           newTags = diffTags combinedTags parentTags
           newParentTags = combineTags combinedTags parentTags
 
-          firstpass :: Map String Selector -> String -> Selector ->
-                       Map String Selector
+          firstpass :: HashMap String Selector -> String -> Selector ->
+                       HashMap String Selector
           firstpass accum elem inner =
-            case Map.lookup elem inners1 of
-              Just inner' -> case combineSelectors' newParentTags inner inner' of
-                Just entry -> Map.insert elem entry accum
-                Nothing -> accum
+            case HashMap.lookup elem inners1 of
+              Just inner' ->
+                case combineSelectors' newParentTags inner inner' of
+                  Just entry -> HashMap.insert elem entry accum
+                  Nothing -> accum
               Nothing -> case reduceSelector newParentTags inner of
-                Just entry -> Map.insert elem entry accum
+                Just entry -> HashMap.insert elem entry accum
                 Nothing -> accum
 
-          secondpass :: Map String Selector -> String -> Selector ->
-                        Map String Selector
+          secondpass :: HashMap String Selector -> String -> Selector ->
+                        HashMap String Selector
           secondpass accum elem inner =
-            case Map.lookup elem accum of
+            case HashMap.lookup elem accum of
               Nothing -> case reduceSelector newParentTags inner of
-                Just entry -> Map.insert elem entry accum
+                Just entry -> HashMap.insert elem entry accum
                 Nothing -> accum
               Just _ -> accum
 
-          firstPassMap = Map.foldlWithKey firstpass Map.empty inners2
-          newInners = Map.foldlWithKey secondpass firstPassMap inners1
+          firstPassMap = HashMap.foldlWithKey' firstpass HashMap.empty inners2
+          newInners = HashMap.foldlWithKey' secondpass firstPassMap inners1
         in
-          if newTags == Nothing && newInners == Map.empty
+          if isNothing newTags && HashMap.null newInners
             then Nothing
             else Just $! Selector { selectorInners = newInners,
                                     selectorTags = newTags }
@@ -218,55 +263,56 @@ combineSelectors selector1 selector2 =
                         show selector1 ++ " " ++ show selector2)
 
 -- | Collect all the selectors from filters that apply to all suites.
-collectUniversals :: Filter -> Set Selector -> Set Selector
+collectUniversals :: Filter -> HashSet Selector -> HashSet Selector
 collectUniversals Filter { filterSuites = suites,
                            filterSelector = selector } accum
-  | suites == Set.empty = Set.insert selector accum
+  | suites == HashSet.empty = HashSet.insert selector accum
   | otherwise = accum
 
 -- | Build a map from suite names to the selectors that get run on them.
 collectSelectors :: Filter
                  -- ^ The current filter
-                 -> Map String (Set Selector)
-                 -- ^ The map from suites to 
-                 -> Map String (Set Selector)
+                 -> HashMap String (HashSet Selector)
+                 -- ^ The map from suites to
+                 -> HashMap String (HashSet Selector)
 collectSelectors Filter { filterSuites = suites, filterSelector = selector }
                  suitemap =
-    foldl (\suitemap' suite -> Map.insertWith Set.union suite
-                                              (Set.singleton selector)
+    foldl (\suitemap' suite -> HashMap.insertWith HashSet.union suite
+                                              (HashSet.singleton selector)
                                               suitemap')
           suitemap suites
 
 -- | Take a list of test suite names and a list of 'Filter's, and
--- build a 'Map' that says for each test suite, what (combined)
+-- build a 'HashMap' that says for each test suite, what (combined)
 -- 'Selector' should be used to select tests.
 suiteSelectors :: [String]
                -- ^ The names of all test suites.
                -> [Filter]
                -- ^ The list of 'Filter's from which to build the map.
-               -> Map String Selector
+               -> HashMap String Selector
 suiteSelectors allsuites filters
   -- Short-circuit case if we have no filters, we run everything
   | filters == [] =
-    foldl (\suitemap suite -> Map.insert suite allSelector suitemap)
-          Map.empty allsuites
+    foldl (\suitemap suite -> HashMap.insert suite allSelector suitemap)
+          HashMap.empty allsuites
   | otherwise =
     let
       -- First, pull out all the universals
-      universals = foldr collectUniversals Set.empty filters
+      universals = foldr collectUniversals HashSet.empty filters
       -- If we have any universals, then seed the initial map with them,
       -- otherwise, use the empty map.
       initMap =
-        if universals /= Set.empty
-          then foldl (\suitemap suite -> Map.insert suite universals suitemap)
-                     Map.empty allsuites
-          else Map.empty
+        if universals /= HashSet.empty
+          then foldl (\suitemap suite ->
+                       HashMap.insert suite universals suitemap)
+                     HashMap.empty allsuites
+          else HashMap.empty
 
       -- Now collect all the suite-specific selectors
-      suiteMap :: Map String (Set Selector)
+      suiteMap :: HashMap String (HashSet Selector)
       suiteMap = foldr collectSelectors initMap filters
     in
-      Map.map (foldl1 combineSelectors . Set.elems) suiteMap
+      HashMap.map (foldl1 combineSelectors . HashSet.toList) suiteMap
 
 nameParser :: GenParser Char st Char
 nameParser =
@@ -287,7 +333,7 @@ tagsParser = char '@' >> namesParser
 filterParser :: GenParser Char st ([String], [String], [String])
 filterParser =
   do
-    suites <- option [] (suitesParser)
+    suites <- option [] suitesParser
     path <- pathParser
     tagselector <- option [] tagsParser
     return (suites, path, tagselector)
@@ -297,16 +343,16 @@ makeFilter (suites, path, tags) =
   let
     withTags = case tags of
       [] -> allSelector
-      _ -> allSelector { selectorTags = Just $! Set.fromList tags }
+      _ -> allSelector { selectorTags = Just $! HashSet.fromList tags }
 
     genPath [] = withTags
     genPath (elem : rest) =
-      Selector { selectorInners = Map.singleton elem $! genPath rest,
+      Selector { selectorInners = HashMap.singleton elem $! genPath rest,
                  selectorTags = Nothing }
 
     withPath = genPath path
   in
-   Filter { filterSuites = Set.fromList suites, filterSelector = withPath }
+   Filter { filterSuites = HashSet.fromList suites, filterSelector = withPath }
 
 -- | Parse a 'Filter' expression.  The format for filter expressions is
 -- described in the module documentation.

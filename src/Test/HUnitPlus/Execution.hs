@@ -14,15 +14,15 @@ module Test.HUnitPlus.Execution(
 
 import Control.Monad (unless, foldM)
 import Distribution.TestSuite
-import Data.Map(Map)
+import Data.HashMap.Strict(HashMap)
 import Prelude hiding (elem)
 import System.TimeIt
 import Test.HUnitPlus.Base
 import Test.HUnitPlus.Filter
 import Test.HUnitPlus.Reporting
 
-import qualified Data.Set as Set
-import qualified Data.Map as Map
+import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 
 -- | Execute an individual test case.
 performTestCase :: Reporter us
@@ -59,7 +59,7 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
       let
         setresult :: Either String TestInstance
         setresult =
-          case Map.lookup optname optmap of
+          case HashMap.lookup optname optmap of
             Just optval -> setopt optname optval
             Nothing -> case def of
               Just optval -> setopt optname optval
@@ -68,8 +68,8 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
         Left errmsg ->
           do
             newUs <- reportError errmsg ssWithName us
-            return $! (newUs, ti)
-        Right newTi -> return $! (us, newTi)
+            return (newUs, ti)
+        Right newTi -> return (us, newTi)
   in do
     -- Get all the rest of the information from the resulting test instance
     (usOpts, TestInstance { run = runTest }) <-
@@ -103,7 +103,7 @@ skipTestCase Reporter { reporterSkipCase = reportSkipCase }
                stName = testname }
   in do
     us' <- reportSkipCase ss' us
-    return $! (ss' { stName = oldname }, us')
+    return (ss' { stName = oldname }, us')
 
 -- | Execute a given test (which may be a group), with the specified
 -- selector and report generators.  Only tests which match the
@@ -135,10 +135,10 @@ performTest rep initSelector initState initialUs initialTest =
         -- Build the new selector
         selector' =
           -- Try looking up the group in the inners
-          case Map.lookup gname inners of
+          case HashMap.lookup gname inners of
             -- If we don't find anything, we can only keep executing
             -- if our tag state allows it.
-            Nothing -> Selector { selectorInners = Map.empty,
+            Nothing -> Selector { selectorInners = HashMap.empty,
                                   selectorTags = currtags }
             -- Otherwise, combine the inner's tag state with ours and
             -- carry on.
@@ -149,12 +149,12 @@ performTest rep initSelector initState initialUs initialTest =
         oldpath = stPath ss
         ssWithPath = ss { stPath = Label gname : oldpath }
 
-        foldfun (ss', us') t = performTest' selector' ss' us' t
+        foldfun (ss', us') = performTest' selector' ss' us'
       in do
         -- Run the tests with the updated path
         (ssAfter, usAfter) <- foldM foldfun (ssWithPath, us) testlist
         -- Return the state, reset to the old path
-        return $! (ssAfter { stPath = oldpath }, usAfter)
+        return (ssAfter { stPath = oldpath }, usAfter)
     performTest' Selector { selectorInners = inners, selectorTags = currtags }
                  ss us (Test t @ TestInstance { name = testname,
                                                 tags = testtags }) =
@@ -162,7 +162,7 @@ performTest rep initSelector initState initialUs initialTest =
         -- Get the final tag state
         finaltags =
           -- Try looking up the group in the inners
-          case Map.lookup testname inners of
+          case HashMap.lookup testname inners of
             -- If we don't find anything, we can only keep executing
             -- if our tag state allows it.
             Nothing -> currtags
@@ -175,8 +175,8 @@ performTest rep initSelector initState initialUs initialTest =
           case finaltags of
             Nothing -> False
             Just set
-              | set == Set.empty -> True
-              | otherwise -> any (\tag -> Set.member tag set) testtags
+              | HashSet.null set -> True
+              | otherwise -> any (\tag -> HashSet.member tag set) testtags
       in
         if canExecute
           then performTestCase rep ss us t
@@ -187,7 +187,7 @@ performTest rep initSelector initState initialUs initialTest =
   in do
     (ss', us') <- performTest' initSelector initState initialUs initialTest
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
-    return $! (ss', us')
+    return (ss', us')
 
 -- | Decide whether to execute a test suite based on a map from suite
 -- names to selectors.  If the map contains a selector for the test
@@ -196,7 +196,7 @@ performTest rep initSelector initState initialUs initialTest =
 -- the suite, and do /not/ log its tests as skipped.
 performTestSuite :: Reporter us
                  -- ^ Report generator to use for running the test suite.
-                 -> Map String Selector
+                 -> HashMap String Selector
                  -- ^ The map containing selectors for each suite.
                  -> us
                  -- ^ State for the report generator.
@@ -208,22 +208,22 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
                  filters initialUs
                  TestSuite { suiteName = sname, suiteTests = testlist,
                              suiteOptions = suiteOpts } =
-  case Map.lookup sname filters of
+  case HashMap.lookup sname filters of
     Just selector ->
       let
         initState = State { stCounts = zeroCounts, stName = sname,
-                            stPath = [], stOptions = Map.fromList suiteOpts,
+                            stPath = [], stOptions = HashMap.fromList suiteOpts,
                             stOptionDescs = [] }
 
-        foldfun (c, us) testcase = performTest rep selector c us testcase
+        foldfun (c, us) = performTest rep selector c us
       in do
         startedUs <- reportStartSuite initState initialUs
         (time, (finishedState, finishedUs)) <-
           timeItT (foldM foldfun (initState, startedUs) testlist)
         endedUs <- reportEndSuite time finishedState finishedUs
-        return $! (stCounts finishedState, endedUs)
+        return (stCounts finishedState, endedUs)
     _ ->
-      return $! (zeroCounts, initialUs)
+      return (zeroCounts, initialUs)
 
 -- | Top-level function for a test run.  Given a set of suites and a
 -- map from suite names to selectors, execute all suites that have
@@ -233,7 +233,7 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
 -- their tests will /not/ be logged as skipped.
 performTestSuites :: Reporter us
                   -- ^ Report generator to use for running the test suite.
-                  -> Map String Selector
+                  -> HashMap String Selector
                   -- ^ The processed filter to use.
                   -> [TestSuite]
                   -- ^ Test suite to be run.
@@ -256,10 +256,10 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
     foldfun (accumCounts, accumUs) suite =
       do
         (suiteCounts, suiteUs) <- performTestSuite rep filters accumUs suite
-        return $! (combineCounts accumCounts suiteCounts, suiteUs)
+        return (combineCounts accumCounts suiteCounts, suiteUs)
   in do
     initialUs <- reportStart
     (time, (finishedCounts, finishedUs)) <-
       timeItT (foldM foldfun (zeroCounts, initialUs) suites)
     endedUs <- reportEnd time finishedCounts finishedUs
-    return $! (finishedCounts, endedUs)
+    return (finishedCounts, endedUs)
