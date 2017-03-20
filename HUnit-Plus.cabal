@@ -34,11 +34,10 @@ Test-Suite RunTests
   default-language:     Haskell2010
   type:                 exitcode-stdio-1.0
   Main-Is:              RunTests.hs
-  hs-source-dirs:       src test
+  hs-source-dirs:       test
   build-depends:        base >= 4.8 && < 5, Cabal >= 1.16.0, hexpat, timeit,
                         cmdargs, hashable, containers, time, hostname,
-                        parsec, bytestring, directory
-  ghc-options:          -fhpc
+                        parsec, bytestring, directory, HUnit-Plus
 
 Library
   default-language:     Haskell2010
