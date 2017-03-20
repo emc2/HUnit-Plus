@@ -67,6 +67,7 @@ module Test.HUnitPlus.Base(
        (@?),
 
        -- * Low-level Test Functions
+       heartbeat,
        executeTest,
        logSyserr,
        logSysout,
@@ -113,7 +114,8 @@ data TestInfo =
     -- box test and tests we've built with these tools.
     tiIgnoreResult :: !Bool,
     -- | String to attach to every failure message as a prefix.
-    tiPrefix :: !String
+    tiPrefix :: !String,
+    tiHeartbeat :: !Bool
   }
 
 errorCode :: Word
@@ -132,6 +134,7 @@ sysErrCode = 3
 testinfo :: IORef TestInfo
 testinfo = unsafePerformIO $! newIORef TestInfo { tiAsserts = 0, tiEvents = [],
                                                   tiIgnoreResult = False,
+                                                  tiHeartbeat = False,
                                                   tiPrefix = "" }
 
 -- | Does the actual work of executing a test.  This maintains the
@@ -171,7 +174,7 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
                     logError ("Uncaught exception in test: " ++ show ex)
                     return (Finished (Error ("Uncaught exception in test: " ++
                                              show ex)))
-                  else do
+                  else
                     return (Finished (Error ("Uncaught exception in test: " ++
                                              show ex)))
 
@@ -230,31 +233,31 @@ reportTestInfo result Reporter { reporterError = reportError,
       Error msg | not ignoreRes ->
         do
           finalUs <- reportError msg ss eventsUs
-          return $! (ss { stCounts =
-                             c { cAsserts = asserts + fromIntegral currAsserts,
-                                 cCaseAsserts = fromIntegral currAsserts,
-                                 cErrors = errors + 1 } },
-                    finalUs)
+          return (ss { stCounts =
+                         c { cAsserts = asserts + fromIntegral currAsserts,
+                             cCaseAsserts = fromIntegral currAsserts,
+                             cErrors = errors + 1 } },
+                  finalUs)
       Fail msg | not ignoreRes ->
         do
           finalUs <- reportFailure msg ss eventsUs
-          return $! (ss { stCounts =
-                            c { cAsserts = asserts + fromIntegral currAsserts,
-                                cCaseAsserts = fromIntegral currAsserts,
-                                cFailures = failures + 1 } },
-                     finalUs)
-      _ -> return $! (ss { stCounts =
-                             c { cAsserts = asserts + fromIntegral currAsserts,
-                                 cCaseAsserts = fromIntegral currAsserts,
-                                 cFailures =
-                                   if hasFailure
-                                     then failures + 1
-                                     else failures,
-                                 cErrors =
-                                   if hasError
-                                     then errors + 1
-                                     else errors } },
-                     eventsUs)
+          return (ss { stCounts =
+                         c { cAsserts = asserts + fromIntegral currAsserts,
+                             cCaseAsserts = fromIntegral currAsserts,
+                             cFailures = failures + 1 } },
+                  finalUs)
+      _ -> return (ss { stCounts =
+                          c { cAsserts = asserts + fromIntegral currAsserts,
+                              cCaseAsserts = fromIntegral currAsserts,
+                              cFailures =
+                                if hasFailure
+                                  then failures + 1
+                                  else failures,
+                              cErrors =
+                                if hasError
+                                  then errors + 1
+                                  else errors } },
+                   eventsUs)
 
 -- | Indicate that the result of a test is already reflected in the testinfo.
 ignoreResult :: IO ()
@@ -264,7 +267,12 @@ resetTestInfo :: IO ()
 resetTestInfo = writeIORef testinfo TestInfo { tiAsserts = 0,
                                                tiEvents = [],
                                                tiIgnoreResult = False,
+                                               tiHeartbeat = False,
                                                tiPrefix = "" }
+
+-- | Indicate test progress.
+heartbeat :: IO ()
+heartbeat = modifyIORef testinfo (\t -> t { tiHeartbeat = True })
 
 -- | Execute the given computation with a message prefix.
 withPrefix :: String -> IO () -> IO ()
@@ -460,7 +468,7 @@ instance Assertable () where
   assertWithMsg _ = return
 
 instance Assertable Bool where
-  assertWithMsg msg = assertBool msg
+  assertWithMsg = assertBool
 
 instance Assertable Result where
   assertWithMsg _ Pass = assertSuccess
@@ -474,7 +482,7 @@ instance Assertable Progress where
   assertWithMsg msg (Finished res) = assertWithMsg msg res
 
 instance (ListAssertable t) => Assertable [t] where
-  assertWithMsg msg = listAssert msg
+  assertWithMsg = listAssert
 
 instance (Assertable t) => Assertable (IO t) where
   assertWithMsg msg t = t >>= assertWithMsg msg
@@ -484,7 +492,7 @@ class ListAssertable t where
   listAssert :: String -> [t] -> Assertion
 
 instance ListAssertable Char where
-  listAssert msg = assertStringWithPrefix msg
+  listAssert = assertStringWithPrefix
 
 instance ListAssertable Assertion where
   listAssert msg asserts = withPrefix msg (sequence_ asserts)
