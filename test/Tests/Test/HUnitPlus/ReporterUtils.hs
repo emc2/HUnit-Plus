@@ -1,7 +1,7 @@
 module Tests.Test.HUnitPlus.ReporterUtils where
 
 import Control.Monad
-import Data.Word
+import Data.List
 import Distribution.TestSuite(Result(Pass, Fail))
 import Test.HUnitPlus.Reporting
 
@@ -17,9 +17,27 @@ data ReportEvent =
   | Progress String
   | Failure String
   | Error String
+  | Exception String
   | SystemErr String
   | SystemOut String
-    deriving (Eq, Show)
+    deriving (Show)
+
+instance Eq ReportEvent where
+  End e1 == End e2 = e1 == e2
+  StartSuite == StartSuite = True
+  EndSuite e1 == EndSuite e2 = e1 == e2
+  StartCase == StartCase = True
+  EndCase e1 == EndCase e2 = e1 == e2
+  Skip == Skip = True
+  Progress s1 == Progress s2 = s1 == s2
+  Failure s1 == Failure s2 = s1 == s2
+  Error s1 == Error s2 = s1 == s2
+  Exception s1 == Error s2 = isInfixOf s1 s2
+  Error s1 == Exception s2 = isInfixOf s2 s1
+  Exception s1 == Exception s2 = s1 == s2
+  SystemErr s1 == SystemErr s2 = s1 == s2
+  SystemOut s1 == SystemOut s2 = s1 == s2
+  _ == _ = False
 
 type ReporterOp us = (State, us) -> IO (State, us)
 

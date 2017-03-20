@@ -554,7 +554,7 @@ testCases = [
      [Utils.Progress ".", Utils.Progress "..", Utils.Progress "...",
       Utils.Error "External Test Error"]),
     (externalTestException, "externalTestException", [], oneError,
-     [Utils.Error "Uncaught exception in test: Exception Message"]),
+     [Utils.Exception "Exception Message"]),
     -- Test manipulation of tags and test names
     (testName "newName" (test (return () :: IO ())),
      "newName", [], zeroCounts, []),
