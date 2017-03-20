@@ -592,15 +592,15 @@ class Testable t where
 
   -- | Create a test with a given name and no tags from a @Testable@ value
   testName :: String -> t -> Test
-  testName testname t = testNameTags testname [] t
+  testName testname = testNameTags testname []
 
   -- | Create a test with a given name and no tags from a @Testable@ value
   testTags :: [String] -> t -> Test
-  testTags tagset t = testNameTags syntheticName tagset t
+  testTags = testNameTags syntheticName
 
   -- | Create a test with a synthetic name and no tags from a @Testable@ value
-  test :: Testable t => t -> Test
-  test t = testNameTags syntheticName [] t
+  test :: t -> Test
+  test = testNameTags syntheticName []
 
 instance Testable Test where
   testNameTags newname newtags g @ Group { groupTests = testlist } =
