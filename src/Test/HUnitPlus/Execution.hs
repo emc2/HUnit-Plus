@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | Functions for executing test cases, test paths, and test suites.
 -- These functions are provided for the sake of convenience and
@@ -82,7 +83,7 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
     -- Call the reporters end case function
     usEnded <- reportEndCase time ssFinal usFinal
     -- Restore the old name before returning
-    return $ (ssFinal { stName = oldname }, usEnded)
+    return (ssFinal { stName = oldname }, usEnded)
 
 -- | Log a skipped test case.
 skipTestCase :: Reporter us
@@ -120,7 +121,7 @@ performTest :: Reporter us
             -> Test
             -- ^ The test to be executed.
             -> IO (State, us)
-performTest rep initSelector initState initialUs initialTest =
+performTest rep initSelector initialState initialUs initialTest =
   let
     -- The recursive worker function that actually runs all the tests
     --
@@ -187,7 +188,7 @@ performTest rep initSelector initState initialUs initialTest =
                  us (ExtraOptions newopts inner) =
       performTest' selector ss { stOptionDescs = descs ++ newopts } us inner
   in do
-    (ss', us') <- performTest' initSelector initState initialUs initialTest
+    (ss', us') <- performTest' initSelector initialState initialUs initialTest
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
     return (ss', us')
 
@@ -196,6 +197,45 @@ performTest rep initSelector initState initialUs initialTest =
 -- suite, execute all tests matching the selector, and log the rest as
 -- skipped.  If the map does not contain a selector, do not execute
 -- the suite, and do /not/ log its tests as skipped.
+performTestSuiteInternal :: Reporter us
+                         -- ^ Report generator to use for running the test suite.
+                         -> HashMap Strict.Text Selector
+                         -- ^ The map containing selectors for each suite.
+                         -> State
+                         -- ^ HUnit-Plus internal state.
+                         -> us
+                         -- ^ State for the report generator.
+                         -> TestSuite
+                         -- ^ Test suite to be run.
+                         -> IO (State, us)
+performTestSuiteInternal rep @ Reporter { reporterStartSuite = reportStartSuite,
+                                          reporterEndSuite = reportEndSuite }
+                         filters st @ State { stOptions = stopts } initialUs
+                         TestSuite { suiteName = sname, suiteTests = testlist,
+                                     suiteOptions = suiteOpts } =
+  case HashMap.lookup sname filters of
+    Just selector ->
+      let
+        state = st { stOptions = HashMap.union (HashMap.fromList suiteOpts)
+                                               stopts,
+                     stName = sname }
+
+        foldfun (c, us) = performTest rep selector c us
+      in do
+        startedUs <- reportStartSuite state initialUs
+        (time, (finishedState @ State { stCounts = counts }, finishedUs)) <-
+          timeItT (foldM foldfun (state, startedUs) testlist)
+        endedUs <- reportEndSuite time finishedState finishedUs
+        return (finishedState { stCounts = counts { cCaseAsserts = 0 } },
+                endedUs)
+    _ ->
+      return (st, initialUs)
+
+initState :: State
+initState = State { stCounts = zeroCounts, stName = "",
+                    stPath = [], stOptions = HashMap.empty,
+                    stOptionDescs = [] }
+
 performTestSuite :: Reporter us
                  -- ^ Report generator to use for running the test suite.
                  -> HashMap Strict.Text Selector
@@ -205,27 +245,11 @@ performTestSuite :: Reporter us
                  -> TestSuite
                  -- ^ Test suite to be run.
                  -> IO (Counts, us)
-performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
-                                  reporterEndSuite = reportEndSuite }
-                 filters initialUs
-                 TestSuite { suiteName = sname, suiteTests = testlist,
-                             suiteOptions = suiteOpts } =
-  case HashMap.lookup sname filters of
-    Just selector ->
-      let
-        initState = State { stCounts = zeroCounts, stName = sname,
-                            stPath = [], stOptions = HashMap.fromList suiteOpts,
-                            stOptionDescs = [] }
-
-        foldfun (c, us) = performTest rep selector c us
-      in do
-        startedUs <- reportStartSuite initState initialUs
-        (time, (finishedState, finishedUs)) <-
-          timeItT (foldM foldfun (initState, startedUs) testlist)
-        endedUs <- reportEndSuite time finishedState finishedUs
-        return (stCounts finishedState, endedUs)
-    _ ->
-      return (zeroCounts, initialUs)
+performTestSuite rep filters us suite =
+  do
+    (State { stCounts = out }, _) <- performTestSuiteInternal rep filters
+                                                              initState us suite
+    return (out, us)
 
 -- | Top-level function for a test run.  Given a set of suites and a
 -- map from suite names to selectors, execute all suites that have
@@ -244,24 +268,11 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
                                    reporterEnd = reportEnd }
                   filters suites =
   let
-    combineCounts Counts { cCases = cases1, cTried = tried1,
-                           cErrors = errors1, cFailures = failures1,
-                           cAsserts = asserts1, cSkipped = skipped1 }
-                  Counts { cCases = cases2, cTried = tried2,
-                           cErrors = errors2, cFailures = failures2,
-                           cAsserts = asserts2, cSkipped = skipped2 } =
-      Counts { cCases = cases1 + cases2, cTried = tried1 + tried2,
-               cErrors = errors1 + errors2, cFailures = failures1 + failures2,
-               cAsserts = asserts1 + asserts2, cSkipped = skipped1 + skipped2,
-               cCaseAsserts = 0 }
-
-    foldfun (accumCounts, accumUs) suite =
-      do
-        (suiteCounts, suiteUs) <- performTestSuite rep filters accumUs suite
-        return (combineCounts accumCounts suiteCounts, suiteUs)
+    foldfun (accumState, accumUs) =
+      performTestSuiteInternal rep filters accumState accumUs
   in do
     initialUs <- reportStart
-    (time, (finishedCounts, finishedUs)) <-
-      timeItT (foldM foldfun (zeroCounts, initialUs) suites)
+    (time, (State { stCounts = finishedCounts }, finishedUs)) <-
+      timeItT (foldM foldfun (initState, initialUs) suites)
     endedUs <- reportEnd time finishedCounts finishedUs
     return (finishedCounts, endedUs)

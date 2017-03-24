@@ -572,13 +572,13 @@ data TestSuite =
   }
 
 -- | Create a test suite from a name and a list of tests.
-testSuite :: Strict.Text
+testSuite :: String
           -- ^ The suite's name.
           -> [Test]
           -- ^ The tests in the suite.
           -> TestSuite
 testSuite suitename testlist =
-  TestSuite { suiteName = suitename, suiteConcurrently = True,
+  TestSuite { suiteName = Strict.pack suitename, suiteConcurrently = True,
               suiteOptions = [], suiteTests = testlist }
 
 -- Overloaded `test` Function

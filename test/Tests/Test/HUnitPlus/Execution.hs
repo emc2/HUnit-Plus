@@ -425,22 +425,154 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                                        cFailures = failures1,
                                                        cSkipped = skipped1,
                                                        cTried = tried1 })
-              (suite2, events2, selectormap2, Counts { cAsserts = asserts2,
-                                                       cCases = cases2,
-                                                       cErrors = errors2,
-                                                       cFailures = failures2,
-                                                       cSkipped = skipped2,
-                                                       cTried = tried2 }) =
+              (suite2, events2, selectormap2, counts2) =
   let
-    counts = Counts { cAsserts = asserts1 + asserts2,
-                      cErrors = errors1 + errors2,
-                      cCases = cases1 + cases2,
-                      cFailures = failures1 + failures2,
-                      cSkipped = skipped1 + skipped2,
-                      cTried = tried1 + tried2,
-                      cCaseAsserts = 0 }
+    bumpCounts (EndEvent c @ Counts { cAsserts = asserts2,
+                                      cCases = cases2,
+                                      cErrors = errors2,
+                                      cFailures = failures2,
+                                      cSkipped = skipped2,
+                                      cTried = tried2 }) =
+      EndEvent c { cAsserts = asserts1 + asserts2,
+                   cErrors = errors1 + errors2,
+                   cCases = cases1 + cases2,
+                   cFailures = failures1 + failures2,
+                   cSkipped = skipped1 + skipped2,
+                   cTried = tried1 + tried2 }
+    bumpCounts (StartSuiteEvent s @ State { stCounts =
+                                              c @ Counts { cAsserts = asserts2,
+                                                           cCases = cases2,
+                                                           cErrors = errors2,
+                                                           cFailures = failures2,
+                                                           cSkipped = skipped2,
+                                                           cTried = tried2 } }) =
+      StartSuiteEvent s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                         cErrors = errors1 + errors2,
+                                         cCases = cases1 + cases2,
+                                         cFailures = failures1 + failures2,
+                                         cSkipped = skipped1 + skipped2,
+                                         cTried = tried1 + tried2 } }
+    bumpCounts (EndSuiteEvent s @ State { stCounts =
+                                            c @ Counts { cAsserts = asserts2,
+                                                         cCases = cases2,
+                                                         cErrors = errors2,
+                                                         cFailures = failures2,
+                                                         cSkipped = skipped2,
+                                                         cTried = tried2 } }) =
+      EndSuiteEvent s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                       cErrors = errors1 + errors2,
+                                       cCases = cases1 + cases2,
+                                       cFailures = failures1 + failures2,
+                                       cSkipped = skipped1 + skipped2,
+                                       cTried = tried1 + tried2 } }
+    bumpCounts (StartCaseEvent s @ State { stCounts =
+                                             c @ Counts { cAsserts = asserts2,
+                                                          cCases = cases2,
+                                                          cErrors = errors2,
+                                                          cFailures = failures2,
+                                                          cSkipped = skipped2,
+                                                          cTried = tried2 } }) =
+      StartCaseEvent s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                        cErrors = errors1 + errors2,
+                                        cCases = cases1 + cases2,
+                                        cFailures = failures1 + failures2,
+                                        cSkipped = skipped1 + skipped2,
+                                        cTried = tried1 + tried2 } }
+    bumpCounts (EndCaseEvent s @ State { stCounts =
+                                           c @ Counts { cAsserts = asserts2,
+                                                        cCases = cases2,
+                                                        cErrors = errors2,
+                                                        cFailures = failures2,
+                                                        cSkipped = skipped2,
+                                                        cTried = tried2 } }) =
+      EndCaseEvent s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                      cErrors = errors1 + errors2,
+                                      cCases = cases1 + cases2,
+                                      cFailures = failures1 + failures2,
+                                      cSkipped = skipped1 + skipped2,
+                                      cTried = tried1 + tried2 } }
+    bumpCounts (SkipEvent s @ State { stCounts =
+                                        c @ Counts { cAsserts = asserts2,
+                                                     cCases = cases2,
+                                                     cErrors = errors2,
+                                                     cFailures = failures2,
+                                                     cSkipped = skipped2,
+                                                     cTried = tried2 } }) =
+      SkipEvent s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                   cErrors = errors1 + errors2,
+                                   cCases = cases1 + cases2,
+                                   cFailures = failures1 + failures2,
+                                   cSkipped = skipped1 + skipped2,
+                                   cTried = tried1 + tried2 } }
+    bumpCounts (ProgressEvent msg s @ State { stCounts =
+                                                c @ Counts { cAsserts = asserts2,
+                                                             cCases = cases2,
+                                                             cErrors = errors2,
+                                                             cFailures = failures2,
+                                                             cSkipped = skipped2,
+                                                             cTried = tried2 } }) =
+      ProgressEvent msg s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                           cErrors = errors1 + errors2,
+                                           cCases = cases1 + cases2,
+                                           cFailures = failures1 + failures2,
+                                           cSkipped = skipped1 + skipped2,
+                                           cTried = tried1 + tried2 } }
+    bumpCounts (FailureEvent msg s @ State { stCounts =
+                                               c @ Counts { cAsserts = asserts2,
+                                                            cCases = cases2,
+                                                            cErrors = errors2,
+                                                            cFailures = failures2,
+                                                            cSkipped = skipped2,
+                                                            cTried = tried2 } }) =
+      FailureEvent msg s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                          cErrors = errors1 + errors2,
+                                          cCases = cases1 + cases2,
+                                          cFailures = failures1 + failures2,
+                                          cSkipped = skipped1 + skipped2,
+                                          cTried = tried1 + tried2 } }
+    bumpCounts (ErrorEvent msg s @ State { stCounts =
+                                             c @ Counts { cAsserts = asserts2,
+                                                          cCases = cases2,
+                                                          cErrors = errors2,
+                                                          cFailures = failures2,
+                                                          cSkipped = skipped2,
+                                                          cTried = tried2 } }) =
+      ErrorEvent msg s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                        cErrors = errors1 + errors2,
+                                        cCases = cases1 + cases2,
+                                        cFailures = failures1 + failures2,
+                                        cSkipped = skipped1 + skipped2,
+                                        cTried = tried1 + tried2 } }
+    bumpCounts (SystemErrEvent msg s @ State { stCounts =
+                                                 c @ Counts { cAsserts = asserts2,
+                                                              cCases = cases2,
+                                                              cErrors = errors2,
+                                                              cFailures = failures2,
+                                                              cSkipped = skipped2,
+                                                              cTried = tried2 } }) =
+      SystemErrEvent msg s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                            cErrors = errors1 + errors2,
+                                            cCases = cases1 + cases2,
+                                            cFailures = failures1 + failures2,
+                                            cSkipped = skipped1 + skipped2,
+                                            cTried = tried1 + tried2 } }
+    bumpCounts (SystemOutEvent msg s @ State { stCounts =
+                                                 c @ Counts { cAsserts = asserts2,
+                                                              cCases = cases2,
+                                                              cErrors = errors2,
+                                                              cFailures = failures2,
+                                                              cSkipped = skipped2,
+                                                              cTried = tried2 } }) =
+      SystemOutEvent msg s { stCounts = c { cAsserts = asserts1 + asserts2,
+                                            cErrors = errors1 + errors2,
+                                            cCases = cases1 + cases2,
+                                            cFailures = failures1 + failures2,
+                                            cSkipped = skipped1 + skipped2,
+                                            cTried = tried1 + tried2 } }
+
     suites = [suite1, suite2]
-    events = events1 ++ events2 ++ [EndEvent counts]
+    events = events1 ++ map bumpCounts events2 ++
+             [bumpCounts (EndEvent counts2 { cCaseAsserts = 0 })]
     selectormap = HashMap.union selectormap1 selectormap2
   in
     (suites, events, selectormap)
