@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
 
 -- | A mostly-complete test selection and execution program for
 -- running HUnit-Plus tests.  The only thing missing are the actual
@@ -57,7 +57,6 @@ module Test.HUnitPlus.Main(
        ) where
 
 import Control.Exception
-import Data.ByteString.Lazy(hPut)
 import Data.Either
 import Data.HashMap.Strict(HashMap)
 import System.Console.CmdArgs hiding (Quiet)
@@ -71,6 +70,10 @@ import Test.HUnitPlus.Text
 import Test.HUnitPlus.XML
 import Text.XML.Expat.Format
 import Text.XML.Expat.Tree(Node)
+
+import qualified Data.ByteString.Lazy as ByteString
+import qualified Data.Text as Strict
+import qualified Data.Text.IO as Strict
 
 -- | Console mode options.
 data ConsoleMode =
@@ -126,11 +129,11 @@ opts =
     xmlreport = []
       &= typFile
       &= help "Output an XML report, with an optional filename for the report (default is \"report.xml\")"
-      &= opt "report.xml",
+      &= opt ("report.xml" :: String),
     txtreport = []
       &= typFile
       &= help "Output a plain text report, with an optional filename for the report (default is \"report.txt\")"
-      &= opt "report.txt",
+      &= opt ("report.txt" :: String),
     consmode = []
       &= explicit
       &= name "c"
@@ -168,11 +171,11 @@ opts =
 -- | Read and parse a single test list file
 parseTestLists :: Opts
                -- ^ The command line options
-               -> IO (Either [String] [Filter])
+               -> IO (Either [Strict.Text] [Filter])
 parseTestLists Opts { testlist = filenames, filters = cmdfilters } =
   let
     cmdresults = map (either (Left . (: [])) (Right . (: [])) .
-                      parseFilter "command line") cmdfilters
+                      parseFilter "command line") (map Strict.pack cmdfilters)
   in do
     fileresults <- mapM parseFilterFile filenames
     case partitionEithers (fileresults ++ cmdresults) of
@@ -180,12 +183,12 @@ parseTestLists Opts { testlist = filenames, filters = cmdfilters } =
       (errs, _) -> return (Left (concat errs))
 
 -- | Translate an @IOError@ into an error message
-interpretException :: String
+interpretException :: Strict.Text
                    -- ^ Prefix to attach to error messages
                    -> IOError
                    -- ^ Exception to interpret
-                   -> String
-interpretException prefix e = prefix ++ show e
+                   -> Strict.Text
+interpretException prefix e = Strict.concat [prefix, Strict.pack (show e)]
 
 -- | Get the file for reporting XML data
 withReportHandles :: Opts
@@ -193,7 +196,7 @@ withReportHandles :: Opts
                    -> (Maybe Handle -> Maybe Handle -> IO a)
                    -- ^ A monad parameterized by the xml report handle
                    -- and the text report handle.
-                   -> IO (Either [String] a)
+                   -> IO (Either [Strict.Text] a)
 withReportHandles Opts { xmlreport = [], txtreport = [] } cmd =
   cmd Nothing Nothing >>= return . Right
 withReportHandles Opts { xmlreport = [ xmlfile ], txtreport = [] } cmd =
@@ -271,7 +274,7 @@ createMain suites =
     case res of
       Left errs ->
         do
-          mapM_ (putStr . (++ "\n")) errs
+          mapM_ Strict.putStrLn errs
           exitFailure
       Right False -> exitFailure
       Right True -> exitSuccess
@@ -280,7 +283,7 @@ createMain suites =
 -- simply a wrapper around this function.  This function allows users
 -- to supply their own options, and to decide what to do with the
 -- result of test execution.
-topLevel :: [TestSuite] -> Opts -> IO (Either [String] Bool)
+topLevel :: [TestSuite] -> Opts -> IO (Either [Strict.Text] Bool)
 topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
   let
     cmode = case cmodeopt of
@@ -303,7 +306,7 @@ topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
 
 executeTests :: [TestSuite]
              -- ^ The test suites to run
-             -> HashMap String Selector
+             -> HashMap Strict.Text Selector
              -- ^ The filters to use
              -> ConsoleMode
              -- ^ The mode to use for console output
@@ -317,8 +320,8 @@ executeTests suites testlists cmode xmlhandle txthandle =
     textTerminalReporter = textReporter (putTextToHandle stdout) False
     verboseTerminalReporter = textReporter (putTextToHandle stdout) True
 
-    writeXML :: Handle -> [[Node String String]] -> IO ()
-    writeXML outhandle [[tree]] = hPut outhandle (format tree)
+    writeXML :: Handle -> [[Node Strict.Text Strict.Text]] -> IO ()
+    writeXML outhandle [[tree]] = ByteString.hPut outhandle (format tree)
     writeXML _ _ =
       error "Internal error in XML reporting: extra nodes on node stack"
 

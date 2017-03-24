@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Tests.Test.HUnitPlus.ReporterUtils where
 
 import Control.Monad
@@ -6,6 +8,7 @@ import Distribution.TestSuite(Result(Pass, Fail))
 import Test.HUnitPlus.Reporting
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Strict
 
 data ReportEvent =
     End Double
@@ -14,12 +17,12 @@ data ReportEvent =
   | StartCase
   | EndCase Double
   | Skip
-  | Progress String
-  | Failure String
-  | Error String
-  | Exception String
-  | SystemErr String
-  | SystemOut String
+  | Progress Strict.Text
+  | Failure Strict.Text
+  | Error Strict.Text
+  | Exception Strict.Text
+  | SystemErr Strict.Text
+  | SystemOut Strict.Text
     deriving (Show)
 
 instance Eq ReportEvent where
@@ -32,8 +35,8 @@ instance Eq ReportEvent where
   Progress s1 == Progress s2 = s1 == s2
   Failure s1 == Failure s2 = s1 == s2
   Error s1 == Error s2 = s1 == s2
-  Exception s1 == Error s2 = isInfixOf s1 s2
-  Error s1 == Exception s2 = isInfixOf s2 s1
+  Exception s1 == Error s2 = Strict.isInfixOf s1 s2
+  Error s1 == Exception s2 = Strict.isInfixOf s2 s1
   Exception s1 == Exception s2 = s1 == s2
   SystemErr s1 == SystemErr s2 = s1 == s2
   SystemOut s1 == SystemOut s2 = s1 == s2
@@ -61,15 +64,15 @@ initState :: State
 initState = State { stName = "", stPath = [], stCounts = zeroCounts,
                     stOptions = HashMap.empty, stOptionDescs = [] }
 
-setName :: String -> ReporterOp us
+setName :: Strict.Text -> ReporterOp us
 setName name (s @ State { stName = _ }, repstate) =
   return (s { stName = name }, repstate)
 
-setOpt :: String -> String -> ReporterOp us
+setOpt :: Strict.Text -> Strict.Text -> ReporterOp us
 setOpt key value (s @ State { stOptions = opts }, repstate) =
   return (s { stOptions = HashMap.insert key value opts }, repstate)
 
-pushPath :: String -> ReporterOp us
+pushPath :: Strict.Text -> ReporterOp us
 pushPath name (s @ State { stPath = path }, repstate) =
   return (s { stPath = Label name : path }, repstate)
 
@@ -77,7 +80,7 @@ popPath :: ReporterOp us
 popPath (s @ State { stPath = _ : path }, repstate) =
   return (s { stPath = path }, repstate)
 
-addOption :: String -> String -> ReporterOp us
+addOption :: Strict.Text -> Strict.Text -> ReporterOp us
 addOption key value (s @ State { stOptions = opts }, repstate) =
   return (s { stOptions = HashMap.insert key value opts }, repstate)
 
@@ -113,31 +116,31 @@ countFailed count (s @ State { stCounts = c @ Counts { cFailures = failed } },
                    repstate) =
   return (s { stCounts = c { cFailures = failed + count } }, repstate)
 
-reportProgress :: Reporter us -> String -> ReporterOp us
+reportProgress :: Reporter us -> Strict.Text -> ReporterOp us
 reportProgress reporter msg (state, repstate) =
   do
     repstate' <- (reporterCaseProgress reporter) msg state repstate
     return (state, repstate')
 
-reportSystemErr :: Reporter us -> String -> ReporterOp us
+reportSystemErr :: Reporter us -> Strict.Text -> ReporterOp us
 reportSystemErr reporter msg (state, repstate) =
   do
     repstate' <- (reporterSystemErr reporter) msg state repstate
     return (state, repstate')
 
-reportSystemOut :: Reporter us -> String -> ReporterOp us
+reportSystemOut :: Reporter us -> Strict.Text -> ReporterOp us
 reportSystemOut reporter msg (state, repstate) =
   do
     repstate' <- (reporterSystemOut reporter) msg state repstate
     return (state, repstate')
 
-reportFailure :: Reporter us -> String -> ReporterOp us
+reportFailure :: Reporter us -> Strict.Text -> ReporterOp us
 reportFailure reporter msg (state, repstate) =
   do
     repstate' <- (reporterFailure reporter) msg state repstate
     return (state, repstate')
 
-reportError :: Reporter us -> String -> ReporterOp us
+reportError :: Reporter us -> Strict.Text -> ReporterOp us
 reportError reporter msg (state, repstate) =
   do
     repstate' <- (reporterError reporter) msg state repstate

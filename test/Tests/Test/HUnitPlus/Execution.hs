@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
 module Tests.Test.HUnitPlus.Execution where
 
 import Control.Exception(Exception, throwIO)
@@ -14,6 +14,7 @@ import Test.HUnitPlus.Reporting
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Strict
 
 data ReportEvent =
     EndEvent Counts
@@ -22,11 +23,11 @@ data ReportEvent =
   | StartCaseEvent State
   | EndCaseEvent State
   | SkipEvent State
-  | ProgressEvent String State
-  | FailureEvent String State
-  | ErrorEvent String State
-  | SystemErrEvent String State
-  | SystemOutEvent String State
+  | ProgressEvent Strict.Text State
+  | FailureEvent Strict.Text State
+  | ErrorEvent Strict.Text State
+  | SystemErrEvent Strict.Text State
+  | SystemOutEvent Strict.Text State
     deriving (Eq, Show)
 
 fullLoggingReporter :: Reporter [ReportEvent]
@@ -79,8 +80,8 @@ makeResName (Normal (Error _)) = "error"
 makeResName Exception = "exception"
 
 makeAssert (Normal Pass) = assertSuccess
-makeAssert (Normal (Fail msg)) = assertFailure msg
-makeAssert (Normal (Error msg)) = abortError msg
+makeAssert (Normal (Fail msg)) = assertFailure (Strict.pack msg)
+makeAssert (Normal (Error msg)) = abortError (Strict.pack msg)
 makeAssert Exception = throwIO TestException
 
 updateCounts (Normal Pass) c @ Counts { cAsserts = asserts } =
@@ -93,16 +94,16 @@ updateCounts (Normal (Error _)) c @ Counts { cErrors = errors } =
 updateCounts Exception c @ Counts { cErrors = errors } =
   c { cErrors = errors + 1, cCaseAsserts = 0 }
 
-makeName :: (Bool, Bool, Behavior) -> String
+makeName :: (Bool, Bool, Behavior) -> Strict.Text
 makeName (tag1, tag2, res) =
-  makeTagName tag1 tag2 ++ "_" ++ makeResName res
+  Strict.concat [makeTagName tag1 tag2, "_", makeResName res]
 
 makeTest :: String -> (Bool, Bool, Behavior) -> Test
 makeTest prefix tdata @ (tag1, tag2, res) =
   let
     inittags = if tag1 then ["tag1"] else []
     tags = if tag2 then "tag2" : inittags else inittags
-    testname = prefix ++ makeName tdata
+    testname = prefix ++ (Strict.unpack (makeName tdata))
   in
     testNameTags testname tags (makeAssert res)
 {-
@@ -125,7 +126,7 @@ makeTestData prefix
   let
     startedCounts = counts { cCases = cases + 1, cTried = tried + 1 }
     finishedCounts = updateCounts res startedCounts
-    ssWithName = ss { stName = prefix ++ makeName tdata }
+    ssWithName = ss { stName = Strict.concat [Strict.pack prefix, makeName tdata] }
     ssStarted = ssWithName { stCounts = startedCounts }
     ssFinished = ssWithName { stCounts = finishedCounts }
     -- Remember, the order is reversed for these, because we reverse
@@ -135,10 +136,10 @@ makeTestData prefix
         Normal Pass ->
           EndCaseEvent ssFinished : StartCaseEvent ssStarted : events
         Normal (Fail msg) ->
-          EndCaseEvent ssFinished : FailureEvent msg ssStarted :
+          EndCaseEvent ssFinished : FailureEvent (Strict.pack msg) ssStarted :
           StartCaseEvent ssStarted : events
         Normal (Error msg) ->
-          EndCaseEvent ssFinished : ErrorEvent msg ssStarted :
+          EndCaseEvent ssFinished : ErrorEvent (Strict.pack msg) ssStarted :
           StartCaseEvent ssStarted : events
         Exception ->
           EndCaseEvent ssFinished :
@@ -155,7 +156,8 @@ makeTestData prefix
              (Left tdata) =
   let
     newcounts = c { cCases = cases + 1, cSkipped = skipped + 1 }
-    newstate = ss { stCounts = newcounts, stName = prefix ++ makeName tdata }
+    newstate = ss { stCounts = newcounts,
+                    stName = Strict.concat [Strict.pack prefix, makeName tdata] }
   in
     (makeTest prefix tdata : tests, SkipEvent newstate : events,
      newstate { stName = oldname })
@@ -253,10 +255,11 @@ makeLeafGroup gname wrapinner mfilter initialTests =
     mapfun (tests, events, ss @ State { stPath = oldpath }, selectors)
            (mfilter, selector, valid) =
       let
-        ssWithPath = ss { stPath = Label gname : oldpath }
-        (grouptests, events', ss') = foldl (makeTestData (gname ++ "_"))
-                                           ([], events, ssWithPath)
-                                           (getTests mfilter)
+        ssWithPath = ss { stPath = Label (Strict.pack gname) : oldpath }
+        (grouptests, events', ss') =
+          foldl (makeTestData (gname ++ "_"))
+                ([], events, ssWithPath)
+                (getTests mfilter)
         tests' = Group { groupName = gname, groupTests = reverse grouptests,
                          concurrently = True } : tests
       in
@@ -322,7 +325,8 @@ makeOuterGroup mfilter initialTests =
 modfilters = [ All, WithTags (True, False), WithTags (False, True),
                WithTags (True, True), None ]
 
-genFilter :: String -> [(TestSuite, [ReportEvent], HashMap String Selector, Counts)]
+genFilter :: Strict.Text -> [(TestSuite, [ReportEvent],
+                              HashMap Strict.Text Selector, Counts)]
 genFilter sname =
   let
     -- Take a root ModFilter and an initial (suite list, event list,
@@ -330,7 +334,7 @@ genFilter sname =
     -- the root ModFilter, and produce a list of possible (suite list,
     -- event list, selectors)'s, one for each possibility.
     suiteTestInst :: ModFilter -> [(TestSuite, [ReportEvent],
-                                    HashMap String Selector, Counts)]
+                                    HashMap Strict.Text Selector, Counts)]
     suiteTestInst mfilter =
       let
         -- Initial state for a filter
@@ -368,7 +372,8 @@ genFilter sname =
         -- test suite and a filter.  Also add the EndSuite event to
         -- the events list.
         buildSuite :: ([Test], [ReportEvent], State, [Selector]) ->
-                      (TestSuite, [ReportEvent], HashMap String Selector, Counts)
+                      (TestSuite, [ReportEvent],
+                       HashMap Strict.Text Selector, Counts)
         buildSuite (tests, _, _, []) =
           let
             suite =
@@ -389,7 +394,7 @@ genFilter sname =
             eventsWithEnd = EndSuiteEvent state : events
 
             -- Add an entry for this suite to the selector map
-            selectormap :: HashMap String Selector
+            selectormap :: HashMap Strict.Text Selector
             selectormap =
               case selectors of
                 [one] -> HashMap.singleton sname one
@@ -403,15 +408,17 @@ genFilter sname =
     -- and add it to the existing list of test instances.
     concatMap suiteTestInst modfilters
 
-suite1Data :: [(TestSuite, [ReportEvent], HashMap String Selector, Counts)]
+suite1Data :: [(TestSuite, [ReportEvent], HashMap Strict.Text Selector, Counts)]
 suite1Data = genFilter "Suite1"
 
-suite2Data :: [(TestSuite, [ReportEvent], HashMap String Selector, Counts)]
+suite2Data :: [(TestSuite, [ReportEvent], HashMap Strict.Text Selector, Counts)]
 suite2Data = genFilter "Suite2"
 
-combineSuites :: (TestSuite, [ReportEvent], HashMap String Selector, Counts) ->
-                 (TestSuite, [ReportEvent], HashMap String Selector, Counts) ->
-                 ([TestSuite], [ReportEvent], HashMap String Selector)
+combineSuites :: (TestSuite, [ReportEvent],
+                  HashMap Strict.Text Selector, Counts) ->
+                 (TestSuite, [ReportEvent],
+                  HashMap Strict.Text Selector, Counts) ->
+                 ([TestSuite], [ReportEvent], HashMap Strict.Text Selector)
 combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                                        cCases = cases1,
                                                        cErrors = errors1,
@@ -439,22 +446,22 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
     (suites, events, selectormap)
 
 
-suiteData :: [([TestSuite], [ReportEvent], HashMap String Selector)]
+suiteData :: [([TestSuite], [ReportEvent], HashMap Strict.Text Selector)]
 suiteData = foldl (\accum suite1 ->
                     foldl (\accum suite2 ->
                             (combineSuites suite1 suite2) : accum)
                           accum suite2Data)
                   [] suite1Data
 
-makeExecutionTest :: ([TestSuite], [ReportEvent], HashMap String Selector) ->
+makeExecutionTest :: ([TestSuite], [ReportEvent], HashMap Strict.Text Selector) ->
                      (Int, [Test]) -> (Int, [Test])
 makeExecutionTest (suites, expected, selectors) (index, tests) =
   let
     format events = intercalate "\n" (map show events)
 
     selectorStrs =
-      intercalate "\n" (map (\(suite, selector) -> "[" ++ suite ++ "]" ++
-                                                   show selector)
+      intercalate "\n" (map (\(suite, selector) -> "[" ++ Strict.unpack suite ++
+                                                   "]" ++ show selector)
                             (HashMap.toList selectors))
 
     check expected @ (e : expecteds) actual @ (a : actuals)

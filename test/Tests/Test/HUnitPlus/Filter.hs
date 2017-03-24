@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Tests.Test.HUnitPlus.Filter(tests) where
 
 import Data.List
@@ -7,6 +9,7 @@ import Test.HUnitPlus.Filter
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
+import qualified Data.Text as Strict
 
 suiteNames :: [[String]]
 suiteNames = [[], ["Suite1"], ["Suite1"], ["Suite1", "Suite2"]]
@@ -37,15 +40,16 @@ makeFilterString suites path tags =
 
 tagsSelector :: [String] -> Selector
 tagsSelector [] = allSelector
-tagsSelector tags = allSelector { selectorTags = Just $! HashSet.fromList tags }
+tagsSelector tags =
+  allSelector { selectorTags = Just $! HashSet.fromList (map Strict.pack tags) }
 
-pathSelector :: Selector -> [String] -> Selector
+pathSelector :: Selector -> [Strict.Text] -> Selector
 pathSelector inner [] = inner
 pathSelector inner (elem : path) =
   Selector { selectorInners = HashMap.singleton elem (pathSelector inner path),
              selectorTags = Nothing }
 
-makeFilter :: [String] -> Selector -> Filter
+makeFilter :: [Strict.Text] -> Selector -> Filter
 makeFilter names selector = Filter { filterSuites = HashSet.fromList names,
                                      filterSelector = selector }
 
@@ -66,13 +70,15 @@ makeFilterParseTest suites path tags =
   let
     name = suitesName suites ++ "__" ++ pathName path ++ "__" ++ tagsName tags
     string = suiteString suites ++ pathString path ++ tagsString tags
-    expected = makeFilter suites (pathSelector (tagsSelector tags) path)
+    expected = makeFilter (map Strict.pack suites)
+                          (pathSelector (tagsSelector tags)
+                                        (map Strict.pack path))
 
     runTest :: IO Progress
     runTest =
-      do case parseFilter "test input" string of
+      do case parseFilter "test input" (Strict.pack string) of
           Left e -> return (Finished (Fail ("Parse of " ++ string ++
-                                            " failed: " ++ e)))
+                                            " failed: " ++ (Strict.unpack e))))
           Right actual
             | expected == actual -> return (Finished Pass)
             | otherwise ->
@@ -110,11 +116,11 @@ makeFileParserTest name content expected =
   let
     runTest :: IO Progress
     runTest =
-      do case parseFilterFileContent name content of
+      do case parseFilterFileContent name (Strict.pack content) of
           Left e -> return (Finished (Fail ("Parse of\n************\n" ++
                                             content ++
                                             "\n************\nfailed: " ++
-                                            concat e)))
+                                            concat (map Strict.unpack e))))
           Right actual
             | expected == actual -> return (Finished Pass)
             | otherwise ->
@@ -573,7 +579,7 @@ allBCFilter = Filter { filterSuites = HashSet.fromList ["B", "C"],
                        filterSelector = allSelector }
 
 
-filterTestCases :: [(String, [String], [Filter], [(String, Selector)])]
+filterTestCases :: [(String, [String], [Filter], [(Strict.Text, Selector)])]
 filterTestCases = [
     ("A_nil", ["A"], [], [("A", allSelector)]),
     ("AB_nil", ["A", "B"], [], [("A", allSelector), ("B", allSelector)]),
@@ -796,12 +802,13 @@ filterTestCases = [
 filterTests :: [Test]
 filterTests =
   let
-    makeTest :: (String, [String], [Filter], [(String, Selector)]) -> Test
+    makeTest :: (String, [String], [Filter], [(Strict.Text, Selector)]) -> Test
     makeTest (name, suites, filters, expected) =
       let
         runTest =
           let
-            actual = HashMap.toList (suiteSelectors suites filters)
+            actual = HashMap.toList (suiteSelectors (map Strict.pack suites)
+                                                    filters)
           in do
             if actual == expected
               then return (Finished Pass)

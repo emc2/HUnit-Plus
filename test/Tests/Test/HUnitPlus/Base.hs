@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
 
 module Tests.Test.HUnitPlus.Base(tests) where
 
@@ -285,13 +285,11 @@ testCases = [
     ("assertThrowsExact_nothrow" ~: assertThrowsExact (TestException True)
                                                       (return ()),
      "assertThrowsExact_nothrow", [], oneFailOneAssert,
-     [Utils.Failure ("expected exception TestException True " ++
-                     "but computation finished normally")]),
+     [Utils.Failure ("expected exception TestException True but computation finished normally")]),
     ("assertThrowsExact_badthrow" ~:
        assertThrowsExact (TestException False) (throwIO (TestException True)),
      "assertThrowsExact_badthrow", [], oneFailOneAssert,
-     [Utils.Failure ("expected exception TestException False " ++
-                     "but got TestException True")]),
+     [Utils.Failure ("expected exception TestException False but got TestException True")]),
     ("assertThrowsExact_goodthrow" ~:
        assertThrowsExact (TestException True) (throwIO (TestException True)),
      "assertThrowsExact_goodthrow", [], oneAssert, []),
@@ -304,13 +302,13 @@ testCases = [
      "assertWithMsg_True", [], oneAssert, []),
     ("assertWithMsg_False" ~: assertWithMsg "Message" False,
      "assertWithMsg_False", [], oneFailOneAssert, [Utils.Failure "Message"]),
-    ("assert_String_empty" ~: assert "",
+    ("assert_String_empty" ~: assert ("" :: String),
      "assert_String_empty", [], oneAssert, []),
-    ("assert_String_nonempty" ~: assert "non-empty", "assert_String_nonempty",
+    ("assert_String_nonempty" ~: assert ("non-empty" :: String), "assert_String_nonempty",
      [], oneFailOneAssert, [Utils.Failure "non-empty"]),
-    ("assertWithMsg_String_empty" ~: assertWithMsg "Prefix: " "",
+    ("assertWithMsg_String_empty" ~: assertWithMsg "Prefix: " ("" :: String),
      "assertWithMsg_String_empty", [], oneAssert, []),
-    ("assertWithMsg_String_nonempty" ~: assertWithMsg "Prefix: " "non-empty",
+    ("assertWithMsg_String_nonempty" ~: assertWithMsg "Prefix: " ("non-empty" :: String),
      "assertWithMsg_String_nonempty", [], oneFailOneAssert,
      [Utils.Failure "Prefix: non-empty"]),
     ("assert_list_assertSuccess_twice" ~: assert [assertSuccess, assertSuccess],

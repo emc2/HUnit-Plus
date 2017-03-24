@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
-{-# LANGUAGE FlexibleInstances, DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances, DeriveDataTypeable, OverloadedStrings #-}
 
 -- | Basic definitions for the HUnitPlus library.
 --
@@ -90,13 +90,15 @@ import System.IO.Unsafe
 import System.TimeIt
 import Test.HUnitPlus.Reporting
 
+import qualified Data.Text as Strict
+
 -- | An 'Exception' used to abort test execution immediately.
 data TestException =
   TestException {
     -- | Whether this is a failure or an error.
     teError :: !Bool,
     -- | The failure (or error) message.
-    teMsg :: !String
+    teMsg :: !Strict.Text
   } deriving (Show, Typeable)
 
 instance Exception TestException
@@ -108,13 +110,13 @@ data TestInfo =
     -- | Current counts of assertions, tried, failed, and errors.
     tiAsserts :: !Word,
     -- | Events that have been logged
-    tiEvents :: ![(Word, String)],
+    tiEvents :: ![(Word, Strict.Text)],
     -- | Whether or not the result of the test computation is already
     -- reflected here.  This is used to differentiate between black
     -- box test and tests we've built with these tools.
     tiIgnoreResult :: !Bool,
-    -- | String to attach to every failure message as a prefix.
-    tiPrefix :: !String,
+    -- | 'Text' to attach to every failure message as a prefix.
+    tiPrefix :: !Strict.Text,
     tiHeartbeat :: !Bool
   }
 
@@ -161,17 +163,18 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
             Just TestException { teError = True, teMsg = msg } ->
               do
                 logError msg
-                return (Finished (Error msg))
+                return (Finished (Error (Strict.unpack msg)))
             Just TestException { teError = False, teMsg = msg } ->
               do
                 logFailure msg
-                return (Finished (Fail msg))
+                return (Finished (Fail (Strict.unpack msg)))
             Nothing ->
               do
                 TestInfo { tiIgnoreResult = ignoreRes } <- readIORef testinfo
                 if ignoreRes
                   then do
-                    logError ("Uncaught exception in test: " ++ show ex)
+                    logError (Strict.concat ["Uncaught exception in test: ",
+                                             Strict.pack (show ex)])
                     return (Finished (Error ("Uncaught exception in test: " ++
                                              show ex)))
                   else
@@ -184,7 +187,7 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
         case progress of
           Progress msg nextAction ->
             do
-              usNext <- reportCaseProgress msg ss us
+              usNext <- reportCaseProgress (Strict.pack msg) ss us
               finishTestCase (time + inctime) usNext nextAction
           Finished res -> return (res, us, time + inctime)
   in do
@@ -232,7 +235,7 @@ reportTestInfo result Reporter { reporterError = reportError,
     case result of
       Error msg | not ignoreRes ->
         do
-          finalUs <- reportError msg ss eventsUs
+          finalUs <- reportError (Strict.pack msg) ss eventsUs
           return (ss { stCounts =
                          c { cAsserts = asserts + fromIntegral currAsserts,
                              cCaseAsserts = fromIntegral currAsserts,
@@ -240,7 +243,7 @@ reportTestInfo result Reporter { reporterError = reportError,
                   finalUs)
       Fail msg | not ignoreRes ->
         do
-          finalUs <- reportFailure msg ss eventsUs
+          finalUs <- reportFailure (Strict.pack msg) ss eventsUs
           return (ss { stCounts =
                          c { cAsserts = asserts + fromIntegral currAsserts,
                              cCaseAsserts = fromIntegral currAsserts,
@@ -275,24 +278,26 @@ heartbeat :: IO ()
 heartbeat = modifyIORef testinfo (\t -> t { tiHeartbeat = True })
 
 -- | Execute the given computation with a message prefix.
-withPrefix :: String -> IO () -> IO ()
+withPrefix :: Strict.Text -> IO () -> IO ()
 withPrefix prefix c =
   do
     t @ TestInfo { tiPrefix = oldprefix } <- readIORef testinfo
-    writeIORef testinfo t { tiPrefix = prefix ++ oldprefix }
+    writeIORef testinfo t { tiPrefix = Strict.concat [prefix, oldprefix] }
     c
     modifyIORef testinfo (\t' -> t' { tiPrefix = oldprefix })
 
 -- | Record sysout output.
-logSysout :: String -> IO ()
+logSysout :: Strict.Text -> IO ()
 logSysout msg =
-  modifyIORef testinfo (\t -> t { tiEvents = (sysOutCode, tiPrefix t ++ msg) :
+  modifyIORef testinfo (\t -> t { tiEvents = (sysOutCode,
+                                              Strict.concat [tiPrefix t, msg]) :
                                              tiEvents t })
 
 -- | Record sysout output.
-logSyserr :: String -> IO ()
+logSyserr :: Strict.Text -> IO ()
 logSyserr msg =
-  modifyIORef testinfo (\t -> t { tiEvents = (sysErrCode, tiPrefix t ++ msg) :
+  modifyIORef testinfo (\t -> t { tiEvents = (sysErrCode,
+                                              Strict.concat [tiPrefix t, msg]) :
                                              tiEvents t })
 
 -- | Record that one assertion has been checked.
@@ -300,34 +305,36 @@ logAssert :: IO ()
 logAssert = modifyIORef testinfo (\t -> t { tiAsserts = tiAsserts t + 1 })
 
 -- | Record an error, along with a message.
-logError :: String -> IO ()
+logError :: Strict.Text -> IO ()
 logError msg =
-  modifyIORef testinfo (\t -> t { tiEvents = (errorCode, tiPrefix t ++ msg) :
+  modifyIORef testinfo (\t -> t { tiEvents = (errorCode,
+                                              Strict.concat [tiPrefix t, msg]) :
                                              tiEvents t })
 
 -- | Record a failure, along with a message.
-logFailure :: String -> IO ()
+logFailure :: Strict.Text -> IO ()
 logFailure msg =
-  modifyIORef testinfo (\t -> t { tiEvents = (failureCode, tiPrefix t ++ msg) :
+  modifyIORef testinfo (\t -> t { tiEvents = (failureCode,
+                                              Strict.concat [tiPrefix t, msg]) :
                                              tiEvents t })
 
 -- | Get a combined failure message, if there is one.
-getFailures :: IO (Maybe String)
+getFailures :: IO (Maybe Strict.Text)
 getFailures =
   do
     TestInfo { tiEvents = events } <- readIORef testinfo
     case map snd (filter ((== failureCode) . fst) events) of
       [] -> return $ Nothing
-      fails -> return $ (Just (concat (reverse fails)))
+      fails -> return $ Just (Strict.concat (reverse fails))
 
 -- | Get a combined failure message, if there is one.
-getErrors :: IO (Maybe String)
+getErrors :: IO (Maybe Strict.Text)
 getErrors =
   do
     TestInfo { tiEvents = events } <- readIORef testinfo
     case map snd (filter ((== errorCode) . fst) events) of
       [] -> return $ Nothing
-      errors -> return $ (Just (concat (reverse errors)))
+      errors -> return $ Just (Strict.concat (reverse errors))
 
 -- Assertion Definition
 -- ====================
@@ -340,7 +347,7 @@ type Assertion = IO ()
 -- | Unconditionally signal that a failure has occurred.  This will
 -- not stop execution, but will record the failure, resulting in a
 -- failed test.
-assertFailure :: String
+assertFailure :: Strict.Text
               -- ^ The failure message
               -> Assertion
 assertFailure msg = logAssert >> logFailure msg
@@ -351,17 +358,17 @@ assertSuccess :: Assertion
 assertSuccess = logAssert
 
 -- | Signal than an error has occurred and stop the test immediately.
-abortError :: String -> Assertion
+abortError :: Strict.Text -> Assertion
 abortError msg = throw TestException { teError = True, teMsg = msg }
 
 -- | Signal that a failure has occurred and stop the test immediately.
 -- Note that if an error has been logged already, the test will be
 -- reported as an error.
-abortFailure :: String -> Assertion
+abortFailure :: Strict.Text -> Assertion
 abortFailure msg = throw TestException { teError = False, teMsg = msg }
 
 -- | Asserts that the specified condition holds.
-assertBool :: String
+assertBool :: Strict.Text
            -- ^ The message that is displayed if the assertion fails
            -> Bool
            -- ^ The condition
@@ -378,12 +385,13 @@ assertString = assertStringWithPrefix ""
 -- | Signals an assertion failure if a non-empty message (i.e., a
 -- message other than @\"\"@) is passed.  Allows a prefix to be
 -- supplied for the assertion failure message.
-assertStringWithPrefix :: String
+assertStringWithPrefix :: Strict.Text
                        -- ^ Prefix to attach to the string if not null
                        -> String
                        -- ^ String to assert is null
                        -> Assertion
-assertStringWithPrefix prefix s = assertBool (prefix ++ s) (null s)
+assertStringWithPrefix prefix s =
+  assertBool (Strict.concat [prefix, Strict.pack s]) (null s)
 
 -- | Asserts that the specified actual value is equal to the expected value.
 -- The output message will contain the prefix, the expected value, and the
@@ -392,7 +400,7 @@ assertStringWithPrefix prefix s = assertBool (prefix ++ s) (null s)
 -- If the prefix is the empty string (i.e., @\"\"@), then the prefix is omitted
 -- and only the expected and actual values are output.
 assertEqual :: (Eq a, Show a)
-            => String
+            => Strict.Text
             -- ^ The message prefix
             -> a
             -- ^ The expected value
@@ -401,8 +409,11 @@ assertEqual :: (Eq a, Show a)
             -> Assertion
 assertEqual preface expected actual =
   let
-    msg = (if null preface then "" else preface ++ "\n") ++
-             "expected: " ++ show expected ++ "\nbut got: " ++ show actual
+    msg = Strict.concat [if Strict.null preface
+                           then ""
+                           else Strict.concat [preface, "\n"],
+                         "expected: ", Strict.pack (show expected),
+                         "\nbut got: ", Strict.pack (show actual)]
   in
     assertBool msg (actual == expected)
 
@@ -415,11 +426,13 @@ assertThrowsExact :: (Exception e, Show e, Eq e)
                   -> Assertion
 assertThrowsExact ex comp =
   let
-    runComp = comp >> assertFailure ("expected exception " ++ show ex ++
-                                     " but computation finished normally")
+    normalmsg = Strict.concat ["expected exception ", Strict.pack (show ex),
+                               " but computation finished normally"]
+    runComp = comp >> assertFailure normalmsg
     handler ex' =
       let
-        msg = "expected exception " ++ show ex ++ " but got " ++ show ex'
+        msg = Strict.concat ["expected exception ", Strict.pack (show ex),
+                             " but got ", Strict.pack (show ex')]
       in
        if ex == ex'
          then assertSuccess
@@ -468,14 +481,16 @@ instance Assertable () where
   assertWithMsg _ = return
 
 instance Assertable Bool where
-  assertWithMsg = assertBool
+  assertWithMsg = assertBool . Strict.pack
 
 instance Assertable Result where
   assertWithMsg _ Pass = assertSuccess
-  assertWithMsg "" (Error errstr) = logError errstr
-  assertWithMsg prefix (Error errstr) = logError (prefix ++ errstr)
-  assertWithMsg "" (Fail failstr) = assertFailure failstr
-  assertWithMsg prefix (Fail failstr) = assertFailure (prefix ++ failstr)
+  assertWithMsg "" (Error errstr) = logError (Strict.pack errstr)
+  assertWithMsg prefix (Error errstr) =
+    logError (Strict.pack (prefix ++ errstr))
+  assertWithMsg "" (Fail failstr) = assertFailure (Strict.pack failstr)
+  assertWithMsg prefix (Fail failstr) =
+    assertFailure (Strict.pack (prefix ++ failstr))
 
 instance Assertable Progress where
   assertWithMsg msg (Progress _ cont) = assertWithMsg msg cont
@@ -492,10 +507,10 @@ class ListAssertable t where
   listAssert :: String -> [t] -> Assertion
 
 instance ListAssertable Char where
-  listAssert = assertStringWithPrefix
+  listAssert = assertStringWithPrefix . Strict.pack
 
 instance ListAssertable Assertion where
-  listAssert msg asserts = withPrefix msg (sequence_ asserts)
+  listAssert msg asserts = withPrefix (Strict.pack msg) (sequence_ asserts)
 
 -- Assertion Construction Operators
 -- --------------------------------
@@ -546,18 +561,18 @@ actual @?= expected = assertEqual "" expected actual
 data TestSuite =
   TestSuite {
     -- | The name of the test suite.
-    suiteName :: !String,
+    suiteName :: !Strict.Text,
     -- | Whether or not to run the tests concurrently.
     suiteConcurrently :: !Bool,
     -- | A list of all options used by this suite, and the default
     -- values for those options.
-    suiteOptions :: ![(String, String)],
+    suiteOptions :: ![(Strict.Text, Strict.Text)],
     -- | The tests in the suite.
     suiteTests :: ![Test]
   }
 
 -- | Create a test suite from a name and a list of tests.
-testSuite :: String
+testSuite :: Strict.Text
           -- ^ The suite's name.
           -> [Test]
           -- ^ The tests in the suite.
@@ -590,8 +605,8 @@ checkTestInfo =
           failures <- getFailures
           case failures of
             Nothing -> return $ (Finished Pass)
-            Just failstr -> return $ (Finished (Fail failstr))
-      Just errstr -> return $ (Finished (Error errstr))
+            Just failstr -> return $ (Finished (Fail (Strict.unpack failstr)))
+      Just errstr -> return $ (Finished (Error (Strict.unpack errstr)))
 
 -- | Provides a way to convert data into a @Test@ or set of @Test@.
 class Testable t where

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Tests.Test.HUnitPlus.XML(tests) where
 
 import Distribution.TestSuite
@@ -8,9 +10,10 @@ import Text.XML.Expat.Format
 import Text.XML.Expat.Tree
 
 import qualified Data.ByteString.Lazy.Char8 as BC
+import qualified Data.Text as Strict
 import qualified Tests.Test.HUnitPlus.ReporterUtils as Utils
 
-type ReporterState = [[Node String String]]
+type ReporterState = [[Node Strict.Text Strict.Text]]
 type ReporterOp = Utils.ReporterOp ReporterState
 
 countAsserts = Utils.countAsserts
@@ -43,7 +46,7 @@ reportEndSuite time state =
     (state, repstate) <- Utils.reportEndSuite xmlReporter time state
     return (state, removeTimestamp repstate)
 
-reporterTestCases :: [(String, [ReporterOp], Node String String)]
+reporterTestCases :: [(String, [ReporterOp], Node Strict.Text Strict.Text)]
 reporterTestCases =
   [("xmlReporter_systemErr", [reportSystemErr "Error Message Content"],
     Element { eName = "system-err", eChildren = [Text "Error Message Content"],
@@ -70,8 +73,8 @@ reporterTestCases =
     Element { eName = "testcase", eChildren = [],
               eAttributes = [("name", "Test"),
                              ("classname", "Path.Inner"),
-                             ("assertions", show 3),
-                             ("time", show pi)] }),
+                             ("assertions", Strict.pack (show 3)),
+                             ("time", Strict.pack (show pi))] }),
    ("xmlReporter_output_case",
     [setName "Test", pushPath "Path", pushPath "Inner",
      reportStartCase, countAsserts 3,
@@ -86,8 +89,8 @@ reporterTestCases =
                                      eAttributes = [] }],
               eAttributes = [("name", "Test"),
                              ("classname", "Path.Inner"),
-                             ("assertions", show 3),
-                             ("time", show pi)] }),
+                             ("assertions", Strict.pack (show 3)),
+                             ("time", Strict.pack (show pi))] }),
    ("xmlReporter_failing_case",
     [setName "Test", pushPath "Path", pushPath "Inner",
      reportStartCase, countAsserts 3,
@@ -105,8 +108,8 @@ reporterTestCases =
                                                      "Failure Message")] }],
               eAttributes = [("name", "Test"),
                              ("classname", "Path.Inner"),
-                             ("assertions", show 3),
-                             ("time", show pi)] }),
+                             ("assertions", Strict.pack (show 3)),
+                             ("time", Strict.pack (show pi))] }),
    ("xmlReporter_error_case",
     [setName "Test", pushPath "Path", pushPath "Inner",
      reportStartCase, countAsserts 3,
@@ -124,20 +127,20 @@ reporterTestCases =
                                                      "Error Message")] }],
               eAttributes = [("name", "Test"),
                              ("classname", "Path.Inner"),
-                             ("assertions", show 3),
-                             ("time", show pi)] }),
+                             ("assertions", Strict.pack (show 3)),
+                             ("time", Strict.pack (show pi))] }),
    ("xmlReporter_empty_suite",
     [setName "Test", pushPath "Path", reportStartSuite,
      countTried 4, countSkipped 3, countErrors 2, countFailed 1,
      reportEndSuite pi],
     Element { eName = "testsuite", eChildren = [],
               eAttributes = [("name", "Test"),
-                             ("hostname", hostname),
-                             ("time", show pi),
-                             ("tests", show 7),
-                             ("failures", show 1),
-                             ("errors", show 2),
-                             ("skipped", show 3)] }),
+                             ("hostname", Strict.pack hostname),
+                             ("time", Strict.pack (show pi)),
+                             ("tests", Strict.pack (show 7)),
+                             ("failures", Strict.pack (show 1)),
+                             ("errors", Strict.pack (show 2)),
+                             ("skipped", Strict.pack (show 3))] }),
    ("xmlReporter_options_suite",
     [setName "Test", pushPath "Path", reportStartSuite,
      setOpt "option1" "value1", setOpt "option2" "value2",
@@ -155,12 +158,12 @@ reporterTestCases =
                                                        ("value", "value2")] }
                              ] }],
               eAttributes = [("name", "Test"),
-                             ("hostname", hostname),
-                             ("time", show pi),
-                             ("tests", show 7),
-                             ("failures", show 1),
-                             ("errors", show 2),
-                             ("skipped", show 3)] }),
+                             ("hostname", Strict.pack hostname),
+                             ("time", Strict.pack (show pi)),
+                             ("tests", Strict.pack (show 7)),
+                             ("failures", Strict.pack (show 1)),
+                             ("errors", Strict.pack (show 2)),
+                             ("skipped", Strict.pack (show 3))] }),
    ("xmlReporter_content_suite",
     [setName "Test", pushPath "Path", reportStartSuite,
      countTried 4, setName "Pass", reportStartCase, countAsserts 3,
@@ -175,12 +178,12 @@ reporterTestCases =
      setName "Test", reportEndSuite (pi * pi)],
     Element { eName = "testsuite",
               eAttributes = [("name", "Test"),
-                             ("hostname", hostname),
-                             ("time", show (pi * pi)),
-                             ("tests", show 5),
-                             ("failures", show 1),
-                             ("errors", show 1),
-                             ("skipped", show 1)],
+                             ("hostname", Strict.pack hostname),
+                             ("time", Strict.pack (show (pi * pi))),
+                             ("tests", Strict.pack (show 5)),
+                             ("failures", Strict.pack (show 1)),
+                             ("errors", Strict.pack (show 1)),
+                             ("skipped", Strict.pack (show 1))],
               eChildren =
                 [Element { eName = "testcase",
                            eChildren =
@@ -193,8 +196,8 @@ reporterTestCases =
                                         eAttributes = [] }],
                            eAttributes = [("name", "Pass"),
                                           ("classname", "Path"),
-                                          ("assertions", show 3),
-                                          ("time", show (pi - 1))] },
+                                          ("assertions", Strict.pack (show 3)),
+                                          ("time", Strict.pack (show (pi - 1)))] },
                  Element { eName = "testcase",
                            eChildren = [Element { eName = "skipped",
                                                   eAttributes = [],
@@ -208,8 +211,8 @@ reporterTestCases =
                                                         "Failure Message")] }],
                            eAttributes = [("name", "Fail"),
                                           ("classname", "Path"),
-                                          ("assertions", show 4),
-                                          ("time", show (pi / 2))] },
+                                          ("assertions", Strict.pack (show 4)),
+                                          ("time", Strict.pack (show (pi / 2)))] },
                  Element { eName = "testcase",
                            eChildren =
                              [Element { eName = "error", eChildren = [],
@@ -217,8 +220,8 @@ reporterTestCases =
                                                         "Error Message")] }],
                            eAttributes = [("name", "Error"),
                                           ("classname", "Path"),
-                                          ("assertions", show 2),
-                                          ("time", show pi)] },
+                                          ("assertions", Strict.pack (show 2)),
+                                          ("time", Strict.pack (show pi))] },
                  Element { eName = "system-err",
                            eChildren = [Text "Suite Error Message"],
                            eAttributes = [] },
@@ -228,7 +231,7 @@ reporterTestCases =
                  ] }),
    ("xmlReporter_empty_suites", [reportEnd pi],
     Element { eName = "testsuites", eChildren = [],
-              eAttributes = [("time", show pi)] }),
+              eAttributes = [("time", Strict.pack (show pi))] }),
    ("xmlReporter_content_suites",
     [setName "Empty", reportStartSuite,
      countTried 5, countSkipped 4, countErrors 2, countFailed 1,
@@ -246,26 +249,26 @@ reporterTestCases =
      reportSystemErr "Suite Error Message", reportSystemOut "Suite Message",
      setName "Test", reportEndSuite (pi * pi), reportEnd (sqrt pi)],
     Element {
-      eName = "testsuites", eAttributes = [("time", show (sqrt pi))],
+      eName = "testsuites", eAttributes = [("time", Strict.pack (show (sqrt pi)))],
       eChildren =
         [Element {
             eName = "testsuite", eChildren = [],
             eAttributes = [("name", "Empty"),
-                           ("hostname", hostname),
-                           ("time", show pi),
-                           ("tests", show 9),
-                           ("failures", show 1),
-                           ("errors", show 2),
-                           ("skipped", show 4)] },
+                           ("hostname", Strict.pack hostname),
+                           ("time", Strict.pack (show pi)),
+                           ("tests", Strict.pack (show 9)),
+                           ("failures", Strict.pack (show 1)),
+                           ("errors", Strict.pack (show 2)),
+                           ("skipped", Strict.pack (show 4))] },
          Element {
            eName = "testsuite",
            eAttributes = [("name", "Test"),
-                          ("hostname", hostname),
-                          ("time", show (pi * pi)),
-                          ("tests", show 14),
-                          ("failures", show 2),
-                          ("errors", show 3),
-                          ("skipped", show 5)],
+                          ("hostname", Strict.pack hostname),
+                          ("time", Strict.pack (show (pi * pi))),
+                          ("tests", Strict.pack (show 14)),
+                          ("failures", Strict.pack (show 2)),
+                          ("errors", Strict.pack (show 3)),
+                          ("skipped", Strict.pack (show 5))],
            eChildren =
              [Element { eName = "properties", eAttributes = [],
                            eChildren =
@@ -288,8 +291,8 @@ reporterTestCases =
                               eAttributes = [] }],
                  eAttributes = [("name", "Pass"),
                                 ("classname", "Path"),
-                                ("assertions", show 3),
-                                ("time", show (pi - 1))] },
+                                ("assertions", Strict.pack (show 3)),
+                                ("time", Strict.pack (show (pi - 1)))] },
               Element { eName = "testcase",
                         eChildren = [Element { eName = "skipped",
                                                eAttributes = [],
@@ -303,8 +306,8 @@ reporterTestCases =
                                                      "Failure Message")] }],
                         eAttributes = [("name", "Fail"),
                                        ("classname", "Path"),
-                                       ("assertions", show 4),
-                                       ("time", show (pi / 2))] },
+                                       ("assertions", Strict.pack (show 4)),
+                                       ("time", Strict.pack (show (pi / 2)))] },
               Element { eName = "testcase",
                         eChildren =
                           [Element { eName = "error", eChildren = [],
@@ -312,8 +315,8 @@ reporterTestCases =
                                                      "Error Message")] }],
                         eAttributes = [("name", "Error"),
                                        ("classname", "Path"),
-                                       ("assertions", show 2),
-                                       ("time", show pi)] },
+                                       ("assertions", Strict.pack (show 2)),
+                                       ("time", Strict.pack (show pi))] },
               Element { eName = "system-err",
                         eChildren = [Text "Suite Error Message"],
                         eAttributes = [] },
@@ -328,10 +331,10 @@ reporterTestCases =
 hostname :: String
 hostname = unsafePerformIO $ getHostName
 
-genReporterTest :: (String, [ReporterOp], Node String String) -> Test
+genReporterTest :: (String, [ReporterOp], Node Strict.Text Strict.Text) -> Test
 genReporterTest (name, op, expected) =
   let
-    format :: [[Node String String]] -> String
+    format :: [[Node Strict.Text Strict.Text]] -> String
     format = concat . map (concat . map (BC.unpack . formatNode . indent 2))
 
     out = TestInstance { name = name, tags = [], options = [],

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Tests.Test.HUnitPlus.Reporting(tests) where
 
 import Data.List

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Tests.Test.HUnitPlus.Main where
 
 import Data.List
@@ -5,6 +7,7 @@ import Distribution.TestSuite
 import System.Directory
 import Test.HUnitPlus.Main
 import Test.HUnitPlus.Base
+import qualified Data.Text as Strict
 
 makeMainTest :: (String, IO (), IO (), Bool, [TestSuite], Opts) -> Test
 makeMainTest (name, setup, cleanup, shouldPass, suites, opts) =
@@ -20,7 +23,7 @@ makeMainTest (name, setup, cleanup, shouldPass, suites, opts) =
               then return (Finished Pass)
               else return (Finished (Fail ("Expected test to pass, " ++
                                            "but failed with\n" ++
-                                           intercalate "\n" msgs)))
+                                           intercalate "\n" (map Strict.unpack msgs))))
           Right _ ->
             if shouldPass
               then return (Finished Pass)
@@ -70,6 +73,7 @@ suitePairCombos = foldl (\accum a ->
                                 accum suiteCombos)
                         [] suiteCombos
 
+makeFilter :: String -> (Bool, Bool) -> [String]
 makeFilter suitename (False, False) = []
 makeFilter suitename (True, False) = ["[" ++ suitename ++ "]Pass"]
 makeFilter suitename (False, True) = ["[" ++ suitename ++ "]Fail"]
@@ -78,7 +82,7 @@ makeFilter suitename (True, True) = ["[" ++ suitename ++ "]Pass",
 
 makeFilters suitedata =
   foldl (\accum (TestSuite { suiteName = suitename }, filters) ->
-          makeFilter suitename filters ++ accum) [] suitedata
+          makeFilter (Strict.unpack suitename) filters ++ accum) [] suitedata
 
 shouldPass suitedata = not (all (\(_, (a, b)) -> not a && not b) suitedata) ||
                        not (any (\(_, (_, fail)) -> fail) suitedata)
@@ -88,7 +92,7 @@ suiteTestList = [ "Pass" ~: assertSuccess, "Fail" ~: assertFailure "Fail" ]
 makeName suitedata =
   intercalate "__"
     (foldl (\accum (TestSuite { suiteName = name }, (pass, fail)) ->
-             (name ++ "_" ++ show pass ++ "_" ++ show fail) : accum)
+             (Strict.unpack name ++ "_" ++ show pass ++ "_" ++ show fail) : accum)
            [] suitedata)
 
 makeCmdOptTest suitedata =
@@ -103,7 +107,7 @@ makeTestlistTest suitedata =
         writeFile "TestDir/testlist" (intercalate "\n" (makeFilters suitedata))
 
     delFilterFile = removeFile "TestDir/testlist" >> delTestDir
-  in   
+  in
     ("testlist___" ++ makeName suitedata, createFilterFile, delFilterFile,
      shouldPass suitedata, map fst suitedata,
      quietOpts { testlist = ["TestDir/testlist"] })
@@ -117,7 +121,7 @@ makeCmdOptTestlistTest (cmdoptdata, testlistdata) =
                   (intercalate "\n" (makeFilters testlistdata))
 
     delFilterFile = removeFile "TestDir/testlist" >> delTestDir
-  in   
+  in
     ("cmdopt_testlist____" ++ makeName cmdoptdata ++ "___" ++
      makeName testlistdata, createFilterFile, delFilterFile,
      shouldPass cmdoptdata && shouldPass testlistdata, map fst cmdoptdata,
@@ -137,7 +141,7 @@ makeDualTestlistTest (suitedata1, suitedata2) =
         removeFile "TestDir/testlist1"
         removeFile "TestDir/testlist2"
         delTestDir
-  in   
+  in
     ("dual_testlist____" ++ makeName suitedata1 ++ "___" ++ makeName suitedata2,
      createFilterFile, delFilterFile,
      shouldPass suitedata1 && shouldPass suitedata2, [],

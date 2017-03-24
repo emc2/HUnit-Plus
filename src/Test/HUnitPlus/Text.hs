@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | Text-based reporting functionality for reporting either as text,
 -- or to the terminal.  This module is an adaptation of code from the
@@ -32,11 +33,12 @@ import Test.HUnitPlus.Filter
 import Test.HUnitPlus.Reporting
 
 import Control.Monad (when)
-import System.IO (Handle, stderr, hPutStr, hPutStrLn)
+import System.IO (Handle, stderr)
 import Text.Printf(printf)
 
 import qualified Data.HashMap.Strict as HashMap
-
+import qualified Data.Text as Strict
+import qualified Data.Text.IO as Strict
 
 -- | The text-based reporters ('textReporter' and 'terminalReporter')
 -- construct strings and pass them to the function embodied in a
@@ -49,19 +51,19 @@ import qualified Data.HashMap.Strict as HashMap
 -- value (called 'st' here).  The initial state value is given in the
 -- 'PutText'; the final value is returned by 'runTestText'.
 
-data PutText st = PutText (String -> st -> IO st) st
+data PutText st = PutText (Strict.Text -> st -> IO st) st
 
 -- | Writes persistent lines to the given handle.
 putTextToHandle :: Handle -> PutText ()
-putTextToHandle handle = PutText (\line () -> hPutStr handle line) ()
+putTextToHandle handle = PutText (\line () -> Strict.hPutStr handle line) ()
 
 -- | Accumulates lines for return by 'runTestText'.  The
 -- accumulated lines are represented by a @'ShowS' ('String' ->
 -- 'String')@ function whose first argument is the string to be
 -- appended to the accumulated report lines.
-putTextToShowS :: PutText ShowS
+putTextToShowS :: PutText (Strict.Text -> Strict.Text)
 putTextToShowS =
-  PutText (\line func -> return (\rest -> func (line ++ rest))) id
+  PutText (\line func -> return (\rest -> func (Strict.concat [line, rest]))) id
 
 -- | Create a 'Reporter' that outputs a textual report for
 -- non-terminal output.
@@ -75,36 +77,36 @@ textReporter (PutText put initUs) verbose =
     reportProblem prefix msg ss us =
       let
         path = showQualName ss
-        line = "### " ++ prefix ++ path ++ ": " ++ msg ++ "\n"
+        line = Strict.concat ["### ", prefix, path, ": ", msg, "\n"]
       in
         put line us
 
     reportOutput prefix msg ss us =
       let
         path = showQualName ss
-        line = "### " ++ prefix ++ path ++ ": " ++ msg ++ "\n"
+        line = Strict.concat ["### ", prefix, path, ": ", msg, "\n"]
       in
         if verbose then put line us else return us
 
     reportStartSuite ss us =
       let
-        line = "Test suite " ++ stName ss ++ " starting\n"
+        line = Strict.concat ["Test suite ", stName ss, " starting\n"]
       in
         if verbose then put line us else return us
 
     reportEndSuite time ss us =
       let
         timestr = printf "%.6f" time
-        line = "Test suite" ++ stName ss ++ " completed in " ++
-               timestr ++ " sec\n"
+        line = Strict.concat ["Test suite", stName ss, " completed in ",
+                              Strict.pack timestr, " sec\n"]
       in
         if verbose then put line us else return us
 
     reportStartCase ss us =
       let
         path = showQualName ss
-        line = if null path then "Test case starting\n"
-               else "Test case " ++ path ++ " starting\n"
+        line = if Strict.null path then "Test case starting\n"
+               else Strict.concat ["Test case ", path, " starting\n"]
       in
         if verbose then put line us else return us
 
@@ -112,23 +114,26 @@ textReporter (PutText put initUs) verbose =
       let
         path = showQualName ss
         timestr = printf "%.6f" time
-        line = if null path then "Test completed in " ++ timestr ++ " sec\n"
-               else "Test " ++ path ++ " completed in " ++ timestr ++ " sec\n"
+        line = if Strict.null path
+                 then Strict.concat ["Test completed in ",
+                                     Strict.pack timestr, " sec\n"]
+                 else Strict.concat ["Test ", path, " completed in ",
+                                     Strict.pack timestr, " sec\n"]
       in
         if verbose then put line us else return us
 
     reportEnd time counts us =
       let
-        countstr = showCounts counts ++ "\n"
+        countstr = Strict.concat [showCounts counts, "\n"]
         timestr = printf "%.6f" time
-        timeline = "Tests completed in " ++ timestr ++ " sec\n"
+        timeline = Strict.concat ["Tests completed in ",
+                                  Strict.pack timestr, " sec\n"]
       in do
         if verbose
           then do
             us' <- put timeline us
             put countstr us'
-          else
-            put countstr us
+          else put countstr us
   in
     defaultReporter {
       reporterStart = return initUs,
@@ -167,7 +172,7 @@ runTestText puttext @ (PutText put us0) verbose t =
     reporter = textReporter puttext verbose
   in do
     (ss1, us1) <- ((performTest $! reporter) allSelector $! initState) us0 t
-    us2 <- put (showCounts (stCounts ss1) ++ "\n") us1
+    us2 <- put (Strict.concat [showCounts (stCounts ss1), "\n"]) us1
     return (stCounts ss1, us2)
 
 -- | Execute a test suite, processing text output according to the
@@ -192,7 +197,7 @@ runSuiteText puttext @ (PutText put us0) verbose
     reporter = textReporter puttext verbose
   in do
     (counts, us1) <- ((performTestSuite $! reporter) $!selectorMap) us0 suite
-    us2 <- put (showCounts counts ++ "\n") us1
+    us2 <- put (Strict.concat [showCounts counts, "\n"]) us1
     return (counts, us2)
 
 -- | Execute the given test suites, processing text output according
@@ -219,29 +224,42 @@ runSuitesText puttext @ (PutText put _) verbose suites =
     reporter = textReporter puttext verbose
   in do
     (counts, us1) <- ((performTestSuites $! reporter) $! selectorMap) suites
-    us2 <- put (showCounts counts ++ "\n") us1
+    us2 <- put (Strict.concat [showCounts counts, "\n"]) us1
     return (counts, us2)
 
 -- | Converts test execution counts to a string.
-showCounts :: Counts -> String
+showCounts :: Counts -> Strict.Text
 showCounts Counts { cCases = cases, cTried = tried,
                     cErrors = errors, cFailures = failures,
                     cAsserts = asserts, cSkipped = skipped } =
-  "Cases: " ++ show cases ++ "  Tried: " ++ show tried ++
-  "  Errors: " ++ show errors ++ "  Failures: " ++ show failures ++
-  "  Assertions: " ++ show asserts ++ "  Skipped: " ++ show skipped
+  Strict.concat ["Cases: ", Strict.pack (show cases), "  Tried: ",
+                 Strict.pack (show tried), "  Errors: ",
+                 Strict.pack (show errors), "  Failures: ",
+                 Strict.pack (show failures), "  Assertions: ",
+                 Strict.pack (show asserts), "  Skipped: ",
+                 Strict.pack (show skipped)]
 
 -- | Terminal output function, used by the run*TT function and
 -- terminal reporters.
-termPut :: String -> Bool -> Int -> IO Int
-termPut line pers (-1) = do when pers (hPutStrLn stderr line); return (-1)
-termPut line True  cnt = do hPutStrLn stderr (erase cnt ++ line); return 0
-termPut line False _   = do hPutStr stderr ('\r' : line); return (length line)
+termPut :: Strict.Text -> Bool -> Int -> IO Int
+termPut line pers (-1) =
+  do
+    when pers (Strict.hPutStrLn stderr line)
+    return (-1)
+termPut line True cnt =
+  do
+    Strict.hPutStrLn stderr (Strict.concat [erase cnt, line])
+    return 0
+termPut line False _ =
+  do
+    Strict.hPutStr stderr (Strict.concat ["\r", line])
+    return (Strict.length line)
 
 -- The "erasing" strategy with a single '\r' relies on the fact that the
 -- lengths of successive summary lines are monotonically nondecreasing.
-erase :: Int -> String
-erase cnt = if cnt == 0 then "" else "\r" ++ replicate cnt ' ' ++ "\r"
+erase :: Int -> Strict.Text
+erase cnt =
+  if cnt == 0 then "" else Strict.concat ["\r", Strict.replicate cnt " ", "\r"]
 
 -- | A reporter that outputs lines indicating progress to the
 -- terminal.  Reporting is made to standard error, and progress
@@ -251,16 +269,15 @@ terminalReporter =
   let
     reportProblem prefix msg ss us =
       let
-        line = "### " ++ prefix ++ path ++ '\n' : msg
+        line = Strict.concat ["### ", prefix, path, "\n", msg]
         path = showQualName ss
       in
         termPut line True us
   in
     defaultReporter {
       reporterStart = return 0,
-      reporterEnd = (\_ _ _ -> do hPutStr stderr "\n"; return 0),
-      reporterEndCase =
-        (\_ ss us -> termPut (showCounts (stCounts ss)) False us),
+      reporterEnd = \_ _ _ -> do Strict.hPutStr stderr "\n"; return 0,
+      reporterEndCase = \_ ss us -> termPut (showCounts (stCounts ss)) False us,
       reporterError = reportProblem "Error in:   ",
       reporterFailure = reportProblem "Failure in: "
     }
@@ -298,7 +315,7 @@ runSuiteTT suite @ TestSuite { suiteName = sname } =
     selectorMap = HashMap.singleton sname allSelector
   in do
     (counts, us) <- (performTestSuite terminalReporter $! selectorMap) 0 suite
-    0 <- termPut (showCounts counts ++ "\n") True us
+    0 <- termPut (Strict.concat [showCounts counts, "\n"]) True us
     return counts
 
 -- | Execute the given test suites, processing text output according
@@ -318,5 +335,5 @@ runSuitesTT suites =
                         HashMap.empty suiteNames
   in do
     (counts, us) <- (performTestSuites terminalReporter $! selectorMap) suites
-    0 <- termPut (showCounts counts ++ "\n") True us
+    0 <- termPut (Strict.concat [showCounts counts, "\n"]) True us
     return counts

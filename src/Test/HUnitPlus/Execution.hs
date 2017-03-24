@@ -23,6 +23,7 @@ import Test.HUnitPlus.Reporting
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Strict
 
 -- | Execute an individual test case.
 performTestCase :: Reporter us
@@ -50,8 +51,8 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
     -- Add the name to the state we use to run the tests
 
     -- Update the state before running
-    ssWithName = ss { stName = testname, stCounts = c { cTried = tried + 1,
-                                                        cCases = cases + 1 } }
+    ssWithName = ss { stName = Strict.pack testname,
+                      stCounts = c { cTried = tried + 1, cCases = cases + 1 } }
 
     -- Fold function for applying options
     applyOptions (us, ti) OptionDescr { optionName = optname,
@@ -59,15 +60,15 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
       let
         setresult :: Either String TestInstance
         setresult =
-          case HashMap.lookup optname optmap of
-            Just optval -> setopt optname optval
+          case HashMap.lookup (Strict.pack optname) optmap of
+            Just optval -> setopt optname (Strict.unpack optval)
             Nothing -> case def of
               Just optval -> setopt optname optval
               Nothing -> Right ti
       in case setresult of
         Left errmsg ->
           do
-            newUs <- reportError errmsg ssWithName us
+            newUs <- reportError (Strict.pack errmsg) ssWithName us
             return (newUs, ti)
         Right newTi -> return (us, newTi)
   in do
@@ -100,7 +101,7 @@ skipTestCase Reporter { reporterSkipCase = reportSkipCase }
              TestInstance { name = testname } =
   let
     ss' = ss { stCounts = c { cSkipped = skipped + 1, cCases = cases + 1 },
-               stName = testname }
+               stName = Strict.pack testname }
   in do
     us' <- reportSkipCase ss' us
     return (ss' { stName = oldname }, us')
@@ -135,7 +136,7 @@ performTest rep initSelector initState initialUs initialTest =
         -- Build the new selector
         selector' =
           -- Try looking up the group in the inners
-          case HashMap.lookup gname inners of
+          case HashMap.lookup (Strict.pack gname) inners of
             -- If we don't find anything, we can only keep executing
             -- if our tag state allows it.
             Nothing -> Selector { selectorInners = HashMap.empty,
@@ -147,7 +148,7 @@ performTest rep initSelector initState initialUs initialTest =
 
         -- Update the path for running the group's tests
         oldpath = stPath ss
-        ssWithPath = ss { stPath = Label gname : oldpath }
+        ssWithPath = ss { stPath = Label (Strict.pack gname) : oldpath }
 
         foldfun (ss', us') = performTest' selector' ss' us'
       in do
@@ -162,7 +163,7 @@ performTest rep initSelector initState initialUs initialTest =
         -- Get the final tag state
         finaltags =
           -- Try looking up the group in the inners
-          case HashMap.lookup testname inners of
+          case HashMap.lookup (Strict.pack testname) inners of
             -- If we don't find anything, we can only keep executing
             -- if our tag state allows it.
             Nothing -> currtags
@@ -176,7 +177,8 @@ performTest rep initSelector initState initialUs initialTest =
             Nothing -> False
             Just set
               | HashSet.null set -> True
-              | otherwise -> any (\tag -> HashSet.member tag set) testtags
+              | otherwise -> any (\tag -> HashSet.member tag set)
+                                 (map Strict.pack testtags)
       in
         if canExecute
           then performTestCase rep ss us t
@@ -196,7 +198,7 @@ performTest rep initSelector initState initialUs initialTest =
 -- the suite, and do /not/ log its tests as skipped.
 performTestSuite :: Reporter us
                  -- ^ Report generator to use for running the test suite.
-                 -> HashMap String Selector
+                 -> HashMap Strict.Text Selector
                  -- ^ The map containing selectors for each suite.
                  -> us
                  -- ^ State for the report generator.
@@ -233,7 +235,7 @@ performTestSuite rep @ Reporter { reporterStartSuite = reportStartSuite,
 -- their tests will /not/ be logged as skipped.
 performTestSuites :: Reporter us
                   -- ^ Report generator to use for running the test suite.
-                  -> HashMap String Selector
+                  -> HashMap Strict.Text Selector
                   -- ^ The processed filter to use.
                   -> [TestSuite]
                   -- ^ Test suite to be run.

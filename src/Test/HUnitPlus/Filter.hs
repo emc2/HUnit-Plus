@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 
 -- | Sets HUnit-Plus tests can be specified using 'Filter's.  These
@@ -81,10 +82,13 @@ import Data.HashSet(HashSet)
 import Data.List(sort)
 import Prelude hiding (foldl, elem)
 import System.IO.Error
-import Text.ParserCombinators.Parsec hiding (try)
+import Text.Parsec hiding (try)
+import Text.Parsec.Text
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Strict
+import qualified Data.Text.IO as Strict
 
 -- | A tree-like structure that represents a set of tests within a
 -- given suite.
@@ -94,12 +98,12 @@ data Selector =
       -- path element contains the @Selector@ to be used for that
       -- group (or test).  An empty map actually means 'select all
       -- tests'.
-      selectorInners :: HashMap String Selector,
+      selectorInners :: HashMap Strict.Text Selector,
       -- | Tags by which to filter all tests.  The empty set actually
       -- means 'run all tests regardless of tags'.  'Nothing' means
       -- that all tests will be skipped (though this will be
       -- overridden by any @Selector@s in @selectorInners@.
-      selectorTags :: !(Maybe (HashSet String))
+      selectorTags :: !(Maybe (HashSet Strict.Text))
     }
     deriving (Eq, Show)
 
@@ -110,7 +114,7 @@ data Filter =
   Filter {
     -- | The test suites to which the 'Selector' applies.  The empty
     -- set actually means 'all suites'.
-    filterSuites :: !(HashSet String),
+    filterSuites :: !(HashSet Strict.Text),
     -- | The 'Selector' to apply.
     filterSelector :: !Selector
   }
@@ -157,8 +161,8 @@ instance Hashable Selector where
 
 -- | Combine two 'selectorTags' fields into one.  This operation represents the
 -- union of the tests that are selected by the two fields.
-combineTags :: Maybe (HashSet String) -> Maybe (HashSet String) ->
-               Maybe (HashSet String)
+combineTags :: Maybe (HashSet Strict.Text) -> Maybe (HashSet Strict.Text) ->
+               Maybe (HashSet Strict.Text)
 -- Nothing means we can't execute, so if the other side says we can,
 -- we can.
 combineTags Nothing t = t
@@ -170,8 +174,8 @@ combineTags (Just a) (Just b)
   | otherwise = Just $! HashSet.union a b
 
 -- | Take the difference of one set of tags from another.
-diffTags :: Maybe (HashSet String) -> Maybe (HashSet String) ->
-            Maybe (HashSet String)
+diffTags :: Maybe (HashSet Strict.Text) -> Maybe (HashSet Strict.Text) ->
+            Maybe (HashSet Strict.Text)
 -- Nothing means we can't execute, so if the other side says we can,
 -- we can.
 diffTags Nothing _ = Nothing
@@ -198,7 +202,7 @@ allSelector :: Selector
 allSelector = Selector { selectorInners = HashMap.empty,
                          selectorTags = Just HashSet.empty }
 
-reduceSelector :: Maybe (HashSet String) -> Selector -> Maybe Selector
+reduceSelector :: Maybe (HashSet Strict.Text) -> Selector -> Maybe Selector
 reduceSelector parentTags Selector { selectorInners = inners,
                                      selectorTags = tags } =
   let
@@ -214,7 +218,7 @@ reduceSelector parentTags Selector { selectorInners = inners,
 combineSelectors :: Selector -> Selector -> Selector
 combineSelectors selector1 selector2 =
   let
-    combineSelectors' :: Maybe (HashSet String) -> Selector -> Selector ->
+    combineSelectors' :: Maybe (HashSet Strict.Text) -> Selector -> Selector ->
                          Maybe Selector
     combineSelectors' parentTags
                       s1 @ Selector { selectorInners = inners1,
@@ -228,8 +232,8 @@ combineSelectors selector1 selector2 =
           newTags = diffTags combinedTags parentTags
           newParentTags = combineTags combinedTags parentTags
 
-          firstpass :: HashMap String Selector -> String -> Selector ->
-                       HashMap String Selector
+          firstpass :: HashMap Strict.Text Selector -> Strict.Text -> Selector ->
+                       HashMap Strict.Text Selector
           firstpass accum elem inner =
             case HashMap.lookup elem inners1 of
               Just inner' ->
@@ -240,8 +244,8 @@ combineSelectors selector1 selector2 =
                 Just entry -> HashMap.insert elem entry accum
                 Nothing -> accum
 
-          secondpass :: HashMap String Selector -> String -> Selector ->
-                        HashMap String Selector
+          secondpass :: HashMap Strict.Text Selector -> Strict.Text -> Selector ->
+                        HashMap Strict.Text Selector
           secondpass accum elem inner =
             case HashMap.lookup elem accum of
               Nothing -> case reduceSelector newParentTags inner of
@@ -272,9 +276,9 @@ collectUniversals Filter { filterSuites = suites,
 -- | Build a map from suite names to the selectors that get run on them.
 collectSelectors :: Filter
                  -- ^ The current filter
-                 -> HashMap String (HashSet Selector)
+                 -> HashMap Strict.Text (HashSet Selector)
                  -- ^ The map from suites to
-                 -> HashMap String (HashSet Selector)
+                 -> HashMap Strict.Text (HashSet Selector)
 collectSelectors Filter { filterSuites = suites, filterSelector = selector }
                  suitemap =
     foldl (\suitemap' suite -> HashMap.insertWith HashSet.union suite
@@ -285,11 +289,11 @@ collectSelectors Filter { filterSuites = suites, filterSelector = selector }
 -- | Take a list of test suite names and a list of 'Filter's, and
 -- build a 'HashMap' that says for each test suite, what (combined)
 -- 'Selector' should be used to select tests.
-suiteSelectors :: [String]
+suiteSelectors :: [Strict.Text]
                -- ^ The names of all test suites.
                -> [Filter]
                -- ^ The list of 'Filter's from which to build the map.
-               -> HashMap String Selector
+               -> HashMap Strict.Text Selector
 suiteSelectors allsuites filters
   -- Short-circuit case if we have no filters, we run everything
   | filters == [] =
@@ -309,28 +313,31 @@ suiteSelectors allsuites filters
           else HashMap.empty
 
       -- Now collect all the suite-specific selectors
-      suiteMap :: HashMap String (HashSet Selector)
+      suiteMap :: HashMap Strict.Text (HashSet Selector)
       suiteMap = foldr collectSelectors initMap filters
     in
       HashMap.map (foldl1 combineSelectors . HashSet.toList) suiteMap
 
-nameParser :: GenParser Char st Char
+nameParser :: Parser Strict.Text
 nameParser =
-  oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-_"
+  do
+    out <- many1 (oneOf ("abcdefghijklmnopqrstuvwxyz" ++
+                         "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-_"))
+    return $! Strict.pack out
 
-namesParser :: GenParser Char st [String]
-namesParser = sepBy1 (many1 nameParser) (string ",")
+namesParser :: Parser [Strict.Text]
+namesParser = sepBy1 nameParser (string ",")
 
-pathParser :: GenParser Char st [String]
-pathParser = sepBy (many1 nameParser) (string ".")
+pathParser :: Parser [Strict.Text]
+pathParser = sepBy nameParser (string ".")
 
-suitesParser :: GenParser Char st [String]
+suitesParser :: Parser [Strict.Text]
 suitesParser = between (string "[") (string "]") namesParser
 
-tagsParser :: GenParser Char st [String]
+tagsParser :: Parser [Strict.Text]
 tagsParser = char '@' >> namesParser
 
-filterParser :: GenParser Char st ([String], [String], [String])
+filterParser :: Parser ([Strict.Text], [Strict.Text], [Strict.Text])
 filterParser =
   do
     suites <- option [] suitesParser
@@ -338,7 +345,7 @@ filterParser =
     tagselector <- option [] tagsParser
     return (suites, path, tagselector)
 
-makeFilter :: ([String], [String], [String]) -> Filter
+makeFilter :: ([Strict.Text], [Strict.Text], [Strict.Text]) -> Filter
 makeFilter (suites, path, tags) =
   let
     withTags = case tags of
@@ -358,22 +365,22 @@ makeFilter (suites, path, tags) =
 -- described in the module documentation.
 parseFilter :: String
             -- ^ The name of the source.
-            -> String
+            -> Strict.Text
             -- ^ The input.
-            -> Either String Filter
+            -> Either Strict.Text Filter
 parseFilter sourcename input =
   case parse filterParser sourcename input of
-    Left e -> Left (show e)
+    Left e -> Left (Strict.pack (show e))
     Right res -> Right (makeFilter res)
 
-commentParser :: GenParser Char st ()
+commentParser :: Parser ()
 commentParser =
   do
     _ <- char '#'
     _ <- many (noneOf "\n")
     return $ ()
 
-lineParser :: GenParser Char st (Maybe Filter)
+lineParser :: Parser (Maybe Filter)
 lineParser =
   do
     _ <- many space
@@ -390,37 +397,41 @@ lineParser =
 -- the rest of the line.
 parseFilterFileContent :: String
                        -- ^ The name of the input file.
-                       -> String
+                       -> Strict.Text
                        -- ^ The file content.
-                       -> Either [String] [Filter]
+                       -> Either [Strict.Text] [Filter]
 parseFilterFileContent sourcename input =
   let
-    inputlines = lines input
+    inputlines = Strict.lines input
     results = map (parse lineParser sourcename) inputlines
   in case partitionEithers results of
     ([], maybes) -> Right (catMaybes maybes)
-    (errs, _) -> Left (map show errs)
+    (errs, _) -> Left (map (Strict.pack . show) errs)
 
 -- | Given a 'FilePath', get the contents of the file and parse it as
 -- a testlist file.
-parseFilterFile :: FilePath -> IO (Either [String] [Filter])
+parseFilterFile :: FilePath -> IO (Either [Strict.Text] [Filter])
 parseFilterFile filename =
   do
-    input <- try (readFile filename)
+    input <- try (Strict.readFile filename)
     case input of
       Left e
         | isAlreadyInUseError e ->
-          return (Left ["Error reading testlist file " ++ filename ++
-                        ": File is already in use"])
+          return (Left [Strict.concat ["Error reading testlist file ",
+                                       Strict.pack filename,
+                                       ": File is already in use"]])
         | isDoesNotExistError e ->
-          return (Left ["Error reading testlist file " ++ filename ++
-                        ": File does not exist"])
+          return (Left [Strict.concat ["Error reading testlist file ",
+                                       Strict.pack filename,
+                                       ": File does not exist"]])
         | isPermissionError e ->
-          return (Left ["Error reading testlist file " ++ filename ++
-                        ": Permission denied"])
+          return (Left [Strict.concat ["Error reading testlist file ",
+                                       Strict.pack filename,
+                                       ": Permission denied"]])
         | otherwise ->
-          return (Left ["Cannot read testlist file " ++ filename ++
-                        ": Miscellaneous error"])
+          return (Left [Strict.concat ["Cannot read testlist file ",
+                                       Strict.pack filename,
+                                       ": Miscellaneous error"]])
       Right contents ->
         case parseFilterFileContent filename contents of
           Left errs -> return (Left errs)
