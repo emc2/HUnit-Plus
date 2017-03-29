@@ -596,8 +596,32 @@ makeExecutionTest (suites, expected, selectors) (index, tests) =
                                                    "]" ++ show selector)
                             (HashMap.toList selectors))
 
-    check expected @ (e : expecteds) actual @ (a : actuals)
-      | e == a = check expecteds actuals
+    compstate State { stName = name1, stPath = path1, stCounts = counts1,
+                      stOptionDescs = descs1 }
+              State { stName = name2, stPath = path2, stCounts = counts2,
+                      stOptionDescs = descs2 } =
+      name1 == name2 && path1 == path2 && counts1 == counts2 && descs1 == descs2
+
+    comp (EndEvent counts1) (EndEvent counts2) = counts1 == counts2
+    comp (StartSuiteEvent st1) (StartSuiteEvent st2) = compstate st1 st2
+    comp (EndSuiteEvent st1) (EndSuiteEvent st2) = compstate st1 st2
+    comp (StartCaseEvent st1) (StartCaseEvent st2) = compstate st1 st2
+    comp (EndCaseEvent st1) (EndCaseEvent st2) = compstate st1 st2
+    comp (SkipEvent st1) (SkipEvent st2) = compstate st1 st2
+    comp (ProgressEvent msg1 st1) (ProgressEvent msg2 st2) =
+      msg1 == msg2 && compstate st1 st2
+    comp (FailureEvent msg1 st1) (FailureEvent msg2 st2) =
+      msg1 == msg2 && compstate st1 st2
+    comp (ErrorEvent msg1 st1) (ErrorEvent msg2 st2) =
+      msg1 == msg2 && compstate st1 st2
+    comp (SystemErrEvent msg1 st1) (SystemErrEvent msg2 st2) =
+      msg1 == msg2 && compstate st1 st2
+    comp (SystemOutEvent msg1 st1) (SystemOutEvent msg2 st2) =
+      msg1 == msg2 && compstate st1 st2
+    comp _ _ = False
+
+    check (e : expecteds) (a : actuals)
+      | comp e a = check expecteds actuals
       | otherwise =
         return (Finished (Fail ("Selectors\n" ++ selectorStrs ++
                                 "\nExpected\n************************\n" ++

@@ -649,9 +649,13 @@ instance Testable Test where
 
 instance (Assertable t) => Testable (IO t) where
   testNameTags testname testtags t =
-    Test TestInstance { name = testname, tags = testtags,
-                        run = wrapTest (t >>= assert),
-                        options = [], setOption = undefined }
+    let
+      unrecognized optname _ = Left ("Unrecognized option " ++ optname)
+      out = TestInstance { name = testname, tags = testtags,
+                           run = wrapTest (t >>= assert),
+                           options = [], setOption = unrecognized }
+    in
+      Test out
 
 instance (Testable t) => Testable [t] where
   testNameTags testname testtags ts =

@@ -16,7 +16,11 @@ module Test.HUnitPlus.Execution(
 import Control.Monad (unless, foldM)
 import Distribution.TestSuite
 import Data.HashMap.Strict(HashMap)
+import Data.Time
+import Data.Version
+import Network.HostName
 import Prelude hiding (elem)
+import System.Info
 import System.TimeIt
 import Test.HUnitPlus.Base
 import Test.HUnitPlus.Filter
@@ -56,16 +60,13 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
                       stCounts = c { cTried = tried + 1, cCases = cases + 1 } }
 
     -- Fold function for applying options
-    applyOptions (us, ti) OptionDescr { optionName = optname,
-                                        optionDefault = def } =
+    applyOptions (us, ti) OptionDescr { optionName = optname } =
       let
         setresult :: Either String TestInstance
         setresult =
           case HashMap.lookup (Strict.pack optname) optmap of
             Just optval -> setopt optname (Strict.unpack optval)
-            Nothing -> case def of
-              Just optval -> setopt optname optval
-              Nothing -> Right ti
+            Nothing -> Right ti
       in case setresult of
         Left errmsg ->
           do
@@ -216,12 +217,19 @@ performTestSuiteInternal rep @ Reporter { reporterStartSuite = reportStartSuite,
   case HashMap.lookup sname filters of
     Just selector ->
       let
-        state = st { stOptions = HashMap.union (HashMap.fromList suiteOpts)
-                                               stopts,
-                     stName = sname }
+        makestate timestamp =
+          let
+            timestr = formatTime defaultTimeLocale "%c" timestamp
+            withtime = HashMap.insert "timestamp" (Strict.pack timestr) stopts
+            -- Don't allow people to override the system information
+            unioned = HashMap.union withtime (HashMap.fromList suiteOpts)
+          in
+            return st { stOptions = unioned, stName = sname }
 
         foldfun (c, us) = performTest rep selector c us
       in do
+        timestamp <- getCurrentTime
+        state <- makestate timestamp
         startedUs <- reportStartSuite state initialUs
         (time, (finishedState @ State { stCounts = counts }, finishedUs)) <-
           timeItT (foldM foldfun (state, startedUs) testlist)
@@ -270,9 +278,24 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
   let
     foldfun (accumState, accumUs) =
       performTestSuiteInternal rep filters accumState accumUs
+
+    startstate =
+      do
+        hostname <- getHostName
+        return initState {
+                 stOptions = HashMap.fromList
+                               [("hostname", Strict.pack hostname),
+                                ("os", Strict.pack os),
+                                ("arch", Strict.pack arch),
+                                ("compiler-name",
+                                 Strict.pack compilerName),
+                                ("compiler-version",
+                                 Strict.pack (showVersion compilerVersion))]
+               }
   in do
     initialUs <- reportStart
+    st <- startstate
     (time, (State { stCounts = finishedCounts }, finishedUs)) <-
-      timeItT (foldM foldfun (initState, initialUs) suites)
+      timeItT (foldM foldfun (st, initialUs) suites)
     endedUs <- reportEnd time finishedCounts finishedUs
     return (finishedCounts, endedUs)
