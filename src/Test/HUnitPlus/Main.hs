@@ -306,7 +306,7 @@ topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
 
 executeTests :: [TestSuite]
              -- ^ The test suites to run
-             -> HashMap Strict.Text Selector
+             -> HashMap Strict.Text (HashMap OptionMap Selector)
              -- ^ The filters to use
              -> ConsoleMode
              -- ^ The mode to use for console output

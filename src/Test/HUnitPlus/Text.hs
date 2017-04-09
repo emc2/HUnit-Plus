@@ -193,7 +193,8 @@ runSuiteText :: PutText us
 runSuiteText puttext @ (PutText put us0) verbose
              suite @ TestSuite { suiteName = sname } =
   let
-    selectorMap = HashMap.singleton sname allSelector
+    selectorMap = HashMap.singleton sname (HashMap.singleton HashMap.empty
+                                                             allSelector)
     reporter = textReporter puttext verbose
   in do
     (counts, us1) <- ((performTestSuite $! reporter) $!selectorMap) us0 suite
@@ -218,9 +219,11 @@ runSuitesText :: PutText us
 runSuitesText puttext @ (PutText put _) verbose suites =
   let
     suiteNames = map suiteName suites
-    selectorMap = foldl (\suitemap sname ->
-                          HashMap.insert sname allSelector suitemap)
-                        HashMap.empty suiteNames
+    selectorMap =
+      foldl (\suitemap sname ->
+              HashMap.insert sname (HashMap.singleton HashMap.empty
+                                                      allSelector) suitemap)
+            HashMap.empty suiteNames
     reporter = textReporter puttext verbose
   in do
     (counts, us1) <- ((performTestSuites $! reporter) $! selectorMap) suites
@@ -312,7 +315,8 @@ runTestTT t =
 runSuiteTT :: TestSuite -> IO Counts
 runSuiteTT suite @ TestSuite { suiteName = sname } =
   let
-    selectorMap = HashMap.singleton sname allSelector
+    selectorMap = HashMap.singleton sname (HashMap.singleton HashMap.empty
+                                                             allSelector)
   in do
     (counts, us) <- (performTestSuite terminalReporter $! selectorMap) 0 suite
     0 <- termPut (Strict.concat [showCounts counts, "\n"]) True us
@@ -330,9 +334,11 @@ runSuitesTT :: [TestSuite] -> IO Counts
 runSuitesTT suites =
   let
     suiteNames = map suiteName suites
-    selectorMap = foldl (\suitemap sname ->
-                          HashMap.insert sname allSelector suitemap)
-                        HashMap.empty suiteNames
+    selectorMap =
+      foldl (\suitemap sname ->
+              HashMap.insert sname (HashMap.singleton HashMap.empty
+                                                      allSelector) suitemap)
+            HashMap.empty suiteNames
   in do
     (counts, us) <- (performTestSuites terminalReporter $! selectorMap) suites
     0 <- termPut (Strict.concat [showCounts counts, "\n"]) True us

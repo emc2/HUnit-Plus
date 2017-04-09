@@ -62,6 +62,7 @@
 module Test.HUnitPlus.Filter(
        Selector(..),
        Filter(..),
+       OptionMap,
        combineTags,
        passFilter,
        allSelector,
@@ -90,6 +91,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Strict
 import qualified Data.Text.IO as Strict
 
+type OptionMap = HashMap Strict.Text Strict.Text
+
 -- | A tree-like structure that represents a set of tests within a
 -- given suite.
 data Selector =
@@ -116,7 +119,8 @@ data Filter =
     -- set actually means 'all suites'.
     filterSuites :: !(HashSet Strict.Text),
     -- | The 'Selector' to apply.
-    filterSelector :: !Selector
+    filterSelector :: !(HashSet Selector),
+    filterOptions :: !(HashMap Strict.Text Strict.Text)
   }
   deriving (Eq, Show)
 
@@ -195,36 +199,44 @@ diffTags (Just a) (Just b)
 -- | A 'Filter' that selects all tests in all suites.
 passFilter :: Filter
 passFilter = Filter { filterSuites = HashSet.empty,
-                      filterSelector = allSelector }
+                      filterSelector = HashSet.singleton allSelector,
+                      filterOptions = HashMap.empty }
 
 -- | A 'Selector' that selects all tests.
 allSelector :: Selector
 allSelector = Selector { selectorInners = HashMap.empty,
                          selectorTags = Just HashSet.empty }
 
+noOptionsAllSelector :: HashMap OptionMap Selector
+noOptionsAllSelector = HashMap.singleton HashMap.empty allSelector
+
+-- | Eliminate redundant nested tags from a Selector.
 reduceSelector :: Maybe (HashSet Strict.Text) -> Selector -> Maybe Selector
-reduceSelector parentTags Selector { selectorInners = inners,
-                                     selectorTags = tags } =
+reduceSelector parentTags s @ Selector { selectorInners = inners,
+                                         selectorTags = tags } =
   let
     newTags = diffTags tags parentTags
     newParentTags = combineTags parentTags tags
     newInners = HashMap.mapMaybe (reduceSelector newParentTags) inners
   in
+    -- This selector goes away if we eliminate all inners and all tags
     if isNothing newTags && HashMap.null newInners
       then Nothing
-      else Just $! Selector { selectorInners = inners, selectorTags = tags }
+      else Just $! s { selectorInners = inners, selectorTags = tags }
 
 -- | Combine two 'Selector's into a single 'Selector'.
 combineSelectors :: Selector -> Selector -> Selector
 combineSelectors selector1 selector2 =
   let
-    combineSelectors' :: Maybe (HashSet Strict.Text) -> Selector -> Selector ->
-                         Maybe Selector
-    combineSelectors' parentTags
-                      s1 @ Selector { selectorInners = inners1,
-                                      selectorTags = tags1 }
-                      s2 @ Selector { selectorInners = inners2,
-                                      selectorTags = tags2 }
+    tryCombineSelectors :: Maybe (HashSet Strict.Text) ->
+                           Selector -> Selector ->
+                           Maybe Selector
+    tryCombineSelectors parentTags
+                        s1 @ Selector { selectorInners = inners1,
+                                        selectorTags = tags1 }
+                        s2 @ Selector { selectorInners = inners2,
+                                        selectorTags = tags2 }
+        -- Short-circuit case for allSelector.
       | s1 == allSelector || s2 == allSelector = Just allSelector
       | otherwise =
         let
@@ -232,25 +244,47 @@ combineSelectors selector1 selector2 =
           newTags = diffTags combinedTags parentTags
           newParentTags = combineTags combinedTags parentTags
 
-          firstpass :: HashMap Strict.Text Selector -> Strict.Text -> Selector ->
+          -- | First pass: pull in everything from inners2.  This will
+          -- combine everything that can be combined and attempt to
+          -- reduce the rest.
+          firstpass :: HashMap Strict.Text Selector ->
+                       Strict.Text -> Selector ->
                        HashMap Strict.Text Selector
           firstpass accum elem inner =
             case HashMap.lookup elem inners1 of
+              -- If it exists in both, try to combine.
               Just inner' ->
-                case combineSelectors' newParentTags inner inner' of
+                case tryCombineSelectors newParentTags inner inner' of
+                -- If we get back an entry, insert it.
                   Just entry -> HashMap.insert elem entry accum
+                  -- We might have reduced it to nothing.
                   Nothing -> accum
+              -- Otherwise, attempt to reduce.
               Nothing -> case reduceSelector newParentTags inner of
+                -- If we get back an entry, insert it.
                 Just entry -> HashMap.insert elem entry accum
+                -- If we reduce it to nothing, leave it out.
                 Nothing -> accum
 
-          secondpass :: HashMap Strict.Text Selector -> Strict.Text -> Selector ->
+          -- | Second pass: pull in everything from inners1.
+          secondpass :: HashMap Strict.Text Selector ->
+                        Strict.Text -> Selector ->
                         HashMap Strict.Text Selector
           secondpass accum elem inner =
             case HashMap.lookup elem accum of
-              Nothing -> case reduceSelector newParentTags inner of
-                Just entry -> HashMap.insert elem entry accum
-                Nothing -> accum
+              -- If there's nothing there, it means we either had
+              -- nothing, or we combined and reduced to nothing in the
+              -- first pass.
+              Nothing -> case HashMap.lookup elem inners2 of
+                -- If we find an entry in inners2, then we combined
+                -- and reduced to nothing.
+                Just _ -> accum
+                -- Otherwise, try to reduce the entry and insert it
+                Nothing -> case reduceSelector newParentTags inner of
+                  Just entry -> HashMap.insert elem entry accum
+                  Nothing -> accum
+              -- If there's something already there, it's because we
+              -- combined successfully in the first pass.
               Just _ -> accum
 
           firstPassMap = HashMap.foldlWithKey' firstpass HashMap.empty inners2
@@ -260,31 +294,37 @@ combineSelectors selector1 selector2 =
             then Nothing
             else Just $! Selector { selectorInners = newInners,
                                     selectorTags = newTags }
-  in
-    case combineSelectors' Nothing selector1 selector2 of
+  in case tryCombineSelectors Nothing selector1 selector2 of
       Just out -> out
       Nothing -> error ("Got Nothing back from combineSelectors " ++
                         show selector1 ++ " " ++ show selector2)
 
 -- | Collect all the selectors from filters that apply to all suites.
-collectUniversals :: Filter -> HashSet Selector -> HashSet Selector
+collectUniversals :: Filter
+                  -> HashMap OptionMap (HashSet Selector)
+                  -> HashMap OptionMap (HashSet Selector)
 collectUniversals Filter { filterSuites = suites,
+                           filterOptions = options,
                            filterSelector = selector } accum
-  | suites == HashSet.empty = HashSet.insert selector accum
+  | HashSet.null suites =
+    HashMap.insertWith HashSet.union options selector accum
   | otherwise = accum
 
 -- | Build a map from suite names to the selectors that get run on them.
 collectSelectors :: Filter
                  -- ^ The current filter
-                 -> HashMap Strict.Text (HashSet Selector)
-                 -- ^ The map from suites to
-                 -> HashMap Strict.Text (HashSet Selector)
-collectSelectors Filter { filterSuites = suites, filterSelector = selector }
-                 suitemap =
-    foldl (\suitemap' suite -> HashMap.insertWith HashSet.union suite
-                                              (HashSet.singleton selector)
-                                              suitemap')
-          suitemap suites
+                 -> HashMap Strict.Text (HashMap OptionMap (HashSet Selector))
+                 -- ^ The map from suites to sets of selectors that
+                 -- run on them.
+                 -> HashMap Strict.Text (HashMap OptionMap (HashSet Selector))
+collectSelectors Filter { filterSuites = suites, filterOptions = options,
+                          filterSelector = selector } suitemap =
+  let
+    foldfun accum suite =
+      HashMap.insertWith (HashMap.unionWith HashSet.union) suite
+                         (HashMap.singleton options selector) accum
+  in
+    foldl foldfun suitemap suites
 
 -- | Take a list of test suite names and a list of 'Filter's, and
 -- build a 'HashMap' that says for each test suite, what (combined)
@@ -293,30 +333,32 @@ suiteSelectors :: [Strict.Text]
                -- ^ The names of all test suites.
                -> [Filter]
                -- ^ The list of 'Filter's from which to build the map.
-               -> HashMap Strict.Text Selector
+               -> HashMap Strict.Text (HashMap OptionMap Selector)
 suiteSelectors allsuites filters
   -- Short-circuit case if we have no filters, we run everything
-  | filters == [] =
-    foldl (\suitemap suite -> HashMap.insert suite allSelector suitemap)
+  | null filters =
+    foldl (\suitemap suite -> HashMap.insert suite noOptionsAllSelector
+                                             suitemap)
           HashMap.empty allsuites
   | otherwise =
     let
       -- First, pull out all the universals
-      universals = foldr collectUniversals HashSet.empty filters
+      universals = foldr collectUniversals HashMap.empty filters
       -- If we have any universals, then seed the initial map with them,
       -- otherwise, use the empty map.
       initMap =
-        if universals /= HashSet.empty
+        if not (HashMap.null universals)
           then foldl (\suitemap suite ->
                        HashMap.insert suite universals suitemap)
                      HashMap.empty allsuites
           else HashMap.empty
 
       -- Now collect all the suite-specific selectors
-      suiteMap :: HashMap Strict.Text (HashSet Selector)
+      suiteMap :: HashMap Strict.Text (HashMap OptionMap (HashSet Selector))
       suiteMap = foldr collectSelectors initMap filters
     in
-      HashMap.map (foldl1 combineSelectors . HashSet.toList) suiteMap
+      HashMap.map (HashMap.map (foldl1 combineSelectors . HashSet.toList))
+                  suiteMap
 
 nameParser :: Parser Strict.Text
 nameParser =
@@ -324,6 +366,27 @@ nameParser =
     out <- many1 (oneOf ("abcdefghijklmnopqrstuvwxyz" ++
                          "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-_"))
     return $! Strict.pack out
+
+valueParser :: Parser Strict.Text
+valueParser =
+  do
+    out <- between (char '\"') (char '\"')
+                   (many1 (oneOf ("abcdefghijklmnopqrstuvwxyz" ++
+                                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" ++
+                                 "~!@#$%^&*()[]{}<>:;,\'.+=-_?/\\|")))
+    return $! Strict.pack out
+
+
+optionParser :: Parser (Strict.Text, Strict.Text)
+optionParser =
+  do
+    key <- valueParser
+    _ <- char '='
+    val <- valueParser
+    return (key, val)
+
+optionsParser :: Parser [(Strict.Text, Strict.Text)]
+optionsParser = char '?' >> many1 optionParser
 
 namesParser :: Parser [Strict.Text]
 namesParser = sepBy1 nameParser (string ",")
@@ -337,16 +400,19 @@ suitesParser = between (string "[") (string "]") namesParser
 tagsParser :: Parser [Strict.Text]
 tagsParser = char '@' >> namesParser
 
-filterParser :: Parser ([Strict.Text], [Strict.Text], [Strict.Text])
+filterParser :: Parser ([Strict.Text], [Strict.Text], [Strict.Text],
+                        [(Strict.Text, Strict.Text)])
 filterParser =
   do
     suites <- option [] suitesParser
     path <- pathParser
     tagselector <- option [] tagsParser
-    return (suites, path, tagselector)
+    options <- option [] optionsParser
+    return (suites, path, tagselector, options)
 
-makeFilter :: ([Strict.Text], [Strict.Text], [Strict.Text]) -> Filter
-makeFilter (suites, path, tags) =
+makeFilter :: ([Strict.Text], [Strict.Text], [Strict.Text],
+               [(Strict.Text, Strict.Text)]) -> Filter
+makeFilter (suites, path, tags, options) =
   let
     withTags = case tags of
       [] -> allSelector
@@ -354,12 +420,16 @@ makeFilter (suites, path, tags) =
 
     genPath [] = withTags
     genPath (elem : rest) =
-      Selector { selectorInners = HashMap.singleton elem $! genPath rest,
-                 selectorTags = Nothing }
+      let
+        innermap = HashMap.singleton elem $! genPath rest
+      in
+        Selector { selectorInners = innermap, selectorTags = Nothing }
 
     withPath = genPath path
   in
-   Filter { filterSuites = HashSet.fromList suites, filterSelector = withPath }
+   Filter { filterSuites = HashSet.fromList suites,
+            filterSelector = HashSet.singleton withPath,
+            filterOptions = HashMap.fromList options }
 
 -- | Parse a 'Filter' expression.  The format for filter expressions is
 -- described in the module documentation.
@@ -378,7 +448,7 @@ commentParser =
   do
     _ <- char '#'
     _ <- many (noneOf "\n")
-    return $ ()
+    return ()
 
 lineParser :: Parser (Maybe Filter)
 lineParser =
@@ -388,8 +458,8 @@ lineParser =
     _ <- many space
     optional commentParser
     case content of
-      ([], [], []) -> return $ Nothing
-      _ -> return $ (Just (makeFilter content))
+      ([], [], [], []) -> return Nothing
+      _ -> return (Just $! makeFilter content)
 
 -- | Parse content from a testlist file.  The file must contain one
 -- filter per line.  Leading and trailing spaces are ignored, as are
@@ -405,8 +475,8 @@ parseFilterFileContent sourcename input =
     inputlines = Strict.lines input
     results = map (parse lineParser sourcename) inputlines
   in case partitionEithers results of
-    ([], maybes) -> Right (catMaybes maybes)
-    (errs, _) -> Left (map (Strict.pack . show) errs)
+    ([], maybes) -> Right $! catMaybes maybes
+    (errs, _) -> Left $! map (Strict.pack . show) errs
 
 -- | Given a 'FilePath', get the contents of the file and parse it as
 -- a testlist file.

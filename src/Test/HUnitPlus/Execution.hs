@@ -132,7 +132,8 @@ performTest rep initSelector initialState initialUs initialTest =
     --
     -- We also have to keep a set of tags by which we're filtering.
     -- The empty tag set means we don't actually filter at all.
-    performTest' Selector { selectorInners = inners, selectorTags = currtags }
+    performTest' s @ Selector { selectorInners = inners,
+                                selectorTags = currtags }
                  ss us Group { groupTests = testlist, groupName = gname } =
       let
         -- Build the new selector
@@ -141,8 +142,8 @@ performTest rep initSelector initialState initialUs initialTest =
           case HashMap.lookup (Strict.pack gname) inners of
             -- If we don't find anything, we can only keep executing
             -- if our tag state allows it.
-            Nothing -> Selector { selectorInners = HashMap.empty,
-                                  selectorTags = currtags }
+            Nothing -> s { selectorInners = HashMap.empty,
+                           selectorTags = currtags }
             -- Otherwise, combine the inner's tag state with ours and
             -- carry on.
             Just inner @ Selector { selectorTags = innertags } ->
@@ -198,9 +199,57 @@ performTest rep initSelector initialState initialUs initialTest =
 -- suite, execute all tests matching the selector, and log the rest as
 -- skipped.  If the map does not contain a selector, do not execute
 -- the suite, and do /not/ log its tests as skipped.
+performTestSuiteInstance :: Reporter us
+                         -- ^ Report generator to use for running the
+                         -- test suite.
+                         -> OptionMap
+                         -- ^ The options for this instance.
+                         -> Selector
+                         -- ^ The selector to use.
+                         -> State
+                         -- ^ HUnit-Plus internal state.
+                         -> us
+                         -- ^ State for the report generator.
+                         -> TestSuite
+                         -- ^ Test suite to be run.
+                         -> IO (State, us)
+performTestSuiteInstance rep @ Reporter { reporterStartSuite = reportStartSuite,
+                                          reporterEndSuite = reportEndSuite }
+                         instopts selector
+                         st @ State { stOptions = stopts } initialUs
+                         TestSuite { suiteName = sname, suiteTests = testlist,
+                                     suiteOptions = suiteOpts } =
+  let
+    makestate timestamp =
+      let
+        timestr = formatTime defaultTimeLocale "%c" timestamp
+        withtime = HashMap.insert "timestamp" (Strict.pack timestr) stopts
+        -- Don't allow people to override the system information
+        withInstOpts = HashMap.union withtime instopts
+        unioned = HashMap.union withInstOpts (HashMap.fromList suiteOpts)
+      in
+        return st { stOptions = unioned, stName = sname }
+
+    foldfun (c, us) = performTest rep selector c us
+  in do
+    timestamp <- getCurrentTime
+    state <- makestate timestamp
+    startedUs <- reportStartSuite state initialUs
+    (time, (finishedState @ State { stCounts = counts }, finishedUs)) <-
+      timeItT (foldM foldfun (state, startedUs) testlist)
+    endedUs <- reportEndSuite time finishedState finishedUs
+    return (finishedState { stCounts = counts { cCaseAsserts = 0 } },
+            endedUs)
+
+-- | Decide whether to execute a test suite based on a map from suite
+-- names to selectors.  If the map contains a selector for the test
+-- suite, execute all tests matching the selector, and log the rest as
+-- skipped.  If the map does not contain a selector, do not execute
+-- the suite, and do /not/ log its tests as skipped.
 performTestSuiteInternal :: Reporter us
-                         -- ^ Report generator to use for running the test suite.
-                         -> HashMap Strict.Text Selector
+                         -- ^ Report generator to use for running the
+                         -- test suite.
+                         -> HashMap Strict.Text (HashMap OptionMap Selector)
                          -- ^ The map containing selectors for each suite.
                          -> State
                          -- ^ HUnit-Plus internal state.
@@ -209,35 +258,16 @@ performTestSuiteInternal :: Reporter us
                          -> TestSuite
                          -- ^ Test suite to be run.
                          -> IO (State, us)
-performTestSuiteInternal rep @ Reporter { reporterStartSuite = reportStartSuite,
-                                          reporterEndSuite = reportEndSuite }
-                         filters st @ State { stOptions = stopts } initialUs
-                         TestSuite { suiteName = sname, suiteTests = testlist,
-                                     suiteOptions = suiteOpts } =
+performTestSuiteInternal rep filters initialSs initialUs
+                         suite @ TestSuite { suiteName = sname } =
   case HashMap.lookup sname filters of
-    Just selector ->
+    Just optmap ->
       let
-        makestate timestamp =
-          let
-            timestr = formatTime defaultTimeLocale "%c" timestamp
-            withtime = HashMap.insert "timestamp" (Strict.pack timestr) stopts
-            -- Don't allow people to override the system information
-            unioned = HashMap.union withtime (HashMap.fromList suiteOpts)
-          in
-            return st { stOptions = unioned, stName = sname }
-
-        foldfun (c, us) = performTest rep selector c us
-      in do
-        timestamp <- getCurrentTime
-        state <- makestate timestamp
-        startedUs <- reportStartSuite state initialUs
-        (time, (finishedState @ State { stCounts = counts }, finishedUs)) <-
-          timeItT (foldM foldfun (state, startedUs) testlist)
-        endedUs <- reportEndSuite time finishedState finishedUs
-        return (finishedState { stCounts = counts { cCaseAsserts = 0 } },
-                endedUs)
-    _ ->
-      return (st, initialUs)
+        foldfun (ss, us) (opts, selector) =
+          performTestSuiteInstance rep opts selector ss us suite
+      in
+        foldM foldfun (initialSs, initialUs) (HashMap.toList optmap)
+    _ -> return (initialSs, initialUs)
 
 initState :: State
 initState = State { stCounts = zeroCounts, stName = "",
@@ -246,7 +276,7 @@ initState = State { stCounts = zeroCounts, stName = "",
 
 performTestSuite :: Reporter us
                  -- ^ Report generator to use for running the test suite.
-                 -> HashMap Strict.Text Selector
+                 -> HashMap Strict.Text (HashMap OptionMap Selector)
                  -- ^ The map containing selectors for each suite.
                  -> us
                  -- ^ State for the report generator.
@@ -255,8 +285,8 @@ performTestSuite :: Reporter us
                  -> IO (Counts, us)
 performTestSuite rep filters us suite =
   do
-    (State { stCounts = out }, _) <- performTestSuiteInternal rep filters
-                                                              initState us suite
+    (State { stCounts = out }, _) <-
+      performTestSuiteInternal rep filters initState us suite
     return (out, us)
 
 -- | Top-level function for a test run.  Given a set of suites and a
@@ -267,7 +297,7 @@ performTestSuite rep filters us suite =
 -- their tests will /not/ be logged as skipped.
 performTestSuites :: Reporter us
                   -- ^ Report generator to use for running the test suite.
-                  -> HashMap Strict.Text Selector
+                  -> HashMap Strict.Text (HashMap OptionMap Selector)
                   -- ^ The processed filter to use.
                   -> [TestSuite]
                   -- ^ Test suite to be run.
