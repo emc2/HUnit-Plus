@@ -1,6 +1,6 @@
 Name:                   HUnit-Plus
 Category:               Testing, Test
-Version:                1.2.0
+Version:                2.0.0
 License:                BSD3
 License-File:           LICENSE
 Author:                 Eric McCorkle
@@ -39,6 +39,18 @@ Test-Suite RunTests
                         cmdargs, hashable, unordered-containers, time,
                         hostname, parsec, text, directory, HUnit-Plus,
                         bytestring
+  other-modules:        Tests
+                        Tests.Test
+                        Tests.Test.HUnitPlus
+                        Tests.Test.HUnitPlus.Base
+                        Tests.Test.HUnitPlus.Execution
+                        Tests.Test.HUnitPlus.Filter
+                        Tests.Test.HUnitPlus.Main
+                        Tests.Test.HUnitPlus.ReporterUtils
+                        Tests.Test.HUnitPlus.Reporting
+                        Tests.Test.HUnitPlus.Text
+                        Tests.Test.HUnitPlus.XML
+
 
 Library
   default-language:     Haskell2010
