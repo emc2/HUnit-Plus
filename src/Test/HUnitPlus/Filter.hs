@@ -17,9 +17,10 @@
 --
 -- The format for filters is as follows:
 --
--- \[/suite/\]\[/path/\]\[/tags/\]
+-- > [suite][path][tags][options]
 --
--- Where at least one of the /suite/, /path/, or /tags/ elements are present
+-- Where at least one of the /suite/, /path/, /tags/, or /options/
+-- elements are present
 --
 -- The /suite/ element is a comma-separated list of suite names (alphanumeric,
 -- no spaces), enclosed in brackets ('[' ']').
@@ -27,8 +28,11 @@
 -- The /path/ element is a series of path elements (alphanumeric, no
 -- spaces), separated by dots ('.').
 --
--- The /tags/ element consists of a '\@' character, followed by a
+-- The /tags/ element consists of a '@' character, followed by a
 -- comma-separated list of tag names (alphanumeric, no spaces).
+--
+-- The /options/ element consists of a '?' character, followed by a
+-- comma-separated list of \"name\"=\"value\" bindings.
 --
 -- The following are examples of textual filters, and their meanings:
 --
@@ -55,6 +59,18 @@
 -- * @[whitebox]network.protocol\@security@: Run all tests in the
 --   'whitebox' suite beginning with the path @network.protocol@ that
 --   have the 'security' tag.
+--
+-- * @first.second.third?\"var\"=\"val\"@: Run all tests starting with the path
+--   @first.second.third@, with the option \"var\" set to \"val\".
+--
+-- * @[unit]?\"timeout\"=\"5\"@: Run all tests in the suite 'unit'
+--   with the option \"timeout\" set to \"\5".
+--
+-- * @[system]?\"timeout\"=\"5\",\"threads\"=\"4\"@: Run all tests in
+-- the suite 'system' with the option 'timeout' set to '5' and
+-- 'threads' set to '4'.
+--
+-- * ?\"user\"=\"jeffk\": Run all tests with the 'user' option set to 'jeffk'.
 --
 -- The most common use case of filters is to select a single failing
 -- test to run, as part of fixing it.  In this case, a single filter

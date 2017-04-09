@@ -194,11 +194,7 @@ performTest rep initSelector initialState initialUs initialTest =
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
     return (ss', us')
 
--- | Decide whether to execute a test suite based on a map from suite
--- names to selectors.  If the map contains a selector for the test
--- suite, execute all tests matching the selector, and log the rest as
--- skipped.  If the map does not contain a selector, do not execute
--- the suite, and do /not/ log its tests as skipped.
+-- | Run a test suite with a given set of options.
 performTestSuiteInstance :: Reporter us
                          -- ^ Report generator to use for running the
                          -- test suite.
