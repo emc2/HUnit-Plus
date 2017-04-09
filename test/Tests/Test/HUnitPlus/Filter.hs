@@ -50,8 +50,9 @@ pathSelector inner (elem : path) =
              selectorTags = Nothing }
 
 makeFilter :: [Strict.Text] -> Selector -> Filter
-makeFilter names selector = Filter { filterSuites = HashSet.fromList names,
-                                     filterSelector = selector }
+makeFilter names selector =
+  Filter { filterSuites = HashSet.fromList names, filterOptions = HashMap.empty,
+           filterSelector = HashSet.singleton selector }
 
 suitesName :: [String] -> String
 suitesName [] = "no_suites"
@@ -161,24 +162,34 @@ fileTests =
                        selectorInners = HashMap.singleton "Inner" onlyTags }
       }
     pathTagsStr = "Outer.Inner@tag1,tag2"
-    suiteAllFilter = Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
-                              filterSelector = allSelector }
+    suiteAllFilter = Filter { filterSuites = HashSet.fromList ["Suite1",
+                                                               "Suite2"],
+                              filterOptions = HashMap.empty,
+                              filterSelector = HashSet.singleton allSelector }
     suiteFilterStr = "[Suite1,Suite2]"
     simplePathFilter = Filter { filterSuites = HashSet.empty,
-                                filterSelector = simplePath }
-    suitePathFilter = Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
-                               filterSelector = simplePath }
+                                filterOptions = HashMap.empty,
+                                filterSelector = HashSet.singleton simplePath }
+    suitePathFilter = Filter { filterSuites = HashSet.fromList ["Suite1",
+                                                                "Suite2"],
+                               filterOptions = HashMap.empty,
+                               filterSelector = HashSet.singleton simplePath }
     suitePathStr = suiteFilterStr ++ simplePathStr
     onlyTagsFilter = Filter { filterSuites = HashSet.empty,
-                                filterSelector = onlyTags }
-    suiteTagsFilter = Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
-                               filterSelector = onlyTags }
+                              filterOptions = HashMap.empty,
+                              filterSelector = HashSet.singleton onlyTags }
+    suiteTagsFilter = Filter { filterSuites = HashSet.fromList ["Suite1",
+                                                                "Suite2"],
+                               filterOptions = HashMap.empty,
+                               filterSelector = HashSet.singleton onlyTags }
     suiteTagsStr = suiteFilterStr ++ onlyTagsStr
     pathTagsFilter = Filter { filterSuites = HashSet.empty,
-                                filterSelector = pathTags }
+                              filterOptions = HashMap.empty,
+                              filterSelector = HashSet.singleton pathTags }
     suitePathTagsFilter =
       Filter { filterSuites = HashSet.fromList ["Suite1", "Suite2"],
-               filterSelector = pathTags }
+               filterOptions = HashMap.empty,
+               filterSelector = HashSet.singleton pathTags }
     suitePathTagsStr = suiteFilterStr ++ pathTagsStr
 
     suiteSequenceStrs = [ simplePathStr,
@@ -497,312 +508,472 @@ oneTwoPath = Selector { selectorInners = HashMap.fromList [("One", allSelector),
                         selectorTags = Nothing }
 
 emptyOneFilter :: Filter
-emptyOneFilter = Filter { filterSuites = HashSet.empty, filterSelector = onePath }
+emptyOneFilter = Filter { filterSuites = HashSet.empty,
+                          filterOptions = HashMap.empty,
+                          filterSelector = HashSet.singleton onePath }
 
 emptyTwoFilter :: Filter
-emptyTwoFilter = Filter { filterSuites = HashSet.empty, filterSelector = twoPath }
+emptyTwoFilter = Filter { filterSuites = HashSet.empty,
+                          filterOptions = HashMap.empty,
+                          filterSelector = HashSet.singleton twoPath }
 
 emptyOneTwoFilter :: Filter
 emptyOneTwoFilter = Filter { filterSuites = HashSet.empty,
-                             filterSelector = oneTwoPath }
+                             filterOptions = HashMap.empty,
+                             filterSelector = HashSet.singleton oneTwoPath }
 
 allAFilter :: Filter
 allAFilter = Filter { filterSuites = HashSet.singleton "A",
-                      filterSelector = allSelector }
+                      filterOptions = HashMap.empty,
+                      filterSelector = HashSet.singleton allSelector }
 
 oneAFilter :: Filter
 oneAFilter = Filter { filterSuites = HashSet.singleton "A",
-                      filterSelector = onePath }
+                      filterOptions = HashMap.empty,
+                      filterSelector = HashSet.singleton onePath }
 
 oneBFilter :: Filter
 oneBFilter = Filter { filterSuites = HashSet.singleton "B",
-                      filterSelector = onePath }
+                      filterOptions = HashMap.empty,
+                      filterSelector = HashSet.singleton onePath }
 
 oneABFilter :: Filter
 oneABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
-                       filterSelector = onePath }
+                       filterOptions = HashMap.empty,
+                       filterSelector = HashSet.singleton onePath }
 
 oneACFilter :: Filter
 oneACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
-                       filterSelector = onePath }
+                       filterOptions = HashMap.empty,
+                       filterSelector = HashSet.singleton onePath }
 
 twoAFilter :: Filter
 twoAFilter = Filter { filterSuites = HashSet.singleton "A",
-                      filterSelector = twoPath }
+                      filterOptions = HashMap.empty,
+                      filterSelector = HashSet.singleton twoPath }
 
 twoBFilter :: Filter
 twoBFilter = Filter { filterSuites = HashSet.singleton "B",
-                      filterSelector = twoPath }
+                      filterOptions = HashMap.empty,
+                      filterSelector = HashSet.singleton twoPath }
 
 twoABFilter :: Filter
 twoABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
-                       filterSelector = twoPath }
+                       filterOptions = HashMap.empty,
+                       filterSelector = HashSet.singleton twoPath }
 
 twoACFilter :: Filter
 twoACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
-                       filterSelector = twoPath }
+                       filterOptions = HashMap.empty,
+                       filterSelector = HashSet.singleton twoPath }
 
 oneTwoAFilter :: Filter
 oneTwoAFilter = Filter { filterSuites = HashSet.singleton "A",
-                         filterSelector = oneTwoPath }
+                         filterOptions = HashMap.empty,
+                         filterSelector = HashSet.singleton oneTwoPath }
 
 oneTwoBFilter :: Filter
 oneTwoBFilter = Filter { filterSuites = HashSet.singleton "B",
-                         filterSelector = oneTwoPath }
+                         filterOptions = HashMap.empty,
+                         filterSelector = HashSet.singleton oneTwoPath }
 
 oneTwoABFilter :: Filter
 oneTwoABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
-                          filterSelector = oneTwoPath }
+                          filterOptions = HashMap.empty,
+                          filterSelector = HashSet.singleton oneTwoPath }
 
 oneTwoACFilter :: Filter
 oneTwoACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
-                          filterSelector = oneTwoPath }
+                          filterOptions = HashMap.empty,
+                          filterSelector = HashSet.singleton oneTwoPath }
 
 allBFilter :: Filter
 allBFilter = Filter { filterSuites = HashSet.singleton "B",
-                      filterSelector = allSelector }
+                      filterOptions = HashMap.empty,
+                      filterSelector = HashSet.singleton allSelector }
 
 allCFilter :: Filter
 allCFilter = Filter { filterSuites = HashSet.singleton "C",
-                      filterSelector = allSelector }
+                      filterOptions = HashMap.empty,
+                      filterSelector = HashSet.singleton allSelector }
 
 allABFilter :: Filter
 allABFilter = Filter { filterSuites = HashSet.fromList ["A", "B"],
-                       filterSelector = allSelector }
+                       filterOptions = HashMap.empty,
+                       filterSelector = HashSet.singleton allSelector }
 
 allACFilter :: Filter
 allACFilter = Filter { filterSuites = HashSet.fromList ["A", "C"],
-                       filterSelector = allSelector }
+                       filterOptions = HashMap.empty,
+                       filterSelector = HashSet.singleton allSelector }
 
 allBCFilter :: Filter
 allBCFilter = Filter { filterSuites = HashSet.fromList ["B", "C"],
-                       filterSelector = allSelector }
+                       filterOptions = HashMap.empty,
+                       filterSelector = HashSet.singleton allSelector }
 
 
-filterTestCases :: [(String, [String], [Filter], [(Strict.Text, Selector)])]
+filterTestCases :: [(String, [String], [Filter],
+                     [(Strict.Text, HashMap OptionMap Selector)])]
 filterTestCases = [
-    ("A_nil", ["A"], [], [("A", allSelector)]),
-    ("AB_nil", ["A", "B"], [], [("A", allSelector), ("B", allSelector)]),
+    ("A_nil", ["A"], [],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("AB_nil", ["A", "B"], [],
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_nil", ["A", "B", "C"], [],
-     [("A", allSelector), ("B", allSelector), ("C", allSelector)]),
-    ("A_emptyOne", ["A"], [emptyOneFilter], [("A", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector),
+      ("C", HashMap.singleton HashMap.empty allSelector)]),
+    ("A_emptyOne", ["A"], [emptyOneFilter],
+     [("A", HashMap.singleton HashMap.empty onePath)]),
     ("AB_emptyOne", ["A", "B"], [emptyOneFilter],
-     [("A", onePath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_emptyOne", ["A", "B", "C"], [emptyOneFilter],
-     [("A", onePath), ("B", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("A_emptyOne_emptyTwo", ["A"], [emptyOneFilter, emptyTwoFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_emptyOne_emptyTwo", ["A", "B"], [emptyOneFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_emptyOne_emptyTwo", ["A", "B", "C"], [emptyOneFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_emptyOne_emptyOneTwo", ["A"], [emptyOneFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_emptyOne_emptyOneTwo", ["A", "B"], [emptyOneFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_emptyOne_emptyOneTwo", ["A", "B", "C"], [emptyOneFilter,
                                                    emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
-    ("A_allA", ["A"], [allAFilter], [("A", allSelector)]),
-    ("A_OneA", ["A"], [oneAFilter], [("A", onePath)]),
-    ("A_OneA_OneA", ["A"], [oneAFilter, oneAFilter], [("A", onePath)]),
-    ("A_OneA_TwoA", ["A"], [oneAFilter, twoAFilter], [("A", oneTwoPath)]),
-    ("A_OneA_OneTwoA", ["A"], [oneAFilter, oneTwoAFilter], [("A", oneTwoPath)]),
-    ("A_OneA_allA", ["A"], [oneAFilter, allAFilter], [("A", allSelector)]),
-    ("A_allA_allA", ["A"], [allAFilter, allAFilter], [("A", allSelector)]),
-    ("A_OneA_emptyOne", ["A"], [oneAFilter, emptyOneFilter], [("A", onePath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
+    ("A_allA", ["A"], [allAFilter],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("A_OneA", ["A"], [oneAFilter],
+     [("A", HashMap.singleton HashMap.empty onePath)]),
+    ("A_OneA_OneA", ["A"], [oneAFilter, oneAFilter],
+     [("A", HashMap.singleton HashMap.empty onePath)]),
+    ("A_OneA_TwoA", ["A"], [oneAFilter, twoAFilter],
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
+    ("A_OneA_OneTwoA", ["A"], [oneAFilter, oneTwoAFilter],
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
+    ("A_OneA_allA", ["A"], [oneAFilter, allAFilter],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("A_allA_allA", ["A"], [allAFilter, allAFilter],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("A_OneA_emptyOne", ["A"], [oneAFilter, emptyOneFilter],
+     [("A", HashMap.singleton HashMap.empty onePath)]),
     ("A_TwoA_emptyOne", ["A"], [twoAFilter, emptyOneFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_OneTwoA_emptyOne", ["A"], [oneTwoAFilter, emptyOneFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_allA_emptyOne", ["A"], [allAFilter, emptyOneFilter],
-     [("A", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
     ("A_OneA_emptyTwo", ["A"], [oneAFilter, emptyTwoFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_TwoA_emptyTwo", ["A"], [twoAFilter, emptyTwoFilter],
-     [("A", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty twoPath)]),
     ("A_OneTwoA_emptyTwo", ["A"], [oneTwoAFilter, emptyTwoFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_allA_emptyTwo", ["A"], [allAFilter, emptyTwoFilter],
-     [("A", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
     ("A_OneA_emptyOneTwo", ["A"], [oneAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_TwoA_emptyOneTwo", ["A"], [twoAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_OneTwoA_emptyOneTwo", ["A"], [oneTwoAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("A_allA_emptyOneTwo", ["A"], [allAFilter, emptyOneTwoFilter],
-     [("A", allSelector)]),
-    ("AB_allA", ["A", "B"], [allAFilter], [("A", allSelector)]),
-    ("AB_OneA", ["A", "B"], [oneAFilter], [("A", onePath)]),
-    ("AB_OneA_OneA", ["A", "B"], [oneAFilter, oneAFilter], [("A", onePath)]),
-    ("AB_OneA_TwoA", ["A", "B"], [oneAFilter, twoAFilter], [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("AB_allA", ["A", "B"], [allAFilter],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("AB_OneA", ["A", "B"], [oneAFilter],
+     [("A", HashMap.singleton HashMap.empty onePath)]),
+    ("AB_OneA_OneA", ["A", "B"], [oneAFilter, oneAFilter],
+     [("A", HashMap.singleton HashMap.empty onePath)]),
+    ("AB_OneA_TwoA", ["A", "B"], [oneAFilter, twoAFilter],
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_OneA_OneTwoA", ["A", "B"], [oneAFilter, oneTwoAFilter],
-     [("A", oneTwoPath)]),
-    ("AB_OneA_allA", ["A", "B"], [oneAFilter, allAFilter], [("A", allSelector)]),
-    ("AB_allA_allA", ["A", "B"], [allAFilter, allAFilter], [("A", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
+    ("AB_OneA_allA", ["A", "B"], [oneAFilter, allAFilter],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("AB_allA_allA", ["A", "B"], [allAFilter, allAFilter],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
     ("AB_OneA_OneB", ["A", "B"], [oneAFilter, oneBFilter],
-     [("A", onePath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_allA_OneB", ["A", "B"], [allAFilter, oneBFilter],
-     [("A", allSelector), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_OneA_allB", ["A", "B"], [oneAFilter, allBFilter],
-     [("A", onePath), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("AB_allA_allB", ["A", "B"], [allAFilter, allBFilter],
-     [("A", allSelector), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("AB_OneA_OneAB", ["A", "B"], [oneAFilter, oneABFilter],
-     [("A", onePath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_OneA_TwoAB", ["A", "B"], [oneAFilter, twoABFilter],
-     [("A", oneTwoPath), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("AB_OneA_OneTwoAB", ["A", "B"], [oneAFilter, oneTwoABFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_allA_OneAB", ["A", "B"], [allAFilter, oneABFilter],
-     [("A", allSelector), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_allA_TwoAB", ["A", "B"], [allAFilter, twoABFilter],
-     [("A", allSelector), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("AB_allA_OneTwoAB", ["A", "B"], [allAFilter, oneTwoABFilter],
-     [("A", allSelector), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_OneA_allAB", ["A", "B"], [oneAFilter, allABFilter],
-     [("A", allSelector), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("AB_allA_allAB", ["A", "B"], [allAFilter, allABFilter],
-     [("A", allSelector), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("AB_OneA_emptyOne", ["A", "B"], [oneAFilter, emptyOneFilter],
-     [("A", onePath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_TwoA_emptyOne", ["A", "B"], [twoAFilter, emptyOneFilter],
-     [("A", oneTwoPath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_OneTwoA_emptyOne", ["A", "B"], [oneTwoAFilter, emptyOneFilter],
-     [("A", oneTwoPath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_allA_emptyOne", ["A", "B"], [allAFilter, emptyOneFilter],
-     [("A", allSelector), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("AB_OneA_emptyTwo", ["A", "B"], [oneAFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("AB_TwoA_emptyTwo", ["A", "B"], [twoAFilter, emptyTwoFilter],
-     [("A", twoPath), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty twoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("AB_OneTwoA_emptyTwo", ["A", "B"], [oneTwoAFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("AB_allA_emptyTwo", ["A", "B"], [allAFilter, emptyTwoFilter],
-     [("A", allSelector), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("AB_OneA_emptyOneTwo", ["A", "B"], [oneAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_TwoA_emptyOneTwo", ["A", "B"], [twoAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_OneTwoA_emptyOneTwo", ["A", "B"], [oneTwoAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("AB_allA_emptyOneTwo", ["A", "B"], [allAFilter, emptyOneTwoFilter],
-     [("A", allSelector), ("B", oneTwoPath)]),
-    ("ABC_allA", ["A", "B", "C"], [allAFilter], [("A", allSelector)]),
-    ("ABC_OneA", ["A", "B", "C"], [oneAFilter], [("A", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
+    ("ABC_allA", ["A", "B", "C"], [allAFilter],
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
+    ("ABC_OneA", ["A", "B", "C"], [oneAFilter],
+     [("A", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneA_OneA", ["A", "B", "C"], [oneAFilter, oneAFilter],
-     [("A", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneA_TwoA", ["A", "B", "C"], [oneAFilter, twoAFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_OneA_OneTwoA", ["A", "B", "C"], [oneAFilter, oneTwoAFilter],
-     [("A", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_OneA_allA", ["A", "B", "C"], [oneAFilter, allAFilter],
-     [("A", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_allA_allA", ["A", "B", "C"], [allAFilter, allAFilter],
-     [("A", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_OneA_OneB", ["A", "B", "C"], [oneAFilter, oneBFilter],
-     [("A", onePath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_allA_OneB", ["A", "B", "C"], [allAFilter, oneBFilter],
-     [("A", allSelector), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneA_allB", ["A", "B", "C"], [oneAFilter, allBFilter],
-     [("A", onePath), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_allA_allB", ["A", "B", "C"], [allAFilter, allBFilter],
-     [("A", allSelector), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_OneA_OneAB", ["A", "B", "C"], [oneAFilter, oneABFilter],
-     [("A", onePath), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneA_TwoAB", ["A", "B", "C"], [oneAFilter, twoABFilter],
-     [("A", oneTwoPath), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_OneA_OneTwoAB", ["A", "B", "C"], [oneAFilter, oneTwoABFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_OneA_OneAC", ["A", "B", "C"], [oneAFilter, oneACFilter],
-     [("A", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneA_TwoAC", ["A", "B", "C"], [oneAFilter, twoACFilter],
-     [("A", oneTwoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_OneA_OneTwoAC", ["A", "B", "C"], [oneAFilter, oneTwoACFilter],
-     [("A", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_OneAB_OneAC", ["A", "B", "C"], [oneABFilter, oneACFilter],
-     [("A", onePath), ("B", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneAB_TwoAC", ["A", "B", "C"], [oneABFilter, twoACFilter],
-     [("A", oneTwoPath), ("B", onePath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_OneAB_OneTwoAC", ["A", "B", "C"], [oneABFilter, oneTwoACFilter],
-     [("A", oneTwoPath), ("B", onePath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_allA_OneAB", ["A", "B", "C"], [allAFilter, oneABFilter],
-     [("A", allSelector), ("B", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_allA_TwoAB", ["A", "B", "C"], [allAFilter, twoABFilter],
-     [("A", allSelector), ("B", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_allA_OneTwoAB", ["A", "B", "C"], [allAFilter, oneTwoABFilter],
-     [("A", allSelector), ("B", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_allAC_OneAB", ["A", "B", "C"], [allACFilter, oneABFilter],
-     [("A", allSelector), ("B", onePath), ("C", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_allAC_TwoAB", ["A", "B", "C"], [allACFilter, twoABFilter],
-     [("A", allSelector), ("B", twoPath), ("C", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty twoPath),
+      ("C", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_allAC_OneTwoAB", ["A", "B", "C"], [allACFilter, oneTwoABFilter],
-     [("A", allSelector), ("B", oneTwoPath), ("C", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_OneA_allAB", ["A", "B", "C"], [oneAFilter, allABFilter],
-     [("A", allSelector), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_allA_allAB", ["A", "B", "C"], [allAFilter, allABFilter],
-     [("A", allSelector), ("B", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_OneA_allAB", ["A", "B", "C"], [oneACFilter, allABFilter],
-     [("A", allSelector), ("B", allSelector), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_allA_allAB", ["A", "B", "C"], [allACFilter, allABFilter],
-     [("A", allSelector), ("B", allSelector), ("C", allSelector)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector),
+      ("C", HashMap.singleton HashMap.empty allSelector)]),
     ("ABC_OneA_emptyOne", ["A", "B", "C"], [oneAFilter, emptyOneFilter],
-     [("A", onePath), ("B", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_TwoA_emptyOne", ["A", "B", "C"], [twoAFilter, emptyOneFilter],
-     [("A", oneTwoPath), ("B", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneTwoA_emptyOne", ["A", "B", "C"], [oneTwoAFilter, emptyOneFilter],
-     [("A", oneTwoPath), ("B", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_allA_emptyOne", ["A", "B", "C"], [allAFilter, emptyOneFilter],
-     [("A", allSelector), ("B", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneAB_emptyOne", ["A", "B", "C"], [oneABFilter, emptyOneFilter],
-     [("A", onePath), ("B", onePath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty onePath),
+      ("B", HashMap.singleton HashMap.empty onePath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_TwoAB_emptyOne", ["A", "B", "C"], [twoABFilter, emptyOneFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneTwoAB_emptyOne", ["A", "B", "C"], [oneTwoABFilter, emptyOneFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_allAB_emptyOne", ["A", "B", "C"], [allABFilter, emptyOneFilter],
-     [("A", allSelector), ("B", allSelector), ("C", onePath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector),
+      ("C", HashMap.singleton HashMap.empty onePath)]),
     ("ABC_OneA_emptyTwo", ["A", "B", "C"], [oneAFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", twoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_TwoA_emptyTwo", ["A", "B", "C"], [twoAFilter, emptyTwoFilter],
-     [("A", twoPath), ("B", twoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty twoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_OneTwoA_emptyTwo", ["A", "B", "C"], [oneTwoAFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", twoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_allA_emptyTwo", ["A", "B", "C"], [allAFilter, emptyTwoFilter],
-     [("A", allSelector), ("B", twoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty twoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_OneAB_emptyTwo", ["A", "B", "C"], [oneABFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_TwoAB_emptyTwo", ["A", "B", "C"], [twoABFilter, emptyTwoFilter],
-     [("A", twoPath), ("B", twoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty twoPath),
+      ("B", HashMap.singleton HashMap.empty twoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_OneTwoAB_emptyTwo", ["A", "B", "C"], [oneTwoABFilter, emptyTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_allAB_emptyTwo", ["A", "B", "C"], [allABFilter, emptyTwoFilter],
-     [("A", allSelector), ("B", allSelector), ("C", twoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector),
+      ("C", HashMap.singleton HashMap.empty twoPath)]),
     ("ABC_OneA_emptyOneTwo", ["A", "B", "C"], [oneAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_TwoA_emptyOneTwo", ["A", "B", "C"], [twoAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_OneTwoA_emptyOneTwo", ["A", "B", "C"],
      [oneTwoAFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_allA_emptyOneTwo", ["A", "B", "C"], [allAFilter, emptyOneTwoFilter],
-     [("A", allSelector), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_OneAB_emptyOneTwo", ["A", "B", "C"], [oneABFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_TwoAB_emptyOneTwo", ["A", "B", "C"], [twoABFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_OneTwoAB_emptyOneTwo", ["A", "B", "C"],
      [oneTwoABFilter, emptyOneTwoFilter],
-     [("A", oneTwoPath), ("B", oneTwoPath), ("C", oneTwoPath)]),
+     [("A", HashMap.singleton HashMap.empty oneTwoPath),
+      ("B", HashMap.singleton HashMap.empty oneTwoPath),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)]),
     ("ABC_allAB_emptyOneTwo", ["A", "B", "C"], [allABFilter, emptyOneTwoFilter],
-     [("A", allSelector), ("B", allSelector), ("C", oneTwoPath)])
+     [("A", HashMap.singleton HashMap.empty allSelector),
+      ("B", HashMap.singleton HashMap.empty allSelector),
+      ("C", HashMap.singleton HashMap.empty oneTwoPath)])
   ]
 
 filterTests :: [Test]
 filterTests =
   let
-    makeTest :: (String, [String], [Filter], [(Strict.Text, Selector)]) -> Test
+    makeTest :: (String, [String], [Filter],
+                 [(Strict.Text, HashMap OptionMap Selector)])
+             -> Test
     makeTest (name, suites, filters, expected) =
       let
         runTest =

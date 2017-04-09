@@ -325,16 +325,19 @@ makeOuterGroup mfilter initialTests =
 modfilters = [ All, WithTags (True, False), WithTags (False, True),
                WithTags (True, True), None ]
 
-genFilter :: Strict.Text -> [(TestSuite, [ReportEvent],
-                              HashMap Strict.Text Selector, Counts)]
+genFilter :: Strict.Text
+          -> [(TestSuite, [ReportEvent],
+               HashMap Strict.Text (HashMap OptionMap Selector), Counts)]
 genFilter sname =
   let
     -- Take a root ModFilter and an initial (suite list, event list,
     -- selectors).  We generate a stock suite, derive a selector from
     -- the root ModFilter, and produce a list of possible (suite list,
     -- event list, selectors)'s, one for each possibility.
-    suiteTestInst :: ModFilter -> [(TestSuite, [ReportEvent],
-                                    HashMap Strict.Text Selector, Counts)]
+    suiteTestInst :: ModFilter
+                  -> [(TestSuite, [ReportEvent],
+                       HashMap Strict.Text (HashMap OptionMap Selector),
+                       Counts)]
     suiteTestInst mfilter =
       let
         -- Initial state for a filter
@@ -373,7 +376,8 @@ genFilter sname =
         -- the events list.
         buildSuite :: ([Test], [ReportEvent], State, [Selector]) ->
                       (TestSuite, [ReportEvent],
-                       HashMap Strict.Text Selector, Counts)
+                       HashMap Strict.Text (HashMap OptionMap Selector),
+                       Counts)
         buildSuite (tests, _, _, []) =
           let
             suite =
@@ -394,11 +398,20 @@ genFilter sname =
             eventsWithEnd = EndSuiteEvent state : events
 
             -- Add an entry for this suite to the selector map
-            selectormap :: HashMap Strict.Text Selector
+            selectormap :: HashMap Strict.Text (HashMap OptionMap Selector)
             selectormap =
               case selectors of
-                [one] -> HashMap.singleton sname one
-                _ -> HashMap.singleton sname (foldl1 combineSelectors selectors)
+                [one] ->
+                  let
+                    optmap = HashMap.singleton HashMap.empty one
+                  in
+                    HashMap.singleton sname optmap
+                _ ->
+                  let
+                    combined = foldl1 combineSelectors selectors
+                    optmap = HashMap.singleton HashMap.empty combined
+                  in
+                    HashMap.singleton sname optmap
           in
             (suite, reverse eventsWithEnd, selectormap, counts)
       in
@@ -408,17 +421,20 @@ genFilter sname =
     -- and add it to the existing list of test instances.
     concatMap suiteTestInst modfilters
 
-suite1Data :: [(TestSuite, [ReportEvent], HashMap Strict.Text Selector, Counts)]
+suite1Data :: [(TestSuite, [ReportEvent],
+                HashMap Strict.Text (HashMap OptionMap Selector), Counts)]
 suite1Data = genFilter "Suite1"
 
-suite2Data :: [(TestSuite, [ReportEvent], HashMap Strict.Text Selector, Counts)]
+suite2Data :: [(TestSuite, [ReportEvent],
+                HashMap Strict.Text (HashMap OptionMap Selector), Counts)]
 suite2Data = genFilter "Suite2"
 
 combineSuites :: (TestSuite, [ReportEvent],
-                  HashMap Strict.Text Selector, Counts) ->
+                  HashMap Strict.Text (HashMap OptionMap Selector), Counts) ->
                  (TestSuite, [ReportEvent],
-                  HashMap Strict.Text Selector, Counts) ->
-                 ([TestSuite], [ReportEvent], HashMap Strict.Text Selector)
+                  HashMap Strict.Text (HashMap OptionMap Selector), Counts) ->
+                 ([TestSuite], [ReportEvent],
+                  HashMap Strict.Text (HashMap OptionMap Selector))
 combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                                        cCases = cases1,
                                                        cErrors = errors1,
@@ -578,14 +594,16 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
     (suites, events, selectormap)
 
 
-suiteData :: [([TestSuite], [ReportEvent], HashMap Strict.Text Selector)]
+suiteData :: [([TestSuite], [ReportEvent],
+               HashMap Strict.Text (HashMap OptionMap Selector))]
 suiteData = foldl (\accum suite1 ->
                     foldl (\accum suite2 ->
                             (combineSuites suite1 suite2) : accum)
                           accum suite2Data)
                   [] suite1Data
 
-makeExecutionTest :: ([TestSuite], [ReportEvent], HashMap Strict.Text Selector) ->
+makeExecutionTest :: ([TestSuite], [ReportEvent],
+                      HashMap Strict.Text (HashMap OptionMap Selector)) ->
                      (Int, [Test]) -> (Int, [Test])
 makeExecutionTest (suites, expected, selectors) (index, tests) =
   let
