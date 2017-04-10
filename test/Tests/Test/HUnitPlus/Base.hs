@@ -13,6 +13,7 @@ import Distribution.TestSuite(Test(..),
                               Progress(..),
                               testGroup)
 import Test.HUnitPlus.Base
+import Test.HUnitPlus.Execution
 import Test.HUnitPlus.Reporting
 
 import qualified Data.HashMap.Strict as HashMap
@@ -61,7 +62,7 @@ makeTestCase (Test TestInstance { name = actualName,
     runRealTest =
       do
         (_, State { stCounts = actualCounts }, actualEvents) <-
-          executeTest loggingReporter initState [] runInnerTest
+          executeTest loggingReporter defaultTimeout initState [] runInnerTest
         return (genResult actualCounts actualEvents)
 
     testInstance = TestInstance { name = actualName, tags = [], options = [],

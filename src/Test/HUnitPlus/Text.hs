@@ -128,7 +128,7 @@ textReporter (PutText put initUs) verbose =
         timestr = printf "%.6f" time
         timeline = Strict.concat ["Tests completed in ",
                                   Strict.pack timestr, " sec\n"]
-      in do
+      in
         if verbose
           then do
             us' <- put timeline us
@@ -171,7 +171,8 @@ runTestText puttext @ (PutText put us0) verbose t =
 
     reporter = textReporter puttext verbose
   in do
-    (ss1, us1) <- ((performTest $! reporter) allSelector $! initState) us0 t
+    (ss1, us1) <- ((performTest $! reporter) allSelector defaultTimeout $!
+                                             initState) us0 t
     us2 <- put (Strict.concat [showCounts (stCounts ss1), "\n"]) us1
     return (stCounts ss1, us2)
 
@@ -300,7 +301,8 @@ runTestTT t =
                         stPath = [], stOptions = HashMap.empty,
                         stOptionDescs = [] }
   in do
-    (ss1, us1) <- (performTest terminalReporter allSelector $! initState) 0 t
+    (ss1, us1) <- (performTest terminalReporter allSelector defaultTimeout $!
+                                                initState) 0 t
     0 <- termPut (showCounts (stCounts ss1)) True us1
     return (stCounts ss1)
 

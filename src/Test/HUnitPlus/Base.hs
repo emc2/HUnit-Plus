@@ -76,7 +76,10 @@ module Test.HUnitPlus.Base(
        logError,
        withPrefix,
        getErrors,
-       getFailures
+       getFailures,
+
+       -- * Constants
+       defaultTimeout
        ) where
 
 import Control.Exception hiding (assert)
@@ -85,6 +88,7 @@ import Data.IORef
 import Data.Typeable
 import Data.Word
 import Distribution.TestSuite
+import GHC.Event
 import Prelude hiding (concat, sum, sequence_)
 import System.IO.Unsafe
 import System.TimeIt
@@ -117,8 +121,14 @@ data TestInfo =
     tiIgnoreResult :: !Bool,
     -- | 'Text' to attach to every failure message as a prefix.
     tiPrefix :: !Strict.Text,
-    tiHeartbeat :: !Bool
+    tiTimeout :: !Int,
+    tiHeartbeat :: !Bool,
+    tiTimeoutKey :: TimeoutKey
   }
+
+-- | The default timeout (60 seconds)
+defaultTimeout :: Int
+defaultTimeout = 60000000
 
 errorCode :: Word
 errorCode = 0
@@ -137,6 +147,8 @@ testinfo :: IORef TestInfo
 testinfo = unsafePerformIO $! newIORef TestInfo { tiAsserts = 0, tiEvents = [],
                                                   tiIgnoreResult = False,
                                                   tiHeartbeat = False,
+                                                  tiTimeout = defaultTimeout,
+                                                  tiTimeoutKey = undefined,
                                                   tiPrefix = "" }
 
 -- | Does the actual work of executing a test.  This maintains the
@@ -144,6 +156,8 @@ testinfo = unsafePerformIO $! newIORef TestInfo { tiAsserts = 0, tiEvents = [],
 -- sets up exception handlers and times the test.
 executeTest :: Reporter us
             -- ^ The reporter to use for reporting results.
+            -> Int
+            -- ^ Timeout amount.
             -> State
             -- ^ The HUnit internal state.
             -> us
@@ -152,7 +166,7 @@ executeTest :: Reporter us
             -- ^ The test to run.
             -> IO (Double, State, us)
 executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
-            ss usInitial runTest =
+            timeout ss usInitial runTest =
   let
     -- Run the test until a finished result is produced
     finishTestCase time us action =
@@ -181,7 +195,14 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
                     return (Finished (Error ("Uncaught exception in test: " ++
                                              show ex)))
 
-        caughtAction = catch action handleExceptions
+        wrapped =
+          do
+            heartbeat
+            out <- action
+            cancelTimeout
+            return out
+
+        caughtAction = catch wrapped handleExceptions
       in do
         (inctime, progress) <- timeItT caughtAction
         case progress of
@@ -191,7 +212,7 @@ executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
               finishTestCase (time + inctime) usNext nextAction
           Finished res -> return (res, us, time + inctime)
   in do
-    resetTestInfo
+    resetTestInfo timeout
     (res, usFinished, time) <- finishTestCase 0 usInitial runTest
     (ssReported, usReported) <- reportTestInfo res rep ss usFinished
     return (time, ssReported, usReported)
@@ -266,16 +287,37 @@ reportTestInfo result Reporter { reporterError = reportError,
 ignoreResult :: IO ()
 ignoreResult = modifyIORef testinfo (\t -> t { tiIgnoreResult = True })
 
-resetTestInfo :: IO ()
-resetTestInfo = writeIORef testinfo TestInfo { tiAsserts = 0,
-                                               tiEvents = [],
-                                               tiIgnoreResult = False,
-                                               tiHeartbeat = False,
-                                               tiPrefix = "" }
+timeoutAbort :: IO ()
+timeoutAbort = abortError "Test timed out"
+
+resetTestInfo :: Int -> IO ()
+resetTestInfo timeout =
+  do
+    mgr <- getSystemTimerManager
+    key <- registerTimeout mgr timeout timeoutAbort
+    writeIORef testinfo TestInfo { tiAsserts = 0,
+                                   tiEvents = [],
+                                   tiIgnoreResult = False,
+                                   tiHeartbeat = False,
+                                   tiPrefix = "",
+                                   tiTimeout = timeout,
+                                   tiTimeoutKey = key }
 
 -- | Indicate test progress.
 heartbeat :: IO ()
-heartbeat = modifyIORef testinfo (\t -> t { tiHeartbeat = True })
+heartbeat =
+  do
+    mgr <- getSystemTimerManager
+    TestInfo { tiTimeoutKey = key, tiTimeout = timeout } <- readIORef testinfo
+    updateTimeout mgr key timeout
+
+cancelTimeout :: IO ()
+cancelTimeout =
+  do
+    mgr <- getSystemTimerManager
+    TestInfo { tiTimeoutKey = key } <- readIORef testinfo
+    unregisterTimeout mgr key
+
 
 -- | Execute the given computation with a message prefix.
 withPrefix :: Strict.Text -> IO () -> IO ()

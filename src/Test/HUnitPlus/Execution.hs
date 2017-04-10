@@ -10,7 +10,7 @@ module Test.HUnitPlus.Execution(
        performTestCase,
        performTest,
        performTestSuite,
-       performTestSuites
+       performTestSuites,
        ) where
 
 import Control.Monad (unless, foldM)
@@ -33,6 +33,8 @@ import qualified Data.Text as Strict
 -- | Execute an individual test case.
 performTestCase :: Reporter us
                 -- ^ Report generator for the test run.
+                -> Int
+                -- ^ The timeout interval.
                 -> State
                 -- ^ HUnit-Plus internal state.
                 -> us
@@ -43,6 +45,7 @@ performTestCase :: Reporter us
 performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
                                   reporterError = reportError,
                                   reporterEndCase = reportEndCase }
+                timeout
                 ss @ State { stCounts = c @ Counts { cTried = tried,
                                                      cCases = cases },
                               stName = oldname, stOptions = optmap,
@@ -80,7 +83,8 @@ performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
     -- Call the reporter's start case function
     usStarted <- reportStartCase ssWithName usOpts
     -- Actually run the test
-    (time, ssFinal, usFinal) <- executeTest rep ssWithName usStarted runTest
+    (time, ssFinal, usFinal) <- executeTest rep timeout ssWithName
+                                            usStarted runTest
     -- Call the reporters end case function
     usEnded <- reportEndCase time ssFinal usFinal
     -- Restore the old name before returning
@@ -115,6 +119,8 @@ performTest :: Reporter us
             -- ^ Report generator for the test run.
             -> Selector
             -- ^ The selector to apply to all tests in the suite.
+            -> Int
+            -- ^ The timeout.
             -> State
             -- ^ HUnit-Plus internal state.
             -> us
@@ -122,7 +128,7 @@ performTest :: Reporter us
             -> Test
             -- ^ The test to be executed.
             -> IO (State, us)
-performTest rep initSelector initialState initialUs initialTest =
+performTest rep initSelector timeout initialState initialUs initialTest =
   let
     -- The recursive worker function that actually runs all the tests
     --
@@ -184,7 +190,7 @@ performTest rep initSelector initialState initialUs initialTest =
                                  (map Strict.pack testtags)
       in
         if canExecute
-          then performTestCase rep ss us t
+          then performTestCase rep timeout ss us t
           else skipTestCase rep ss us t
     performTest' selector ss @ State { stOptionDescs = descs }
                  us (ExtraOptions newopts inner) =
@@ -193,6 +199,30 @@ performTest rep initSelector initialState initialUs initialTest =
     (ss', us') <- performTest' initSelector initialState initialUs initialTest
     unless (null (stPath ss')) $ error "performTest: Final path is nonnull"
     return (ss', us')
+
+parseTimeout :: Strict.Text
+             -> Maybe Int
+parseTimeout str = case reads (Strict.unpack str) of
+  [(n, "")] -> Just n
+  [(n, "us")] -> Just n
+  [(n, "uS")] -> Just n
+  [(n, "usec")] -> Just n
+  [(n, "ms")] -> Just $! n * 1000
+  [(n, "mS")] -> Just $! n * 1000
+  [(n, "msec")] -> Just $! n * 1000
+  [(n, "s")] -> Just $! n * 1000000
+  [(n, "S")] -> Just $! n * 1000000
+  [(n, "sec")] -> Just $! n * 1000000
+  [(n, "m")] -> Just $! n * 60000000
+  [(n, "M")] -> Just $! n * 60000000
+  [(n, "min")] -> Just $! n * 60000000
+  [(n, "h")] -> Just $! n * 3600000000
+  [(n, "H")] -> Just $! n * 3600000000
+  [(n, "hour")] -> Just $! n * 3600000000
+  [(n, "d")] -> Just $! n * 86400000000
+  [(n, "D")] -> Just $! n * 86400000000
+  [(n, "day")] -> Just $! n * 86400000000
+  _ -> Nothing
 
 -- | Run a test suite with a given set of options.
 performTestSuiteInstance :: Reporter us
@@ -210,6 +240,7 @@ performTestSuiteInstance :: Reporter us
                          -- ^ Test suite to be run.
                          -> IO (State, us)
 performTestSuiteInstance rep @ Reporter { reporterStartSuite = reportStartSuite,
+                                          reporterError = reportError,
                                           reporterEndSuite = reportEndSuite }
                          instopts selector
                          st @ State { stOptions = stopts } initialUs
@@ -226,13 +257,27 @@ performTestSuiteInstance rep @ Reporter { reporterStartSuite = reportStartSuite,
       in
         return st { stOptions = unioned, stName = sname }
 
-    foldfun (c, us) = performTest rep selector c us
+    foldfun timeout (c, us) = performTest rep selector timeout c us
+
+    getTimeout ss @ State { stOptions = opts } us =
+      case HashMap.lookup "timeout" opts of
+        Just timeoutstr -> case parseTimeout timeoutstr of
+          Just msec -> return (msec, us)
+          Nothing ->
+            let
+              errstr = Strict.concat ["Invalid timeout value \"",
+                                      timeoutstr, "\""]
+            in do
+              us' <- reportError errstr ss us
+              return (defaultTimeout, us')
+        Nothing -> return (defaultTimeout, us)
   in do
     timestamp <- getCurrentTime
     state <- makestate timestamp
     startedUs <- reportStartSuite state initialUs
+    (timeout, reportedUs) <- getTimeout state startedUs
     (time, (finishedState @ State { stCounts = counts }, finishedUs)) <-
-      timeItT (foldM foldfun (state, startedUs) testlist)
+      timeItT (foldM (foldfun timeout) (state, reportedUs) testlist)
     endedUs <- reportEndSuite time finishedState finishedUs
     return (finishedState { stCounts = counts { cCaseAsserts = 0 } },
             endedUs)
@@ -316,7 +361,8 @@ performTestSuites rep @ Reporter { reporterStart = reportStart,
                                 ("compiler-name",
                                  Strict.pack compilerName),
                                 ("compiler-version",
-                                 Strict.pack (showVersion compilerVersion))]
+                                 Strict.pack (showVersion compilerVersion)),
+                                ("timeout", "60s")]
                }
   in do
     initialUs <- reportStart
