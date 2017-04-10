@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.0.0
+-----
+
+New feature release
+
+* Added files for stack support
+* Added full support for options
+* Fixed a terminal reporting bug
+
 1.0.1
 -----
 
