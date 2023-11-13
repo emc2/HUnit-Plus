@@ -65,33 +65,33 @@ initState = State { stName = "", stPath = [], stCounts = zeroCounts,
                     stOptions = HashMap.empty, stOptionDescs = [] }
 
 setName :: Strict.Text -> ReporterOp us
-setName name (s @ State { stName = _ }, repstate) =
+setName name (s@State { stName = _ }, repstate) =
   return (s { stName = name }, repstate)
 
 setOpt :: Strict.Text -> Strict.Text -> ReporterOp us
-setOpt key value (s @ State { stOptions = opts }, repstate) =
+setOpt key value (s@State { stOptions = opts }, repstate) =
   return (s { stOptions = HashMap.insert key value opts }, repstate)
 
 pushPath :: Strict.Text -> ReporterOp us
-pushPath name (s @ State { stPath = path }, repstate) =
+pushPath name (s@State { stPath = path }, repstate) =
   return (s { stPath = Label name : path }, repstate)
 
 popPath :: ReporterOp us
-popPath (s @ State { stPath = _ : path }, repstate) =
+popPath (s@State { stPath = _ : path }, repstate) =
   return (s { stPath = path }, repstate)
 
 addOption :: Strict.Text -> Strict.Text -> ReporterOp us
-addOption key value (s @ State { stOptions = opts }, repstate) =
+addOption key value (s@State { stOptions = opts }, repstate) =
   return (s { stOptions = HashMap.insert key value opts }, repstate)
 
 countAsserts :: Word -> ReporterOp us
-countAsserts count (s @ State { stCounts = c @ Counts { cAsserts = n } },
+countAsserts count (s@State { stCounts = c@Counts { cAsserts = n } },
                     repstate) =
   return (s { stCounts = c { cAsserts = n + count,
                              cCaseAsserts = count } }, repstate)
 
 countTried :: Word -> ReporterOp us
-countTried count (s @ State { stCounts = c @ Counts { cCases = cases,
+countTried count (s@State { stCounts = c@Counts { cCases = cases,
                                                       cTried = tried } },
                   repstate) =
   return (s { stCounts = c { cCases = cases + count,
@@ -99,7 +99,7 @@ countTried count (s @ State { stCounts = c @ Counts { cCases = cases,
           repstate)
 
 countSkipped :: Word -> ReporterOp us
-countSkipped count (s @ State { stCounts = c @ Counts { cSkipped = skipped,
+countSkipped count (s@State { stCounts = c@Counts { cSkipped = skipped,
                                                         cCases = cases } },
                   repstate) =
   return (s { stCounts = c { cSkipped = skipped + count,
@@ -107,12 +107,12 @@ countSkipped count (s @ State { stCounts = c @ Counts { cSkipped = skipped,
           repstate)
 
 countErrors :: Word -> ReporterOp us
-countErrors count (s @ State { stCounts = c @ Counts { cErrors = errors } },
+countErrors count (s@State { stCounts = c@Counts { cErrors = errors } },
                    repstate) =
   return (s { stCounts = c { cErrors = errors + count } }, repstate)
 
 countFailed :: Word -> ReporterOp us
-countFailed count (s @ State { stCounts = c @ Counts { cFailures = failed } },
+countFailed count (s@State { stCounts = c@Counts { cFailures = failed } },
                    repstate) =
   return (s { stCounts = c { cFailures = failed + count } }, repstate)
 
@@ -177,7 +177,7 @@ reportEndSuite reporter time (state, repstate) =
     return (state, repstate')
 
 reportEnd :: Reporter us -> Double -> ReporterOp us
-reportEnd reporter time (state @ State { stCounts = counts }, repstate) =
+reportEnd reporter time (state@State { stCounts = counts }, repstate) =
   do
     repstate' <- (reporterEnd reporter) time counts repstate
     return (state, repstate')

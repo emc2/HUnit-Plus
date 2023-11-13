@@ -84,14 +84,14 @@ makeAssert (Normal (Fail msg)) = assertFailure (Strict.pack msg)
 makeAssert (Normal (Error msg)) = abortError (Strict.pack msg)
 makeAssert Exception = throwIO TestException
 
-updateCounts (Normal Pass) c @ Counts { cAsserts = asserts } =
+updateCounts (Normal Pass) c@Counts { cAsserts = asserts } =
   c { cAsserts = asserts + 1, cCaseAsserts = 1 }
-updateCounts (Normal (Fail _)) c @ Counts { cFailures = fails,
+updateCounts (Normal (Fail _)) c@Counts { cFailures = fails,
                                             cAsserts = asserts } =
   c { cFailures = fails + 1, cAsserts = asserts + 1, cCaseAsserts = 1 }
-updateCounts (Normal (Error _)) c @ Counts { cErrors = errors } =
+updateCounts (Normal (Error _)) c@Counts { cErrors = errors } =
   c { cErrors = errors + 1, cCaseAsserts = 0 }
-updateCounts Exception c @ Counts { cErrors = errors } =
+updateCounts Exception c@Counts { cErrors = errors } =
   c { cErrors = errors + 1, cCaseAsserts = 0 }
 
 makeName :: (Bool, Bool, Behavior) -> Strict.Text
@@ -99,7 +99,7 @@ makeName (tag1, tag2, res) =
   Strict.concat [makeTagName tag1 tag2, "_", makeResName res]
 
 makeTest :: String -> (Bool, Bool, Behavior) -> Test
-makeTest prefix tdata @ (tag1, tag2, res) =
+makeTest prefix tdata@(tag1, tag2, res) =
   let
     inittags = if tag1 then ["tag1"] else []
     tags = if tag2 then "tag2" : inittags else inittags
@@ -119,10 +119,10 @@ makeTestData :: String -> ([Test], [ReportEvent], State) ->
                 ([Test], [ReportEvent], State)
 makeTestData prefix
              (tests, events,
-              ss @ State { stName = oldname,
-                           stCounts = counts @ Counts { cCases = cases,
+              ss@State { stName = oldname,
+                           stCounts = counts@Counts { cCases = cases,
                                                         cTried = tried } })
-             (Right tdata @ (tag1, tag2, res)) =
+             (Right tdata@(tag1, tag2, res)) =
   let
     startedCounts = counts { cCases = cases + 1, cTried = tried + 1 }
     finishedCounts = updateCounts res startedCounts
@@ -149,8 +149,8 @@ makeTestData prefix
     (makeTest prefix tdata : tests, newevents,
      ssFinished { stName = oldname })
 makeTestData prefix
-             (tests, events, ss @ State { stCounts =
-                                             c @ Counts { cSkipped = skipped,
+             (tests, events, ss@State { stCounts =
+                                             c@Counts { cSkipped = skipped,
                                                           cCases = cases },
                                           stName = oldname })
              (Left tdata) =
@@ -178,14 +178,14 @@ testData = foldl (\accum tag1 ->
                          accum tagVals)
                  [] tagVals
 
-tag1Filter tdata @ (True, _, _) = Right tdata
+tag1Filter tdata@(True, _, _) = Right tdata
 tag1Filter tdata = Left tdata
 
-tag2Filter tdata @ (_, True, _) = Right tdata
+tag2Filter tdata@(_, True, _) = Right tdata
 tag2Filter tdata = Left tdata
 
-tag12Filter tdata @ (True, _, _) = Right tdata
-tag12Filter tdata @ (_, True, _) = Right tdata
+tag12Filter tdata@(True, _, _) = Right tdata
+tag12Filter tdata@(_, True, _) = Right tdata
 tag12Filter tdata = Left tdata
 
 data ModFilter = All | WithTags (Bool, Bool) | None deriving Show
@@ -252,7 +252,7 @@ makeLeafGroup gname wrapinner mfilter initialTests =
     mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
               (ModFilter, Selector, Bool) ->
               ([Test], [ReportEvent], State, [Selector])
-    mapfun (tests, events, ss @ State { stPath = oldpath }, selectors)
+    mapfun (tests, events, ss@State { stPath = oldpath }, selectors)
            (mfilter, selector, valid) =
       let
         ssWithPath = ss { stPath = Label (Strict.pack gname) : oldpath }
@@ -280,7 +280,7 @@ makeOuterGroup mfilter initialTests =
     mapfun :: ([Test], [ReportEvent], State, [Selector]) ->
               (ModFilter, Selector, Bool) ->
               [([Test], [ReportEvent], State, [Selector])]
-    mapfun (tests, events, ss @ State { stPath = oldpath }, selectors)
+    mapfun (tests, events, ss@State { stPath = oldpath }, selectors)
            (mfilter, selector, valid) =
       let
         ssWithPath = ss { stPath = Label "Outer" : oldpath }
@@ -385,7 +385,7 @@ genFilter sname =
                           suiteConcurrently = True, suiteOptions = [] }
           in
             (suite, [], HashMap.empty, zeroCounts)
-        buildSuite (tests, events, state @ State { stCounts = counts },
+        buildSuite (tests, events, state@State { stCounts = counts },
                     selectors) =
           let
             -- Build the test suite out of the name and test list, add
@@ -443,7 +443,7 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                                        cTried = tried1 })
               (suite2, events2, selectormap2, counts2) =
   let
-    bumpCounts (EndEvent c @ Counts { cAsserts = asserts2,
+    bumpCounts (EndEvent c@Counts { cAsserts = asserts2,
                                       cCases = cases2,
                                       cErrors = errors2,
                                       cFailures = failures2,
@@ -455,8 +455,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                    cFailures = failures1 + failures2,
                    cSkipped = skipped1 + skipped2,
                    cTried = tried1 + tried2 }
-    bumpCounts (StartSuiteEvent s @ State { stCounts =
-                                              c @ Counts { cAsserts = asserts2,
+    bumpCounts (StartSuiteEvent s@State { stCounts =
+                                              c@Counts { cAsserts = asserts2,
                                                            cCases = cases2,
                                                            cErrors = errors2,
                                                            cFailures = failures2,
@@ -468,8 +468,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                          cFailures = failures1 + failures2,
                                          cSkipped = skipped1 + skipped2,
                                          cTried = tried1 + tried2 } }
-    bumpCounts (EndSuiteEvent s @ State { stCounts =
-                                            c @ Counts { cAsserts = asserts2,
+    bumpCounts (EndSuiteEvent s@State { stCounts =
+                                            c@Counts { cAsserts = asserts2,
                                                          cCases = cases2,
                                                          cErrors = errors2,
                                                          cFailures = failures2,
@@ -481,8 +481,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                        cFailures = failures1 + failures2,
                                        cSkipped = skipped1 + skipped2,
                                        cTried = tried1 + tried2 } }
-    bumpCounts (StartCaseEvent s @ State { stCounts =
-                                             c @ Counts { cAsserts = asserts2,
+    bumpCounts (StartCaseEvent s@State { stCounts =
+                                             c@Counts { cAsserts = asserts2,
                                                           cCases = cases2,
                                                           cErrors = errors2,
                                                           cFailures = failures2,
@@ -494,8 +494,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                         cFailures = failures1 + failures2,
                                         cSkipped = skipped1 + skipped2,
                                         cTried = tried1 + tried2 } }
-    bumpCounts (EndCaseEvent s @ State { stCounts =
-                                           c @ Counts { cAsserts = asserts2,
+    bumpCounts (EndCaseEvent s@State { stCounts =
+                                           c@Counts { cAsserts = asserts2,
                                                         cCases = cases2,
                                                         cErrors = errors2,
                                                         cFailures = failures2,
@@ -507,8 +507,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                       cFailures = failures1 + failures2,
                                       cSkipped = skipped1 + skipped2,
                                       cTried = tried1 + tried2 } }
-    bumpCounts (SkipEvent s @ State { stCounts =
-                                        c @ Counts { cAsserts = asserts2,
+    bumpCounts (SkipEvent s@State { stCounts =
+                                        c@Counts { cAsserts = asserts2,
                                                      cCases = cases2,
                                                      cErrors = errors2,
                                                      cFailures = failures2,
@@ -520,8 +520,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                    cFailures = failures1 + failures2,
                                    cSkipped = skipped1 + skipped2,
                                    cTried = tried1 + tried2 } }
-    bumpCounts (ProgressEvent msg s @ State { stCounts =
-                                                c @ Counts { cAsserts = asserts2,
+    bumpCounts (ProgressEvent msg s@State { stCounts =
+                                                c@Counts { cAsserts = asserts2,
                                                              cCases = cases2,
                                                              cErrors = errors2,
                                                              cFailures = failures2,
@@ -533,8 +533,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                            cFailures = failures1 + failures2,
                                            cSkipped = skipped1 + skipped2,
                                            cTried = tried1 + tried2 } }
-    bumpCounts (FailureEvent msg s @ State { stCounts =
-                                               c @ Counts { cAsserts = asserts2,
+    bumpCounts (FailureEvent msg s@State { stCounts =
+                                               c@Counts { cAsserts = asserts2,
                                                             cCases = cases2,
                                                             cErrors = errors2,
                                                             cFailures = failures2,
@@ -546,8 +546,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                           cFailures = failures1 + failures2,
                                           cSkipped = skipped1 + skipped2,
                                           cTried = tried1 + tried2 } }
-    bumpCounts (ErrorEvent msg s @ State { stCounts =
-                                             c @ Counts { cAsserts = asserts2,
+    bumpCounts (ErrorEvent msg s@State { stCounts =
+                                             c@Counts { cAsserts = asserts2,
                                                           cCases = cases2,
                                                           cErrors = errors2,
                                                           cFailures = failures2,
@@ -559,8 +559,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                         cFailures = failures1 + failures2,
                                         cSkipped = skipped1 + skipped2,
                                         cTried = tried1 + tried2 } }
-    bumpCounts (SystemErrEvent msg s @ State { stCounts =
-                                                 c @ Counts { cAsserts = asserts2,
+    bumpCounts (SystemErrEvent msg s@State { stCounts =
+                                                 c@Counts { cAsserts = asserts2,
                                                               cCases = cases2,
                                                               cErrors = errors2,
                                                               cFailures = failures2,
@@ -572,8 +572,8 @@ combineSuites (suite1, events1, selectormap1, Counts { cAsserts = asserts1,
                                             cFailures = failures1 + failures2,
                                             cSkipped = skipped1 + skipped2,
                                             cTried = tried1 + tried2 } }
-    bumpCounts (SystemOutEvent msg s @ State { stCounts =
-                                                 c @ Counts { cAsserts = asserts2,
+    bumpCounts (SystemOutEvent msg s@State { stCounts =
+                                                 c@Counts { cAsserts = asserts2,
                                                               cCases = cases2,
                                                               cErrors = errors2,
                                                               cFailures = failures2,

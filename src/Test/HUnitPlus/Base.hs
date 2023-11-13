@@ -151,7 +151,7 @@ executeTest :: Reporter us
             -> IO Progress
             -- ^ The test to run.
             -> IO (Double, State, us)
-executeTest rep @ Reporter { reporterCaseProgress = reportCaseProgress }
+executeTest rep@Reporter { reporterCaseProgress = reportCaseProgress }
             ss usInitial runTest =
   let
     -- Run the test until a finished result is produced
@@ -203,7 +203,7 @@ reportTestInfo result Reporter { reporterError = reportError,
                                  reporterFailure = reportFailure,
                                  reporterSystemOut = reportSystemOut,
                                  reporterSystemErr = reportSystemErr }
-               ss @ State { stCounts = c @ Counts { cAsserts = asserts,
+               ss@State { stCounts = c@Counts { cAsserts = asserts,
                                                     cFailures = failures,
                                                     cErrors = errors } }
                initialUs =
@@ -281,7 +281,7 @@ heartbeat = modifyIORef testinfo (\t -> t { tiHeartbeat = True })
 withPrefix :: Strict.Text -> IO () -> IO ()
 withPrefix prefix c =
   do
-    t @ TestInfo { tiPrefix = oldprefix } <- readIORef testinfo
+    t@TestInfo { tiPrefix = oldprefix } <- readIORef testinfo
     writeIORef testinfo t { tiPrefix = Strict.concat [prefix, oldprefix] }
     c
     modifyIORef testinfo (\t' -> t' { tiPrefix = oldprefix })
@@ -626,21 +626,21 @@ class Testable t where
   test = testNameTags syntheticName []
 
 instance Testable Test where
-  testNameTags newname newtags g @ Group { groupTests = testlist } =
+  testNameTags newname newtags g@Group { groupTests = testlist } =
     g { groupName = newname, groupTests = map (testTags newtags) testlist }
-  testNameTags newname newtags (Test t @ TestInstance { tags = oldtags }) =
+  testNameTags newname newtags (Test t@TestInstance { tags = oldtags }) =
     Test t { name = newname, tags = newtags ++ oldtags }
   testNameTags newname newtags (ExtraOptions opts t) =
     ExtraOptions opts (testNameTags newname newtags t)
 
-  testTags newtags g @ Group { groupTests = testlist } =
+  testTags newtags g@Group { groupTests = testlist } =
     g { groupTests = map (testTags newtags) testlist }
-  testTags newtags (Test t @ TestInstance { tags = oldtags }) =
+  testTags newtags (Test t@TestInstance { tags = oldtags }) =
     Test t { tags = newtags ++ oldtags }
   testTags newtags (ExtraOptions opts t) =
     ExtraOptions opts (testTags newtags t)
 
-  testName newname g @ Group {} = g { groupName = newname }
+  testName newname g@Group {} = g { groupName = newname }
   testName newname (Test t) = Test t { name = newname }
   testName newname (ExtraOptions opts t) =
     ExtraOptions opts (testName newname t)

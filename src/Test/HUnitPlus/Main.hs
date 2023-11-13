@@ -284,7 +284,7 @@ createMain suites =
 -- to supply their own options, and to decide what to do with the
 -- result of test execution.
 topLevel :: [TestSuite] -> Opts -> IO (Either [Strict.Text] Bool)
-topLevel suites cmdopts @ Opts { consmode = cmodeopt } =
+topLevel suites cmdopts@Opts { consmode = cmodeopt } =
   let
     cmode = case cmodeopt of
       [] -> Right Text

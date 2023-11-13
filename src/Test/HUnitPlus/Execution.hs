@@ -40,14 +40,14 @@ performTestCase :: Reporter us
                 -> TestInstance
                 -- ^ The test to be executed.
                 -> IO (State, us)
-performTestCase rep @ Reporter { reporterStartCase = reportStartCase,
+performTestCase rep@Reporter { reporterStartCase = reportStartCase,
                                   reporterError = reportError,
                                   reporterEndCase = reportEndCase }
-                ss @ State { stCounts = c @ Counts { cTried = tried,
+                ss@State { stCounts = c@Counts { cTried = tried,
                                                      cCases = cases },
                               stName = oldname, stOptions = optmap,
                               stOptionDescs = descs } initialUs
-                initTi @ TestInstance { name = testname,
+                initTi@TestInstance { name = testname,
                                         options = testdescs,
                                         setOption = setopt } =
   let
@@ -97,7 +97,7 @@ skipTestCase :: Reporter us
              -- ^ The test to be executed.
              -> IO (State, us)
 skipTestCase Reporter { reporterSkipCase = reportSkipCase }
-             ss @ State { stCounts = c @ Counts { cSkipped = skipped,
+             ss@State { stCounts = c@Counts { cSkipped = skipped,
                                                   cCases = cases },
                           stName = oldname } us
              TestInstance { name = testname } =
@@ -132,7 +132,7 @@ performTest rep initSelector initialState initialUs initialTest =
     --
     -- We also have to keep a set of tags by which we're filtering.
     -- The empty tag set means we don't actually filter at all.
-    performTest' s @ Selector { selectorInners = inners,
+    performTest' s@Selector { selectorInners = inners,
                                 selectorTags = currtags }
                  ss us Group { groupTests = testlist, groupName = gname } =
       let
@@ -146,7 +146,7 @@ performTest rep initSelector initialState initialUs initialTest =
                            selectorTags = currtags }
             -- Otherwise, combine the inner's tag state with ours and
             -- carry on.
-            Just inner @ Selector { selectorTags = innertags } ->
+            Just inner@Selector { selectorTags = innertags } ->
               inner { selectorTags = combineTags currtags innertags }
 
         -- Update the path for running the group's tests
@@ -160,7 +160,7 @@ performTest rep initSelector initialState initialUs initialTest =
         -- Return the state, reset to the old path
         return (ssAfter { stPath = oldpath }, usAfter)
     performTest' Selector { selectorInners = inners, selectorTags = currtags }
-                 ss us (Test t @ TestInstance { name = testname,
+                 ss us (Test t@TestInstance { name = testname,
                                                 tags = testtags }) =
       let
         -- Get the final tag state
@@ -186,7 +186,7 @@ performTest rep initSelector initialState initialUs initialTest =
         if canExecute
           then performTestCase rep ss us t
           else skipTestCase rep ss us t
-    performTest' selector ss @ State { stOptionDescs = descs }
+    performTest' selector ss@State { stOptionDescs = descs }
                  us (ExtraOptions newopts inner) =
       performTest' selector ss { stOptionDescs = descs ++ newopts } us inner
   in do
@@ -209,10 +209,10 @@ performTestSuiteInstance :: Reporter us
                          -> TestSuite
                          -- ^ Test suite to be run.
                          -> IO (State, us)
-performTestSuiteInstance rep @ Reporter { reporterStartSuite = reportStartSuite,
+performTestSuiteInstance rep@Reporter { reporterStartSuite = reportStartSuite,
                                           reporterEndSuite = reportEndSuite }
                          instopts selector
-                         st @ State { stOptions = stopts } initialUs
+                         st@State { stOptions = stopts } initialUs
                          TestSuite { suiteName = sname, suiteTests = testlist,
                                      suiteOptions = suiteOpts } =
   let
@@ -231,7 +231,7 @@ performTestSuiteInstance rep @ Reporter { reporterStartSuite = reportStartSuite,
     timestamp <- getCurrentTime
     state <- makestate timestamp
     startedUs <- reportStartSuite state initialUs
-    (time, (finishedState @ State { stCounts = counts }, finishedUs)) <-
+    (time, (finishedState@State { stCounts = counts }, finishedUs)) <-
       timeItT (foldM foldfun (state, startedUs) testlist)
     endedUs <- reportEndSuite time finishedState finishedUs
     return (finishedState { stCounts = counts { cCaseAsserts = 0 } },
@@ -255,7 +255,7 @@ performTestSuiteInternal :: Reporter us
                          -- ^ Test suite to be run.
                          -> IO (State, us)
 performTestSuiteInternal rep filters initialSs initialUs
-                         suite @ TestSuite { suiteName = sname } =
+                         suite@TestSuite { suiteName = sname } =
   case HashMap.lookup sname filters of
     Just optmap ->
       let
@@ -298,7 +298,7 @@ performTestSuites :: Reporter us
                   -> [TestSuite]
                   -- ^ Test suite to be run.
                   -> IO (Counts, us)
-performTestSuites rep @ Reporter { reporterStart = reportStart,
+performTestSuites rep@Reporter { reporterStart = reportStart,
                                    reporterEnd = reportEnd }
                   filters suites =
   let
