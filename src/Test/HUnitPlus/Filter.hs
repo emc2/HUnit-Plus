@@ -228,7 +228,7 @@ noOptionsAllSelector = HashMap.singleton HashMap.empty allSelector
 
 -- | Eliminate redundant nested tags from a Selector.
 reduceSelector :: Maybe (HashSet Strict.Text) -> Selector -> Maybe Selector
-reduceSelector parentTags s @ Selector { selectorInners = inners,
+reduceSelector parentTags s@Selector { selectorInners = inners,
                                          selectorTags = tags } =
   let
     newTags = diffTags tags parentTags
@@ -248,9 +248,9 @@ combineSelectors selector1 selector2 =
                            Selector -> Selector ->
                            Maybe Selector
     tryCombineSelectors parentTags
-                        s1 @ Selector { selectorInners = inners1,
+                        s1@Selector { selectorInners = inners1,
                                         selectorTags = tags1 }
-                        s2 @ Selector { selectorInners = inners2,
+                        s2@Selector { selectorInners = inners2,
                                         selectorTags = tags2 }
         -- Short-circuit case for allSelector.
       | s1 == allSelector || s2 == allSelector = Just allSelector

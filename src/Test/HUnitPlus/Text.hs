@@ -163,7 +163,7 @@ runTestText :: PutText us
             -> Test
             -- ^ The test to run
             -> IO (Counts, us)
-runTestText puttext @ (PutText put us0) verbose t =
+runTestText puttext@(PutText put us0) verbose t =
   let
     initState = State { stCounts = zeroCounts, stName = "",
                         stPath = [], stOptions = HashMap.empty,
@@ -190,8 +190,8 @@ runSuiteText :: PutText us
              -> TestSuite
              -- ^ The test suite to run.
              -> IO (Counts, us)
-runSuiteText puttext @ (PutText put us0) verbose
-             suite @ TestSuite { suiteName = sname } =
+runSuiteText puttext@(PutText put us0) verbose
+             suite@TestSuite { suiteName = sname } =
   let
     selectorMap = HashMap.singleton sname (HashMap.singleton HashMap.empty
                                                              allSelector)
@@ -216,7 +216,7 @@ runSuitesText :: PutText us
               -> [TestSuite]
               -- ^ The test to run
               -> IO (Counts, us)
-runSuitesText puttext @ (PutText put _) verbose suites =
+runSuitesText puttext@(PutText put _) verbose suites =
   let
     suiteNames = map suiteName suites
     selectorMap =
@@ -313,7 +313,7 @@ runTestTT t =
 -- This function is deprecated.  The preferred way to run tests is to
 -- use the functions in "Test.HUnitPlus.Main".
 runSuiteTT :: TestSuite -> IO Counts
-runSuiteTT suite @ TestSuite { suiteName = sname } =
+runSuiteTT suite@TestSuite { suiteName = sname } =
   let
     selectorMap = HashMap.singleton sname (HashMap.singleton HashMap.empty
                                                              allSelector)

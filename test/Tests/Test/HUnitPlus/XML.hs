@@ -39,7 +39,7 @@ reportEnd = Utils.reportEnd xmlReporter
 reportEndSuite :: Double -> ReporterOp
 reportEndSuite time state =
   let
-    removeTimestamp ((e @ Element { eAttributes = attrs } : rest) : stack) =
+    removeTimestamp ((e@Element { eAttributes = attrs } : rest) : stack) =
       (e { eAttributes = filter ((/= "timestamp") . fst) attrs } : rest) : stack
     removeTimestamp out = out
   in do
